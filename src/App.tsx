@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Resources from "./pages/Resources";
 import ResourceDetail from "./pages/ResourceDetail";
+import NewResource from "./pages/NewResource";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -20,6 +21,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/resources" element={<Resources />} />
+          <Route path="/resources/new" element={<NewResource />} />
           <Route path="/resource/:id" element={<ResourceDetail />} />
           <Route path="/settings" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

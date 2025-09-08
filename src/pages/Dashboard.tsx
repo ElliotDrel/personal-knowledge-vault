@@ -2,19 +2,21 @@ import { Layout } from '@/components/layout/Layout';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { mockResources, getRecentResources, resourceTypeConfig } from '@/data/mockData';
+import { resourceTypeConfig } from '@/data/mockData';
+import { getResources, getRecentResources } from '@/data/storage';
 import { Link } from 'react-router-dom';
 import { Plus, TrendingUp, BookOpen, Target, Brain } from 'lucide-react';
 
 const Dashboard = () => {
+  const resources = getResources();
   const recentResources = getRecentResources(3);
-  const totalResources = mockResources.length;
+  const totalResources = resources.length;
   
   // Stats by type
   const statsByType = Object.entries(resourceTypeConfig).map(([type, config]) => ({
     type,
     config,
-    count: mockResources.filter(r => r.type === type).length
+    count: resources.filter(r => r.type === type).length
   }));
 
   return (

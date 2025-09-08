@@ -6,7 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
-import { getResourceById, resourceTypeConfig } from '@/data/mockData';
+import { MarkdownEditor } from '@/components/ui/markdown-editor';
+import { resourceTypeConfig } from '@/data/mockData';
+import { getResourceById, updateResource } from '@/data/storage';
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -52,14 +54,16 @@ const ResourceDetail = () => {
   const config = resourceTypeConfig[resource.type];
 
   const handleSaveNotes = () => {
-    // In a real app, this would save to the backend
-    console.log('Saving notes:', notes);
+    if (!resource) return;
+    updateResource(resource.id, { notes });
+    console.log('Saved notes for resource:', resource.id);
     setIsEditingNotes(false);
   };
 
   const handleSaveTranscript = () => {
-    // In a real app, this would save to the backend
-    console.log('Saving transcript:', transcript);
+    if (!resource) return;
+    updateResource(resource.id, { transcript });
+    console.log('Saved transcript for resource:', resource.id);
     setIsEditingTranscript(false);
   };
 
@@ -214,11 +218,12 @@ const ResourceDetail = () => {
           </CardHeader>
           <CardContent>
             {isEditingNotes ? (
-              <Textarea
+              <MarkdownEditor
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(value) => setNotes(value)}
                 placeholder="Write your notes here... You can use markdown formatting."
-                className="min-h-[400px] font-reading text-base leading-relaxed resize-none"
+                height={400}
+                className="font-reading text-base leading-relaxed"
               />
             ) : (
               <div className="prose prose-slate max-w-none font-reading">

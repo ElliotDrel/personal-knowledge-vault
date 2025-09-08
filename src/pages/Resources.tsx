@@ -4,7 +4,8 @@ import { ResourceCard } from '@/components/resources/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { mockResources, resourceTypeConfig, Resource } from '@/data/mockData';
+import { resourceTypeConfig, Resource } from '@/data/mockData';
+import { getResources } from '@/data/storage';
 import { Link } from 'react-router-dom';
 import { Search, Filter, Plus, Grid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -14,8 +15,10 @@ const Resources = () => {
   const [selectedType, setSelectedType] = useState<Resource['type'] | 'all'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+  const resources = getResources();
+
   // Filter resources based on search and type
-  const filteredResources = mockResources.filter((resource) => {
+  const filteredResources = resources.filter((resource) => {
     const matchesSearch = resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          resource.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          resource.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -29,7 +32,7 @@ const Resources = () => {
 
   // Get resource counts by type
   const typeCounts = Object.entries(resourceTypeConfig).reduce((acc, [type, config]) => {
-    acc[type] = mockResources.filter(r => r.type === type).length;
+    acc[type] = resources.filter(r => r.type === type).length;
     return acc;
   }, {} as Record<string, number>);
 
