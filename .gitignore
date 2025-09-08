@@ -25,3 +25,6 @@ dist-ssr
 
 # Claude Code
 settings.local.json
+
+# Package Lock
+package-lock.json
