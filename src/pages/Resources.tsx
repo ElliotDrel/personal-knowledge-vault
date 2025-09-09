@@ -98,7 +98,7 @@ const Resources = () => {
               onClick={() => setSelectedType('all')}
               className="transition-smooth"
             >
-              All ({mockResources.length})
+              All ({resources.length})
             </Button>
             {Object.entries(resourceTypeConfig).map(([type, config]) => (
               <Button
