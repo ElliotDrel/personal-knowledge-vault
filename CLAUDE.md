@@ -7,12 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Development
 - `npm run dev` - Start development server on port 8080
 - `npm run build` - Build for production
-- `npm run build:dev` - Build in development mode
-- `npm run preview` - Preview production build locally
 - `npm run lint` - Run ESLint to check code quality
+- `npm run preview` - Preview production build locally
 
 ### Package Management
-This project uses npm with a package-lock.json file. Use `npm install` to install dependencies.
+This project uses npm. Use `npm install` to install dependencies.
 
 ## Architecture
 
@@ -22,8 +21,8 @@ This is a React-based personal knowledge storage application built with:
 - **TypeScript** for type safety
 - **shadcn/ui** component library with Radix UI primitives
 - **Tailwind CSS** for styling with custom design tokens
-- **TanStack Query** for state management
-- **React Hook Form** with Zod validation
+- **@uiw/react-md-editor** for markdown editing
+- **localStorage** for data persistence
 
 ### Key Architecture Patterns
 
@@ -31,17 +30,19 @@ This is a React-based personal knowledge storage application built with:
 - `src/components/ui/` - shadcn/ui components (auto-generated, avoid editing)
 - `src/components/layout/` - Layout components (Layout, Navigation)
 - `src/components/resources/` - Domain-specific components
-- `src/pages/` - Route components (Dashboard, Resources, ResourceDetail, Settings, NotFound)
+- `src/pages/` - Route components (Dashboard, Resources, ResourceDetail, NewResource, Settings, NotFound)
 
 **Data Layer:**
-- `src/data/mockData.ts` - Mock data and utility functions for resources
-- Resource interface defines the core data model with types: book, video, podcast, article
-- Each resource has metadata (author/creator, platform, duration, etc.), content (description, notes, transcript), and organizational data (tags, dates)
+- `src/data/storage.ts` - **CRITICAL: Always use this for data operations**
+- `src/data/mockData.ts` - Resource interfaces and sample data
+- **Never use mockResources directly** - always use storage layer functions
+- Available functions: `getResources()`, `addResource()`, `updateResource()`, `getResourceById()`
 
 **Routing:**
-Routes are defined in App.tsx:
-- `/` - Dashboard (main landing page)
+Routes defined in App.tsx:
+- `/` - Dashboard
 - `/resources` - Resources listing
+- `/resources/new` - Create new resource (critical route)
 - `/resource/:id` - Individual resource detail
 - `/settings` - Application settings
 - `*` - NotFound catch-all
@@ -49,19 +50,89 @@ Routes are defined in App.tsx:
 **Styling System:**
 - Uses Tailwind with CSS variables defined in `src/index.css`
 - Custom gradient and shadow utilities for design consistency
-- Component-specific color variants defined in `tailwind.config.ts`
 - shadcn/ui configuration in `components.json`
 
 **State Management:**
-- TanStack Query for server state (set up but using mock data currently)
+- localStorage for data persistence via `src/data/storage.ts`
 - React Hook Form for form state
-- Context providers configured in App.tsx
+- Local component state for UI interactions
 
 ### File Aliases
 - `@/` maps to `src/`
 - Import paths use the @ alias consistently throughout the codebase
 
-### Development Notes
+## Critical Implementation Patterns
+
+### Resource Management (Core Feature)
+```typescript
+// ✅ CORRECT - Use storage layer
+import { getResources, addResource, updateResource } from '@/data/storage';
+
+// ❌ WRONG - Never use mockResources directly
+import { mockResources } from '@/data/mockData';
+```
+
+### Form Patterns
+```typescript
+// Dynamic form rendering based on resourceTypeConfig
+const renderTypeSpecificFields = () => {
+  if (!selectedType) return null;
+  const config = resourceTypeConfig[selectedType];
+  return config.fields.map(field => /* render field */);
+};
+```
+
+### Component State Management
+```typescript
+// Controlled components with immediate persistence
+const [notes, setNotes] = useState(resource?.notes || '');
+const handleSave = () => {
+  updateResource(resource.id, { notes });
+  setIsEditing(false);
+};
+```
+
+## Common Issues & Solutions
+
+### Browser Extension Interference
+**Issue**: Shopping/coupon extensions cause console errors
+**Solution**: These are cosmetic - extension tries to parse app as e-commerce site
+**Action**: Safe to ignore, or use incognito mode for clean console
+
+### Data Migration Errors
+**Issue**: `mockResources is not defined` errors
+**Solution**: Always use storage layer functions, never direct mockResources access
+
+### Build Warnings
+**Issue**: CSS @import warnings, large bundle size warnings
+**Solution**: These are expected with current setup, don't affect functionality
+
+### React Router Warnings
+**Issue**: v7 future flag warnings
+**Solution**: Cosmetic warnings about upcoming version, safe to ignore
+
+## Testing After Changes
+
+After making larger changes, verify functionality with these commands:
+
+```bash
+npm install           # Ensure dependencies are up to date
+npm run build         # Test production compilation
+npm run lint          # Check code quality
+npm run dev           # Start development server
+```
+
+**Test Core Functionality:**
+1. Navigate to all main routes (`/`, `/resources`, `/resources/new`, `/resource/:id`, `/settings`)
+2. Create a new resource and verify it saves
+3. Edit notes in an existing resource and verify persistence
+4. Test search and filtering on resources page
+
+## Development Notes
+
+**Current Status**: See `Planning and Task Files/9-7 - Original Planning Files/implementation_plan.md` for detailed feature completion status and development roadmap.
+
+### Technical Notes
 - The project uses ESLint with TypeScript rules
 - Unused variables warning is disabled in eslint config
 - Uses SWC for faster React compilation in Vite
