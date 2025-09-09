@@ -81,6 +81,16 @@ const NewResource = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key === 'Enter') {
+      const target = e.target as HTMLElement;
+      // Allow Enter in textareas and buttons, prevent elsewhere
+      if (target.tagName !== 'TEXTAREA' && target.tagName !== 'BUTTON') {
+        e.preventDefault();
+      }
+    }
+  };
+
   const renderTypeSpecificFields = () => {
     if (!selectedType) return null;
 
@@ -119,7 +129,7 @@ const NewResource = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-8">
           {/* Resource Type Selection */}
           <Card>
             <CardHeader>

@@ -45,7 +45,7 @@ const Resources = () => {
             <div>
               <h1 className="text-3xl font-bold text-foreground mb-2">Your Resources</h1>
               <p className="text-muted-foreground">
-                {filteredResources.length} of {mockResources.length} resources
+                {filteredResources.length} of {resources.length} resources
               </p>
             </div>
             <Link to="/resources/new">

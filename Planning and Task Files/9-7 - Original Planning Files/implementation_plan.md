@@ -188,15 +188,30 @@
   - Proper conditional rendering
 - [x] **Persistence:** Full localStorage integration with updateResource functionality
 
-### Step 3.4: Metadata Editing ❌ TODO
+### 🐛 Step 3.4: Bug Fix - NewResource Form Submit Prevention ❌ TODO
+**Priority: HIGH - Critical UX Bug**
+- [ ] **Enter key form submission bug:** `src/pages/NewResource.tsx:122`
+  - Users accidentally submit incomplete forms when pressing Enter in any field
+  - Need to prevent Enter key from triggering form submission
+  - Only allow intentional button clicks to submit form
+  - Add `onKeyDown` handler to form element to prevent default Enter behavior
+- [ ] **Test:** Enter key should not submit form, only "Create Resource" button should
+
+### Step 3.5: Feature - Metadata Editing ❌ TODO  
+**Priority: MEDIUM - Feature Enhancement**
 - [ ] **Edit metadata functionality:**
   - No edit button for metadata yet
   - Should switch metadata display to form mode
   - Save/cancel functionality needed
   - Integration with resource type field configuration
-- [ ] **Test:** Cannot edit metadata yet
+- [ ] **Inline editing pattern:** Follow existing notes/transcript edit pattern
+  - Add edit state management for metadata section
+  - Create form fields based on resource type (using resourceTypeConfig)
+  - Implement save functionality using existing updateResource function
+- [ ] **Form validation:** Ensure required fields (title) are validated
+- [ ] **Test:** Can edit and save resource metadata inline
 
-**✅ Checkpoint:** Complete resource viewing and editing system with markdown editor and data persistence. Only metadata editing remains for full Phase 3 completion.
+**✅ Checkpoint:** Complete resource viewing and editing system with markdown editor and data persistence. Bug fix and metadata editing needed for full Phase 3 completion.
 
 ---
 
