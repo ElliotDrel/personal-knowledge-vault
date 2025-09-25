@@ -37,6 +37,7 @@ This is a React-based personal knowledge storage application built with:
 - `src/data/mockData.ts` - Resource interfaces and sample data
 - **Never use mockResources directly** - always use storage layer functions
 - Available functions: `getResources()`, `addResource()`, `updateResource()`, `getResourceById()`
+- **Dynamic Configuration**: `getResourceTypeConfig()`, `addFieldToResourceType()`, `removeFieldFromResourceType()`
 
 **Routing:**
 Routes defined in App.tsx:
@@ -72,11 +73,11 @@ import { getResources, addResource, updateResource } from '@/data/storage';
 import { mockResources } from '@/data/mockData';
 ```
 
-### Form Patterns
+### Dynamic Form Patterns
 ```typescript
-// Dynamic form rendering based on resourceTypeConfig
+// ✅ CORRECT - Use dynamic configuration
 const renderTypeSpecificFields = () => {
-  if (!selectedType) return null;
+  if (!selectedType || !resourceTypeConfig) return null;
   const config = resourceTypeConfig[selectedType];
   return config.fields.map(field => /* render field */);
 };
@@ -98,6 +99,10 @@ const handleSave = () => {
 **Issue**: Shopping/coupon extensions cause console errors
 **Solution**: These are cosmetic - extension tries to parse app as e-commerce site
 **Action**: Safe to ignore, or use incognito mode for clean console
+
+### Dynamic Configuration Loading
+**Issue**: Components show empty fields or loading states
+**Solution**: Ensure components load dynamic config with `useEffect(() => setResourceTypeConfig(getResourceTypeConfig()), [])`
 
 ### Data Migration Errors
 **Issue**: `mockResources is not defined` errors
@@ -127,6 +132,7 @@ npm run dev           # Start development server
 2. Create a new resource and verify it saves
 3. Edit notes in an existing resource and verify persistence
 4. Test search and filtering on resources page
+5. Test dynamic settings: Add/remove fields in Settings and verify they appear in NewResource forms
 
 ## Development Notes
 
