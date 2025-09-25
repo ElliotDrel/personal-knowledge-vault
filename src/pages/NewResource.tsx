@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -8,17 +8,23 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MarkdownEditor } from '@/components/ui/markdown-editor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { resourceTypeConfig } from '@/data/mockData';
-import { addResource } from '@/data/storage';
+import { addResource, getResourceTypeConfig, type ResourceTypeConfig } from '@/data/storage';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const NewResource = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const preSelectedType = searchParams.get('type') as keyof typeof resourceTypeConfig || null;
-  
-  const [selectedType, setSelectedType] = useState<keyof typeof resourceTypeConfig | null>(preSelectedType);
+
+  const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
+  const preSelectedType = searchParams.get('type') as keyof ResourceTypeConfig || null;
+
+  const [selectedType, setSelectedType] = useState<keyof ResourceTypeConfig | null>(preSelectedType);
+
+  // Load resource type config on mount
+  useEffect(() => {
+    setResourceTypeConfig(getResourceTypeConfig());
+  }, []);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -84,15 +90,16 @@ const NewResource = () => {
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
     if (e.key === 'Enter') {
       const target = e.target as HTMLElement;
-      // Allow Enter in textareas and buttons, prevent elsewhere
-      if (target.tagName !== 'TEXTAREA' && target.tagName !== 'BUTTON') {
+      // Only allow Enter in textareas for line breaks
+      // Prevent form submission from all other elements (inputs, selects, buttons, etc.)
+      if (target.tagName !== 'TEXTAREA') {
         e.preventDefault();
       }
     }
   };
 
   const renderTypeSpecificFields = () => {
-    if (!selectedType) return null;
+    if (!selectedType || !resourceTypeConfig) return null;
 
     const config = resourceTypeConfig[selectedType];
     const fields = config.fields || [];
@@ -111,6 +118,17 @@ const NewResource = () => {
       </div>
     ));
   };
+
+  // Show loading state while config loads
+  if (!resourceTypeConfig) {
+    return (
+      <Layout>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">Loading...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -138,7 +156,7 @@ const NewResource = () => {
             </CardHeader>
             <CardContent>
               {!preSelectedType ? (
-                <Select value={selectedType || ''} onValueChange={(value) => setSelectedType(value as keyof typeof resourceTypeConfig)}>
+                <Select value={selectedType || ''} onValueChange={(value) => setSelectedType(value as keyof ResourceTypeConfig)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a resource type" />
                   </SelectTrigger>
@@ -155,9 +173,9 @@ const NewResource = () => {
                 </Select>
               ) : (
                 <div className="flex items-center gap-3 p-3 bg-accent rounded-lg">
-                  <span className="text-2xl">{resourceTypeConfig[selectedType].icon}</span>
+                  <span className="text-2xl">{resourceTypeConfig[selectedType!].icon}</span>
                   <div>
-                    <p className="font-medium">{resourceTypeConfig[selectedType].label.slice(0, -1)}</p>
+                    <p className="font-medium">{resourceTypeConfig[selectedType!].label.slice(0, -1)}</p>
                     <p className="text-sm text-muted-foreground">Pre-selected from dashboard</p>
                   </div>
                 </div>
@@ -222,6 +240,18 @@ const NewResource = () => {
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {renderTypeSpecificFields()}
+                  {resourceTypeConfig[selectedType].fields.length === 0 && (
+                    <div className="col-span-full text-center py-8 text-muted-foreground">
+                      <p>No custom fields configured for this resource type.</p>
+                      <p className="text-sm mt-1">
+                        You can add custom fields in{' '}
+                        <Link to="/settings" className="text-primary hover:underline">
+                          Settings
+                        </Link>
+                        .
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
