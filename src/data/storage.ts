@@ -1,6 +1,7 @@
-import { Resource, mockResources } from './mockData';
+import { Resource, mockResources, resourceTypeConfig as defaultResourceTypeConfig } from './mockData';
 
 const STORAGE_KEY = 'knowledge-vault-resources';
+const CONFIG_STORAGE_KEY = 'knowledge-vault-resource-types';
 
 // Load resources from localStorage, falling back to mock data
 export const loadResources = (): Resource[] => {
@@ -96,4 +97,98 @@ export const getResources = (): Resource[] => {
 export const refreshResourcesCache = (): Resource[] => {
   cachedResources = loadResources();
   return cachedResources;
+};
+
+// Resource Type Configuration Management
+export type ResourceTypeConfig = typeof defaultResourceTypeConfig;
+
+// Load resource type configuration from localStorage, falling back to defaults
+export const loadResourceTypeConfig = (): ResourceTypeConfig => {
+  try {
+    const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (stored) {
+      const parsedConfig = JSON.parse(stored);
+      // Validate that it has the expected structure
+      if (parsedConfig && typeof parsedConfig === 'object') {
+        return { ...defaultResourceTypeConfig, ...parsedConfig };
+      }
+    }
+  } catch (error) {
+    console.warn('Error loading resource type config from localStorage:', error);
+  }
+
+  // First time loading - initialize with default config
+  const initialConfig = { ...defaultResourceTypeConfig };
+  saveResourceTypeConfig(initialConfig);
+  return initialConfig;
+};
+
+// Save resource type configuration to localStorage
+export const saveResourceTypeConfig = (config: ResourceTypeConfig): void => {
+  try {
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+  } catch (error) {
+    console.error('Error saving resource type config to localStorage:', error);
+  }
+};
+
+// Update a specific resource type's fields
+export const updateResourceTypeFields = (
+  resourceType: keyof ResourceTypeConfig,
+  fields: string[]
+): ResourceTypeConfig => {
+  const config = loadResourceTypeConfig();
+  const updatedConfig = {
+    ...config,
+    [resourceType]: {
+      ...config[resourceType],
+      fields
+    }
+  };
+  saveResourceTypeConfig(updatedConfig);
+  return updatedConfig;
+};
+
+// Add a field to a resource type
+export const addFieldToResourceType = (
+  resourceType: keyof ResourceTypeConfig,
+  fieldName: string
+): ResourceTypeConfig => {
+  const config = loadResourceTypeConfig();
+  const currentFields = config[resourceType].fields;
+
+  // Don't add duplicate fields
+  if (currentFields.includes(fieldName)) {
+    return config;
+  }
+
+  const updatedFields = [...currentFields, fieldName];
+  return updateResourceTypeFields(resourceType, updatedFields);
+};
+
+// Remove a field from a resource type
+export const removeFieldFromResourceType = (
+  resourceType: keyof ResourceTypeConfig,
+  fieldName: string
+): ResourceTypeConfig => {
+  const config = loadResourceTypeConfig();
+  const currentFields = config[resourceType].fields;
+  const updatedFields = currentFields.filter(field => field !== fieldName);
+  return updateResourceTypeFields(resourceType, updatedFields);
+};
+
+// Get current resource type configuration (cached version)
+let cachedResourceTypeConfig: ResourceTypeConfig | null = null;
+
+export const getResourceTypeConfig = (): ResourceTypeConfig => {
+  if (!cachedResourceTypeConfig) {
+    cachedResourceTypeConfig = loadResourceTypeConfig();
+  }
+  return cachedResourceTypeConfig;
+};
+
+// Refresh the resource type config cache
+export const refreshResourceTypeConfigCache = (): ResourceTypeConfig => {
+  cachedResourceTypeConfig = loadResourceTypeConfig();
+  return cachedResourceTypeConfig;
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MarkdownEditor } from '@/components/ui/markdown-editor';
-import { resourceTypeConfig } from '@/data/mockData';
-import { getResourceById, updateResource } from '@/data/storage';
+import { getResourceById, updateResource, getResourceTypeConfig, type ResourceTypeConfig } from '@/data/storage';
 import { 
   ArrowLeft, 
   ExternalLink, 
@@ -29,11 +28,17 @@ import { cn } from '@/lib/utils';
 const ResourceDetail = () => {
   const { id } = useParams<{ id: string }>();
   const resource = id ? getResourceById(id) : null;
-  
+
+  const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [notes, setNotes] = useState(resource?.notes || '');
   const [transcript, setTranscript] = useState(resource?.transcript || '');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+
+  // Load resource type config on mount
+  useEffect(() => {
+    setResourceTypeConfig(getResourceTypeConfig());
+  }, []);
   
   // Metadata editing state
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
@@ -50,12 +55,14 @@ const ResourceDetail = () => {
     url: resource?.url || ''
   });
 
-  if (!resource) {
+  if (!resource || !resourceTypeConfig) {
     return (
       <Layout>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center py-16">
-            <h1 className="text-2xl font-bold mb-4">Resource not found</h1>
+            <h1 className="text-2xl font-bold mb-4">
+              {!resource ? 'Resource not found' : 'Loading...'}
+            </h1>
             <Link to="/resources">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4 mr-2" />

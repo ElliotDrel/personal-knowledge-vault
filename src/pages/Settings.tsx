@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,10 +6,60 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { resourceTypeConfig } from '@/data/mockData';
+import {
+  getResourceTypeConfig,
+  addFieldToResourceType,
+  removeFieldFromResourceType,
+  refreshResourceTypeConfigCache,
+  type ResourceTypeConfig
+} from '@/data/storage';
 import { Settings as SettingsIcon, User, Palette, Database, Plus, Trash2 } from 'lucide-react';
 
 const Settings = () => {
+  const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
+  const [newFieldInputs, setNewFieldInputs] = useState<Record<string, string>>({});
+
+  // Load resource type config on mount
+  useEffect(() => {
+    setResourceTypeConfig(getResourceTypeConfig());
+  }, []);
+
+  const handleAddField = (resourceType: keyof ResourceTypeConfig) => {
+    const newFieldName = newFieldInputs[resourceType]?.trim();
+    if (!newFieldName || !resourceTypeConfig) return;
+
+    // Add field and refresh config
+    addFieldToResourceType(resourceType, newFieldName);
+    const updatedConfig = refreshResourceTypeConfigCache();
+    setResourceTypeConfig(updatedConfig);
+
+    // Clear input
+    setNewFieldInputs(prev => ({ ...prev, [resourceType]: '' }));
+  };
+
+  const handleRemoveField = (resourceType: keyof ResourceTypeConfig, fieldName: string) => {
+    if (!resourceTypeConfig) return;
+
+    // Remove field and refresh config
+    removeFieldFromResourceType(resourceType, fieldName);
+    const updatedConfig = refreshResourceTypeConfigCache();
+    setResourceTypeConfig(updatedConfig);
+  };
+
+  const handleNewFieldInputChange = (resourceType: string, value: string) => {
+    setNewFieldInputs(prev => ({ ...prev, [resourceType]: value }));
+  };
+
+  if (!resourceTypeConfig) {
+    return (
+      <Layout>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">Loading settings...</div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -76,23 +127,53 @@ const Settings = () => {
                         </p>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Field
-                    </Button>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Current Fields:</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {config.fields.map((field) => (
-                        <Badge key={field} variant="secondary" className="flex items-center space-x-1">
-                          <span>{field}</span>
-                          <button className="ml-1 hover:text-destructive">
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </Badge>
-                      ))}
+
+                  <div className="space-y-4">
+                    {/* Current Fields */}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Current Fields:</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {config.fields.map((field) => (
+                          <Badge key={field} variant="secondary" className="flex items-center space-x-1">
+                            <span>{field}</span>
+                            <button
+                              className="ml-1 hover:text-destructive transition-colors"
+                              onClick={() => handleRemoveField(type as keyof ResourceTypeConfig, field)}
+                              title={`Remove ${field} field`}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                        {config.fields.length === 0 && (
+                          <span className="text-sm text-muted-foreground italic">No custom fields yet</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Add New Field */}
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter new field name"
+                        value={newFieldInputs[type] || ''}
+                        onChange={(e) => handleNewFieldInputChange(type, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddField(type as keyof ResourceTypeConfig);
+                          }
+                        }}
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAddField(type as keyof ResourceTypeConfig)}
+                        disabled={!newFieldInputs[type]?.trim()}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Field
+                      </Button>
                     </div>
                   </div>
                 </div>
