@@ -2,6 +2,21 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ IMPORTANT: Documentation First Approach
+
+**ALWAYS check relevant documentation before coding**, especially when working with:
+- **Supabase** - Database operations, authentication, real-time features
+- **Vercel** - Deployment configuration, serverless functions, environment variables
+- **Complex libraries** - React Router, shadcn/ui, Tailwind CSS, etc.
+
+When implementing features with these technologies:
+1. Search for official documentation using WebFetch or WebSearch tools
+2. Review API references and best practices
+3. Check for breaking changes or deprecated patterns
+4. Understand configuration requirements before coding
+
+This prevents implementation errors, ensures best practices, and saves development time.
+
 ## Commands
 
 ### Development
@@ -12,6 +27,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Package Management
 This project uses npm. Use `npm install` to install dependencies.
+
+### Testing and Browser Automation
+The project has access to the **Playwright MCP server** for browser automation and testing:
+
+**When to Use Playwright MCP:**
+- End-to-end testing of user workflows
+- Visual testing and screenshot comparison
+- Form submission testing
+- Navigation and routing verification
+- Accessibility testing
+- Performance testing in real browsers
+
+**Available Playwright Tools:**
+- `mcp__playwright__browser_navigate` - Navigate to URLs
+- `mcp__playwright__browser_snapshot` - Capture accessibility snapshots (preferred over screenshots for actions)
+- `mcp__playwright__browser_click` - Click elements
+- `mcp__playwright__browser_type` - Type text into fields
+- `mcp__playwright__browser_fill_form` - Fill multiple form fields
+- `mcp__playwright__browser_take_screenshot` - Take visual screenshots
+- `mcp__playwright__browser_wait_for` - Wait for elements or time
+
+**Usage Pattern:**
+1. Use `browser_navigate` to open the application
+2. Use `browser_snapshot` to understand page structure
+3. Perform actions like clicks and form fills
+4. Verify results with additional snapshots or screenshots
 
 ## Architecture
 
