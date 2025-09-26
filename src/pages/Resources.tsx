@@ -1,13 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { resourceTypeConfig, Resource } from '@/data/mockData';
-import { getResources } from '@/data/storage';
+import { useResources } from '@/hooks/use-resources';
 import { Link } from 'react-router-dom';
-import { Search, Filter, Plus, Grid, List } from 'lucide-react';
+import { Search, Plus, Grid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Resources = () => {
@@ -15,26 +14,35 @@ const Resources = () => {
   const [selectedType, setSelectedType] = useState<Resource['type'] | 'all'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const resources = getResources();
+  const resources = useResources();
 
-  // Filter resources based on search and type
-  const filteredResources = resources.filter((resource) => {
-    const matchesSearch = resource.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         resource.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         resource.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         resource.creator?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         resource.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    const matchesType = selectedType === 'all' || resource.type === selectedType;
-    
-    return matchesSearch && matchesType;
-  });
+  const filteredResources = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
 
-  // Get resource counts by type
-  const typeCounts = Object.entries(resourceTypeConfig).reduce((acc, [type, config]) => {
-    acc[type] = resources.filter(r => r.type === type).length;
-    return acc;
-  }, {} as Record<string, number>);
+    return resources.filter((resource) => {
+      const matchesType = selectedType === 'all' || resource.type === selectedType;
+
+      if (!query) {
+        return matchesType;
+      }
+
+      const matchesSearch =
+        resource.title.toLowerCase().includes(query) ||
+        resource.description.toLowerCase().includes(query) ||
+        resource.author?.toLowerCase().includes(query) ||
+        resource.creator?.toLowerCase().includes(query) ||
+        resource.tags.some((tag) => tag.toLowerCase().includes(query));
+
+      return matchesType && matchesSearch;
+    });
+  }, [resources, searchQuery, selectedType]);
+
+  const typeCounts = useMemo(() => {
+    return Object.entries(resourceTypeConfig).reduce((acc, [type]) => {
+      acc[type] = resources.filter((resource) => resource.type === type).length;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [resources]);
 
   return (
     <Layout>
@@ -117,16 +125,18 @@ const Resources = () => {
 
         {/* Resources Grid/List */}
         {filteredResources.length > 0 ? (
-          <div className={cn(
-            "gap-6",
-            viewMode === 'grid' 
-              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" 
-              : "flex flex-col space-y-4"
-          )}>
+          <div
+            className={cn(
+              'gap-6',
+              viewMode === 'grid'
+                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                : 'flex flex-col space-y-4'
+            )}
+          >
             {filteredResources.map((resource) => (
-              <ResourceCard 
-                key={resource.id} 
-                resource={resource} 
+              <ResourceCard
+                key={resource.id}
+                resource={resource}
                 variant={viewMode === 'list' ? 'compact' : 'default'}
               />
             ))}
@@ -138,10 +148,9 @@ const Resources = () => {
             </div>
             <h3 className="text-xl font-semibold mb-2">No resources found</h3>
             <p className="text-muted-foreground mb-6">
-              {searchQuery || selectedType !== 'all' 
-                ? "Try adjusting your search or filters" 
-                : "Start building your knowledge vault by adding your first resource"
-              }
+              {searchQuery || selectedType !== 'all'
+                ? 'Try adjusting your search or filters'
+                : 'Start building your knowledge vault by adding your first resource'}
             </p>
             {searchQuery || selectedType !== 'all' ? (
               <Button

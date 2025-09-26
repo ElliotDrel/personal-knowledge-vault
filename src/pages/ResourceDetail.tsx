@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -9,15 +9,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MarkdownEditor } from '@/components/ui/markdown-editor';
-import { getResourceById, updateResource, getResourceTypeConfig, type ResourceTypeConfig } from '@/data/storage';
-import { 
-  ArrowLeft, 
-  ExternalLink, 
-  Share, 
-  Edit, 
-  Calendar, 
-  User, 
-  Clock, 
+import { updateResource, getResourceTypeConfig, type ResourceTypeConfig } from '@/data/storage';
+import { useResources } from '@/hooks/use-resources';
+import {
+  ArrowLeft,
+  ExternalLink,
+  Share,
+  Edit,
+  Calendar,
+  User,
+  Clock,
   Tag,
   FileText,
   Mic,
@@ -27,11 +28,15 @@ import { cn } from '@/lib/utils';
 
 const ResourceDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const resource = id ? getResourceById(id) : null;
+  const resources = useResources();
+  const resource = useMemo(
+    () => (id ? resources.find((item) => item.id === id) ?? null : null),
+    [resources, id]
+  );
 
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
-  const [notes, setNotes] = useState(resource?.notes || '');
-  const [transcript, setTranscript] = useState(resource?.transcript || '');
+  const [notes, setNotes] = useState('');
+  const [transcript, setTranscript] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
 
@@ -39,21 +44,68 @@ const ResourceDetail = () => {
   useEffect(() => {
     setResourceTypeConfig(getResourceTypeConfig());
   }, []);
-  
+
   // Metadata editing state
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [metadataForm, setMetadataForm] = useState({
-    title: resource?.title || '',
-    description: resource?.description || '',
-    tags: resource?.tags?.join(', ') || '',
+    title: '',
+    description: '',
+    tags: '',
     // Type-specific fields
-    author: resource?.author || '',
-    creator: resource?.creator || '',
-    platform: resource?.platform || '',
-    year: resource?.year?.toString() || '',
-    duration: resource?.duration || '',
-    url: resource?.url || ''
+    author: '',
+    creator: '',
+    platform: '',
+    year: '',
+    duration: '',
+    url: ''
   });
+
+  useEffect(() => {
+    if (!resource) {
+      if (!isEditingNotes) {
+        setNotes('');
+      }
+      if (!isEditingTranscript) {
+        setTranscript('');
+      }
+      if (!isEditingMetadata) {
+        setMetadataForm({
+          title: '',
+          description: '',
+          tags: '',
+          author: '',
+          creator: '',
+          platform: '',
+          year: '',
+          duration: '',
+          url: ''
+        });
+      }
+      return;
+    }
+
+    if (!isEditingNotes) {
+      setNotes(resource.notes || '');
+    }
+
+    if (!isEditingTranscript) {
+      setTranscript(resource.transcript || '');
+    }
+
+    if (!isEditingMetadata) {
+      setMetadataForm({
+        title: resource.title || '',
+        description: resource.description || '',
+        tags: resource.tags?.join(', ') || '',
+        author: resource.author || '',
+        creator: resource.creator || '',
+        platform: resource.platform || '',
+        year: resource.year?.toString() || '',
+        duration: resource.duration || '',
+        url: resource.url || ''
+      });
+    }
+  }, [resource, isEditingNotes, isEditingTranscript, isEditingMetadata]);
 
   if (!resource || !resourceTypeConfig) {
     return (
@@ -533,3 +585,4 @@ const ResourceDetail = () => {
 };
 
 export default ResourceDetail;
+

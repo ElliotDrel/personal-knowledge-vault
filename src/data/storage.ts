@@ -1,41 +1,80 @@
 import { Resource, mockResources, resourceTypeConfig as defaultResourceTypeConfig } from './mockData';
 
-const STORAGE_KEY = 'knowledge-vault-resources';
+export const RESOURCES_STORAGE_KEY = 'knowledge-vault-resources';
 const CONFIG_STORAGE_KEY = 'knowledge-vault-resource-types';
 
-// Load resources from localStorage, falling back to mock data
-export const loadResources = (): Resource[] => {
+type ResourceListener = () => void;
+
+const resourceListeners = new Set<ResourceListener>();
+let resourceCache: Resource[] | null = null;
+
+const notifyResourceListeners = () => {
+  resourceListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (error) {
+      console.error('Error notifying resource listener:', error);
+    }
+  });
+};
+
+export const subscribeToResourceChanges = (listener: ResourceListener): (() => void) => {
+  resourceListeners.add(listener);
+  return () => {
+    resourceListeners.delete(listener);
+  };
+};
+
+const writeResourcesToLocalStorage = (resources: Resource[]) => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    localStorage.setItem(RESOURCES_STORAGE_KEY, JSON.stringify(resources));
+  } catch (error) {
+    console.error('Error saving resources to localStorage:', error);
+  }
+};
+
+const readResourcesFromLocalStorage = (): Resource[] => {
+  try {
+    const stored = localStorage.getItem(RESOURCES_STORAGE_KEY);
     if (stored) {
       const parsedResources = JSON.parse(stored);
-      // Validate that it's an array and has at least some resources
-      if (Array.isArray(parsedResources) && parsedResources.length > 0) {
+      if (Array.isArray(parsedResources)) {
         return parsedResources;
       }
     }
   } catch (error) {
     console.warn('Error loading resources from localStorage:', error);
   }
-  
-  // First time loading - initialize with mock data
+
   const initialResources = [...mockResources];
-  saveResources(initialResources);
+  writeResourcesToLocalStorage(initialResources);
   return initialResources;
 };
 
-// Save resources to localStorage
-export const saveResources = (resources: Resource[]): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
-  } catch (error) {
-    console.error('Error saving resources to localStorage:', error);
+const ensureResourceCache = (): Resource[] => {
+  if (!resourceCache) {
+    resourceCache = readResourcesFromLocalStorage();
   }
+  return resourceCache;
+};
+
+// Load resources from localStorage, falling back to mock data
+export const loadResources = (): Resource[] => {
+  const resources = readResourcesFromLocalStorage();
+  resourceCache = resources;
+  return resources;
+};
+
+// Save resources to localStorage and notify subscribers
+export const saveResources = (resources: Resource[]): void => {
+  writeResourcesToLocalStorage(resources);
+  resourceCache = resources;
+  notifyResourceListeners();
 };
 
 // Add a new resource
 export const addResource = (resource: Resource): Resource[] => {
-  const resources = loadResources();
+  const resources = ensureResourceCache();
   const updatedResources = [resource, ...resources];
   saveResources(updatedResources);
   return updatedResources;
@@ -43,9 +82,9 @@ export const addResource = (resource: Resource): Resource[] => {
 
 // Update an existing resource
 export const updateResource = (resourceId: string, updates: Partial<Resource>): Resource[] => {
-  const resources = loadResources();
-  const updatedResources = resources.map(resource => 
-    resource.id === resourceId 
+  const resources = ensureResourceCache();
+  const updatedResources = resources.map((resource) =>
+    resource.id === resourceId
       ? { ...resource, ...updates, updatedAt: new Date().toISOString() }
       : resource
   );
@@ -55,20 +94,20 @@ export const updateResource = (resourceId: string, updates: Partial<Resource>): 
 
 // Get a single resource by ID
 export const getResourceById = (id: string): Resource | undefined => {
-  const resources = loadResources();
-  return resources.find(resource => resource.id === id);
+  const resources = ensureResourceCache();
+  return resources.find((resource) => resource.id === id);
 };
 
 // Get resources by type
 export const getResourcesByType = (type: string): Resource[] => {
-  const resources = loadResources();
-  return resources.filter(resource => resource.type === type);
+  const resources = ensureResourceCache();
+  return resources.filter((resource) => resource.type === type);
 };
 
 // Get recent resources
 export const getRecentResources = (limit = 5): Resource[] => {
-  const resources = loadResources();
-  return resources
+  const resources = ensureResourceCache();
+  return [...resources]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, limit);
 };
@@ -76,27 +115,27 @@ export const getRecentResources = (limit = 5): Resource[] => {
 // Clear all data (for development/testing)
 export const clearAllData = (): void => {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(RESOURCES_STORAGE_KEY);
   } catch (error) {
     console.error('Error clearing data:', error);
   }
+
+  const resetResources = [...mockResources];
+  writeResourcesToLocalStorage(resetResources);
+  resourceCache = resetResources;
+  notifyResourceListeners();
 };
 
-// Export a single resources array that components can use
-// This will be initialized with localStorage data
-let cachedResources: Resource[] | null = null;
+// Export snapshots for hooks/components
+export const getResources = (): Resource[] => ensureResourceCache();
+export const getResourcesSnapshot = (): Resource[] => ensureResourceCache();
 
-export const getResources = (): Resource[] => {
-  if (!cachedResources) {
-    cachedResources = loadResources();
-  }
-  return cachedResources;
-};
-
-// Refresh the cache (call this after adding/updating resources)
+// Refresh the cache (call this after external updates)
 export const refreshResourcesCache = (): Resource[] => {
-  cachedResources = loadResources();
-  return cachedResources;
+  const resources = readResourcesFromLocalStorage();
+  resourceCache = resources;
+  notifyResourceListeners();
+  return resources;
 };
 
 // Resource Type Configuration Management
@@ -108,7 +147,6 @@ export const loadResourceTypeConfig = (): ResourceTypeConfig => {
     const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
     if (stored) {
       const parsedConfig = JSON.parse(stored);
-      // Validate that it has the expected structure
       if (parsedConfig && typeof parsedConfig === 'object') {
         return { ...defaultResourceTypeConfig, ...parsedConfig };
       }
@@ -117,7 +155,6 @@ export const loadResourceTypeConfig = (): ResourceTypeConfig => {
     console.warn('Error loading resource type config from localStorage:', error);
   }
 
-  // First time loading - initialize with default config
   const initialConfig = { ...defaultResourceTypeConfig };
   saveResourceTypeConfig(initialConfig);
   return initialConfig;
@@ -142,8 +179,8 @@ export const updateResourceTypeFields = (
     ...config,
     [resourceType]: {
       ...config[resourceType],
-      fields
-    }
+      fields,
+    },
   };
   saveResourceTypeConfig(updatedConfig);
   return updatedConfig;
@@ -157,7 +194,6 @@ export const addFieldToResourceType = (
   const config = loadResourceTypeConfig();
   const currentFields = config[resourceType].fields;
 
-  // Don't add duplicate fields
   if (currentFields.includes(fieldName)) {
     return config;
   }
@@ -173,7 +209,7 @@ export const removeFieldFromResourceType = (
 ): ResourceTypeConfig => {
   const config = loadResourceTypeConfig();
   const currentFields = config[resourceType].fields;
-  const updatedFields = currentFields.filter(field => field !== fieldName);
+  const updatedFields = currentFields.filter((field) => field !== fieldName);
   return updateResourceTypeFields(resourceType, updatedFields);
 };
 
