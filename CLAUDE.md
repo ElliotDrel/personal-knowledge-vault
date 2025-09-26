@@ -7,13 +7,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **ALWAYS check relevant documentation before coding**, especially when working with:
 - **Supabase** - Database operations, authentication, real-time features
 - **Vercel** - Deployment configuration, serverless functions, environment variables
-- **Complex libraries** - React Router, shadcn/ui, Tailwind CSS, etc.
+- **Complex libraries** - React Router, shadcn/ui, Tailwind CSS, Playwright, etc.
+
+## ⚠️ CRITICAL: Supabase Development Workflow
+
+**CLI-Only Development Rule**: This project uses Supabase CLI exclusively for schema and configuration management against the deployed/hosted Supabase project. **NO local Docker setup or `supabase start` commands.**
+
+### Required Supabase Workflow:
+1. **Project Management**: Work against deployed Supabase projects only
+2. **Configuration**: All auth settings, database schema, and project config managed via `supabase/config.toml`
+3. **Deployment**: Use `supabase db push` to deploy changes to remote project
+4. **No Local Services**: Never use `supabase start`, Docker containers, or local database instances
+
+### CLI Commands for Development:
+```bash
+# Project setup
+supabase init                    # Initialize config files
+supabase login                   # Authenticate with Supabase
+supabase link --project-ref <id> # Link to hosted project
+
+# Configuration management
+supabase db push                 # Deploy local config to remote
+supabase db pull                 # Pull remote config changes
+supabase validate               # Validate config before deployment
+
+# Auth configuration via config.toml only
+# Database schema via migrations only
+# No dashboard clicking for configuration
+```
+
+**Rationale**: This approach ensures all changes are version-controlled, reproducible, and eliminates dependency on local Docker setup while maintaining full control over project configuration.
 
 When implementing features with these technologies:
-1. Search for official documentation using WebFetch or WebSearch tools
-2. Review API references and best practices
-3. Check for breaking changes or deprecated patterns
-4. Understand configuration requirements before coding
+1. **Use Context7 MCP for library documentation** - Retrieve up-to-date documentation and code examples for any library using `mcp__context7__resolve-library-id` and `mcp__context7__get-library-docs`
+2. **Search official websites** using WebFetch or WebSearch tools for general documentation
+3. Review API references and best practices
+4. Check for breaking changes or deprecated patterns
+5. Understand configuration requirements before coding
+
+### Context7 MCP Usage Pattern:
+```
+1. Resolve library ID: mcp__context7__resolve-library-id with library name
+2. Get documentation: mcp__context7__get-library-docs with the resolved library ID
+3. Optional: Use 'topic' parameter to focus on specific areas (e.g., 'hooks', 'routing')
+4. Optional: Adjust 'tokens' parameter for more/less documentation context
+```
+
+**Examples:**
+- For React testing: Resolve "@testing-library/react" → Get docs with topic "hooks"
+- For Playwright: Resolve "@playwright/test" → Get docs with topic "assertions"
+- For Next.js: Resolve "next" → Get docs with topic "routing"
 
 This prevents implementation errors, ensures best practices, and saves development time.
 
@@ -63,7 +106,8 @@ This is a React-based personal knowledge storage application built with:
 - **shadcn/ui** component library with Radix UI primitives
 - **Tailwind CSS** for styling with custom design tokens
 - **@uiw/react-md-editor** for markdown editing
-- **localStorage** for data persistence
+- **Supabase** for authentication and future data persistence (Phase 5+)
+- **localStorage** for current data persistence (transitioning to Supabase)
 
 ### Key Architecture Patterns
 
@@ -177,7 +221,18 @@ npm run dev           # Start development server
 
 ## Development Notes
 
-**Current Status**: See `Planning and Task Files/9-7 - Original Planning Files/implementation_plan.md` for detailed feature completion status and development roadmap.
+**Current Status**:
+- **Completed**: Phases 1-4 (Frontend structure, resource management, dynamic configuration)
+- **In Progress**: Phase 5 (Supabase authentication with magic-link email)
+- **Next**: Phase 6 (Database migration to Supabase)
+
+See `Planning and Task Files/9-7 - Original Planning Files/implementation_plan.md` for detailed feature completion status and development roadmap.
+
+### Supabase Integration Notes
+- Authentication will be implemented via magic-link email flow
+- All Supabase configuration managed through `supabase/config.toml` and CLI commands
+- Database schema and auth settings deployed via `supabase db push`
+- Environment variables required: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 
 ### Technical Notes
 - The project uses ESLint with TypeScript rules
