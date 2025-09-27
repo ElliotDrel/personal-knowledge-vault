@@ -1,20 +1,68 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { resourceTypeConfig, Resource } from '@/data/mockData';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useStorageAdapter, type ResourceTypeConfig, type Resource } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import { Link } from 'react-router-dom';
-import { Search, Plus, Grid, List } from 'lucide-react';
+import { Search, Plus, Grid, List, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Resources = () => {
+  const { resources, loading: resourcesLoading, error: resourcesError } = useResources();
+  const storageAdapter = useStorageAdapter();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<Resource['type'] | 'all'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
 
-  const resources = useResources();
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadConfig = async () => {
+      setConfigLoading(true);
+      setConfigError(null);
+      try {
+        const config = await storageAdapter.getResourceTypeConfig();
+        if (!isMounted) {
+          return;
+        }
+        setResourceTypeConfig(config);
+      } catch (error) {
+        console.error('Error loading resource type config:', error);
+        if (!isMounted) {
+          return;
+        }
+        setConfigError(error instanceof Error ? error.message : 'Failed to load resource type configuration');
+        setResourceTypeConfig(null);
+      } finally {
+        if (isMounted) {
+          setConfigLoading(false);
+        }
+      }
+    };
+
+    loadConfig();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storageAdapter]);
+
+  useEffect(() => {
+    if (!resourceTypeConfig) {
+      return;
+    }
+
+    if (selectedType !== 'all' && !resourceTypeConfig[selectedType]) {
+      setSelectedType('all');
+    }
+  }, [resourceTypeConfig, selectedType]);
 
   const filteredResources = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -38,11 +86,18 @@ const Resources = () => {
   }, [resources, searchQuery, selectedType]);
 
   const typeCounts = useMemo(() => {
-    return Object.entries(resourceTypeConfig).reduce((acc, [type]) => {
+    if (!resourceTypeConfig) {
+      return {} as Record<string, number>;
+    }
+
+    return Object.keys(resourceTypeConfig).reduce((acc, type) => {
       acc[type] = resources.filter((resource) => resource.type === type).length;
       return acc;
     }, {} as Record<string, number>);
-  }, [resources]);
+  }, [resources, resourceTypeConfig]);
+
+  const isLoading = resourcesLoading || configLoading;
+  const showError = !isLoading && (resourcesError || configError);
 
   return (
     <Layout>
@@ -63,6 +118,14 @@ const Resources = () => {
               </Button>
             </Link>
           </div>
+
+          {showError && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertDescription>
+                {resourcesError ?? configError}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Search and Filters */}
           <div className="flex flex-col lg:flex-row gap-4 mb-6">
@@ -105,26 +168,40 @@ const Resources = () => {
               size="sm"
               onClick={() => setSelectedType('all')}
               className="transition-smooth"
+              disabled={isLoading}
             >
               All ({resources.length})
             </Button>
-            {Object.entries(resourceTypeConfig).map(([type, config]) => (
-              <Button
-                key={type}
-                variant={selectedType === type ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedType(type as Resource['type'])}
-                className="transition-smooth"
-              >
-                <span className="mr-1">{config.icon}</span>
-                {config.label} ({typeCounts[type] || 0})
-              </Button>
-            ))}
+            {resourceTypeConfig ? (
+              Object.entries(resourceTypeConfig).map(([type, config]) => (
+                <Button
+                  key={type}
+                  variant={selectedType === type ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedType(type as Resource['type'])}
+                  className="transition-smooth"
+                  disabled={isLoading}
+                >
+                  <span className="mr-1">{config.icon}</span>
+                  {config.label} ({typeCounts[type] || 0})
+                </Button>
+              ))
+            ) : (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading types...
+              </div>
+            )}
           </div>
         </div>
 
         {/* Resources Grid/List */}
-        {filteredResources.length > 0 ? (
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16 text-muted-foreground">
+            <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+            Loading resources...
+          </div>
+        ) : filteredResources.length > 0 ? (
           <div
             className={cn(
               'gap-6',
