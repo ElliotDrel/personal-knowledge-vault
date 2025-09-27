@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +34,10 @@ import {
   Tag,
   FileText,
   Mic,
-  Save
+  Save,
+  AlertTriangle,
+  Trash2,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +45,7 @@ const ResourceDetail = () => {
   const { id } = useParams<{ id: string }>();
   const { resources } = useResources();
   const storageAdapter = useStorageAdapter();
+  const navigate = useNavigate();
 
   const resource = useMemo(
     () => (id ? resources.find((item) => item.id === id) ?? null : null),
@@ -44,6 +59,10 @@ const ResourceDetail = () => {
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Delete functionality state
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Load resource type config on mount
   useEffect(() => {
@@ -213,6 +232,26 @@ const ResourceDetail = () => {
       setError('Failed to save metadata');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!resource) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await storageAdapter.deleteResource(resource.id);
+      console.log('Successfully deleted resource:', resource.id);
+      // Navigate to resources list on success
+      navigate('/resources');
+    } catch (err) {
+      console.error('Error deleting resource:', err);
+      // Keep dialog open, show error, allow retry
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete resource. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -624,6 +663,63 @@ const ResourceDetail = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Danger Zone */}
+        <Card className="mt-8 border-destructive/20 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              Danger Zone
+            </CardTitle>
+            <CardDescription>
+              Irreversible actions that permanently delete this resource
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="w-full sm:w-auto">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Resource
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Resource</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete "{resource.title}"?
+                    This action is permanent and cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                {/* Error state within dialog */}
+                {deleteError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{deleteError}</AlertDescription>
+                  </Alert>
+                )}
+
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete'
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
       </div>
     </Layout>
   );
