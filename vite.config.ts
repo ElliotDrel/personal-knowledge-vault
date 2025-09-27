@@ -16,7 +16,7 @@ const chunkForPackage = (id: string) => {
 
   const scope = parts[0].startsWith("@") ? `${parts[0]}/${parts[1]}` : parts[0];
 
-  if (scope === "react" || scope === "react-dom") {
+  if (scope === "react" || scope === "react-dom" || scope === "scheduler") {
     return "react";
   }
 
@@ -89,4 +89,5 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
+
 
