@@ -6,44 +6,69 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import {
-  getResourceTypeConfig,
-  addFieldToResourceType,
-  removeFieldFromResourceType,
-  refreshResourceTypeConfigCache,
-  type ResourceTypeConfig
-} from '@/data/storage';
+import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { Settings as SettingsIcon, User, Palette, Database, Plus, Trash2 } from 'lucide-react';
 
 const Settings = () => {
+  const storageAdapter = useStorageAdapter();
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [newFieldInputs, setNewFieldInputs] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load resource type config on mount
   useEffect(() => {
-    setResourceTypeConfig(getResourceTypeConfig());
-  }, []);
+    const loadConfig = async () => {
+      try {
+        setLoading(true);
+        const config = await storageAdapter.getResourceTypeConfig();
+        setResourceTypeConfig(config);
+      } catch (err) {
+        console.error('Error loading resource type config:', err);
+        setError('Failed to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadConfig();
+  }, [storageAdapter]);
 
-  const handleAddField = (resourceType: keyof ResourceTypeConfig) => {
+  const handleAddField = async (resourceType: keyof ResourceTypeConfig) => {
     const newFieldName = newFieldInputs[resourceType]?.trim();
     if (!newFieldName || !resourceTypeConfig) return;
 
-    // Add field and refresh config
-    addFieldToResourceType(resourceType, newFieldName);
-    const updatedConfig = refreshResourceTypeConfigCache();
-    setResourceTypeConfig(updatedConfig);
+    setLoading(true);
+    setError(null);
+    try {
+      // Add field and refresh config
+      const updatedConfig = await storageAdapter.addFieldToResourceType(resourceType, newFieldName);
+      setResourceTypeConfig(updatedConfig);
 
-    // Clear input
-    setNewFieldInputs(prev => ({ ...prev, [resourceType]: '' }));
+      // Clear input
+      setNewFieldInputs(prev => ({ ...prev, [resourceType]: '' }));
+    } catch (err) {
+      console.error('Error adding field:', err);
+      setError('Failed to add field');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRemoveField = (resourceType: keyof ResourceTypeConfig, fieldName: string) => {
+  const handleRemoveField = async (resourceType: keyof ResourceTypeConfig, fieldName: string) => {
     if (!resourceTypeConfig) return;
 
-    // Remove field and refresh config
-    removeFieldFromResourceType(resourceType, fieldName);
-    const updatedConfig = refreshResourceTypeConfigCache();
-    setResourceTypeConfig(updatedConfig);
+    setLoading(true);
+    setError(null);
+    try {
+      // Remove field and refresh config
+      const updatedConfig = await storageAdapter.removeFieldFromResourceType(resourceType, fieldName);
+      setResourceTypeConfig(updatedConfig);
+    } catch (err) {
+      console.error('Error removing field:', err);
+      setError('Failed to remove field');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleNewFieldInputChange = (resourceType: string, value: string) => {

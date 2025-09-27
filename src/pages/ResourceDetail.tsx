@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MarkdownEditor } from '@/components/ui/markdown-editor';
-import { updateResource, getResourceTypeConfig, type ResourceTypeConfig } from '@/data/storage';
+import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import {
   ArrowLeft,
@@ -28,7 +29,9 @@ import { cn } from '@/lib/utils';
 
 const ResourceDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const resources = useResources();
+  const { resources } = useResources();
+  const storageAdapter = useStorageAdapter();
+
   const resource = useMemo(
     () => (id ? resources.find((item) => item.id === id) ?? null : null),
     [resources, id]
@@ -39,11 +42,21 @@ const ResourceDetail = () => {
   const [transcript, setTranscript] = useState('');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Load resource type config on mount
   useEffect(() => {
-    setResourceTypeConfig(getResourceTypeConfig());
-  }, []);
+    const loadConfig = async () => {
+      try {
+        const config = await storageAdapter.getResourceTypeConfig();
+        setResourceTypeConfig(config);
+      } catch (err) {
+        console.error('Error loading resource type config:', err);
+      }
+    };
+    loadConfig();
+  }, [storageAdapter]);
 
   // Metadata editing state
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
@@ -129,51 +142,78 @@ const ResourceDetail = () => {
 
   const config = resourceTypeConfig[resource.type];
 
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
     if (!resource) return;
-    updateResource(resource.id, { notes });
-    console.log('Saved notes for resource:', resource.id);
-    setIsEditingNotes(false);
+    setLoading(true);
+    setError(null);
+    try {
+      await storageAdapter.updateResource(resource.id, { notes });
+      console.log('Saved notes for resource:', resource.id);
+      setIsEditingNotes(false);
+    } catch (err) {
+      console.error('Error saving notes:', err);
+      setError('Failed to save notes');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSaveTranscript = () => {
+  const handleSaveTranscript = async () => {
     if (!resource) return;
-    updateResource(resource.id, { transcript });
-    console.log('Saved transcript for resource:', resource.id);
-    setIsEditingTranscript(false);
+    setLoading(true);
+    setError(null);
+    try {
+      await storageAdapter.updateResource(resource.id, { transcript });
+      console.log('Saved transcript for resource:', resource.id);
+      setIsEditingTranscript(false);
+    } catch (err) {
+      console.error('Error saving transcript:', err);
+      setError('Failed to save transcript');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleMetadataChange = (field: string, value: string) => {
     setMetadataForm(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSaveMetadata = () => {
+  const handleSaveMetadata = async () => {
     if (!resource) return;
-    
+
     // Validation
     if (!metadataForm.title.trim()) {
-      alert('Title is required');
+      setError('Title is required');
       return;
     }
 
-    // Process form data
-    const updatedData: Partial<typeof resource> = {
-      title: metadataForm.title.trim(),
-      description: metadataForm.description.trim(),
-      tags: metadataForm.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-    };
+    setLoading(true);
+    setError(null);
+    try {
+      // Process form data
+      const updatedData: Partial<typeof resource> = {
+        title: metadataForm.title.trim(),
+        description: metadataForm.description.trim(),
+        tags: metadataForm.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+      };
 
-    // Add type-specific fields if they have values
-    if (metadataForm.author) updatedData.author = metadataForm.author.trim();
-    if (metadataForm.creator) updatedData.creator = metadataForm.creator.trim();
-    if (metadataForm.platform) updatedData.platform = metadataForm.platform.trim();
-    if (metadataForm.year) updatedData.year = parseInt(metadataForm.year);
-    if (metadataForm.duration) updatedData.duration = metadataForm.duration.trim();
-    if (metadataForm.url) updatedData.url = metadataForm.url.trim();
+      // Add type-specific fields if they have values
+      if (metadataForm.author) updatedData.author = metadataForm.author.trim();
+      if (metadataForm.creator) updatedData.creator = metadataForm.creator.trim();
+      if (metadataForm.platform) updatedData.platform = metadataForm.platform.trim();
+      if (metadataForm.year) updatedData.year = parseInt(metadataForm.year);
+      if (metadataForm.duration) updatedData.duration = metadataForm.duration.trim();
+      if (metadataForm.url) updatedData.url = metadataForm.url.trim();
 
-    updateResource(resource.id, updatedData);
-    console.log('Saved metadata for resource:', resource.id);
-    setIsEditingMetadata(false);
+      await storageAdapter.updateResource(resource.id, updatedData);
+      console.log('Saved metadata for resource:', resource.id);
+      setIsEditingMetadata(false);
+    } catch (err) {
+      console.error('Error saving metadata:', err);
+      setError('Failed to save metadata');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -227,6 +267,11 @@ const ResourceDetail = () => {
               )}
             </div>
           </div>
+        {error && (
+          <Alert variant="destructive" className="mb-8">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
           {/* Metadata */}
           <Card className="bg-gradient-card border-0 shadow-card">
@@ -585,4 +630,3 @@ const ResourceDetail = () => {
 };
 
 export default ResourceDetail;
-

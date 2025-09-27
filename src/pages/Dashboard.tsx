@@ -1,32 +1,81 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { ResourceCard } from '@/components/resources/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { resourceTypeConfig } from '@/data/mockData';
-import { getRecentResources } from '@/data/storage';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useStorageAdapter, type ResourceTypeConfig, type Resource } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import { Link } from 'react-router-dom';
-import { Plus, TrendingUp, Brain } from 'lucide-react';
+import { Plus, TrendingUp, Brain, Loader2 } from 'lucide-react';
 
 const Dashboard = () => {
-  const resources = useResources();
+  const { resources, loading: resourcesLoading, error: resourcesError } = useResources();
+  const storageAdapter = useStorageAdapter();
+
+  const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
+  const [recentResources, setRecentResources] = useState<Resource[]>([]);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDashboardData = async () => {
+      setConfigLoading(true);
+      setConfigError(null);
+      try {
+        const [config, recent] = await Promise.all([
+          storageAdapter.getResourceTypeConfig(),
+          storageAdapter.getRecentResources(3)
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setResourceTypeConfig(config);
+        setRecentResources(recent);
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        if (!isMounted) {
+          return;
+        }
+        setConfigError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+        setResourceTypeConfig(null);
+        setRecentResources([]);
+      } finally {
+        if (isMounted) {
+          setConfigLoading(false);
+        }
+      }
+    };
+
+    loadDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storageAdapter]);
 
   const summary = useMemo(() => {
-    const statsByType = Object.entries(resourceTypeConfig).map(([type, config]) => ({
-      type,
-      config,
-      count: resources.filter((resource) => resource.type === type).length,
-    }));
-
-    const recentResources = getRecentResources(3);
+    const statsByType = resourceTypeConfig
+      ? Object.entries(resourceTypeConfig).map(([type, config]) => ({
+          type,
+          config,
+          count: resources.filter((resource) => resource.type === type).length,
+        }))
+      : [];
 
     return {
       totalResources: resources.length,
       statsByType,
       recentResources,
     };
-  }, [resources]);
+  }, [resources, resourceTypeConfig, recentResources]);
+
+  const isLoading = resourcesLoading || configLoading;
+  const showError = !isLoading && (resourcesError || configError);
 
   return (
     <Layout>
@@ -46,10 +95,18 @@ const Dashboard = () => {
           <Link to="/resources/new">
             <Button size="lg" className="bg-gradient-primary hover:shadow-knowledge transition-smooth">
               <Plus className="w-5 h-5 mr-2" />
-              Add Your First Resource
+              {resources.length === 0 ? 'Add Your First Resource' : 'Add New Resource'}
             </Button>
           </Link>
         </div>
+
+        {showError && (
+          <Alert variant="destructive" className="mb-10">
+            <AlertDescription>
+              {resourcesError ?? configError}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
@@ -58,7 +115,14 @@ const Dashboard = () => {
             <CardHeader className="pb-3">
               <CardDescription>Total Resources</CardDescription>
               <CardTitle className="text-3xl font-bold text-primary">
-                {summary.totalResources}
+                {isLoading ? (
+                  <span className="flex items-center gap-2 text-base text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Loading...
+                  </span>
+                ) : (
+                  summary.totalResources
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -97,17 +161,28 @@ const Dashboard = () => {
               <p className="text-muted-foreground">Your latest learning insights</p>
             </div>
             <Link to="/resources">
-              <Button variant="outline" className="hover:bg-accent-soft transition-smooth">
+              <Button variant="outline" className="hover:bg-accent-soft transition-smooth" disabled={resourcesLoading}>
                 View All Resources
               </Button>
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {summary.recentResources.map((resource) => (
-              <ResourceCard key={resource.id} resource={resource} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-10 text-muted-foreground">
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Loading recent resources...
+            </div>
+          ) : summary.recentResources.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {summary.recentResources.map((resource) => (
+                <ResourceCard key={resource.id} resource={resource} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 text-muted-foreground">
+              No recent activity yet. Add a resource to get started!
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}
@@ -118,17 +193,30 @@ const Dashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Object.entries(resourceTypeConfig).map(([type, config]) => (
-              <Link key={type} to={`/resources/new?type=${type}`}>
-                <Button
-                  variant="outline"
-                  className="w-full h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent-soft hover:border-accent transition-smooth group"
-                >
-                  <span className="text-2xl group-hover:scale-110 transition-smooth">{config.icon}</span>
-                  <span className="font-medium">Add {config.label.slice(0, -1)}</span>
-                </Button>
-              </Link>
-            ))}
+            {resourceTypeConfig ? (
+              Object.entries(resourceTypeConfig).map(([type, config]) => (
+                <Link key={type} to={`/resources/new?type=${type}`}>
+                  <Button
+                    variant="outline"
+                    className="w-full h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent-soft hover:border-accent transition-smooth group"
+                  >
+                    <span className="text-2xl group-hover:scale-110 transition-smooth">{config.icon}</span>
+                    <span className="font-medium">Add {config.label.slice(0, -1)}</span>
+                  </Button>
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-full flex items-center justify-center text-muted-foreground">
+                {configLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Loading resource types...
+                  </>
+                ) : (
+                  <span>{configError ?? 'Resource type configuration is unavailable.'}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
