@@ -48,9 +48,6 @@ const chunkForPackage = (id: string) => {
     return "syntax";
   }
 
-  if (scope.startsWith("micromark") || scope.startsWith("mdast") || scope.startsWith("hast")) {
-    return "markdown-runtime";
-  }
 
   return "vendor";
 };
@@ -92,3 +89,4 @@ export default defineConfig(({ mode }) => {
     },
   };
 });
+
