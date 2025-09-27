@@ -375,3 +375,15 @@ npm run dev           # Start development server
 - Unused variables warning is disabled in eslint config
 - Uses SWC for faster React compilation in Vite
 - Component tagging is enabled in development mode via lovable-tagger
+
+## Vercel Hosting & Deployment
+
+- **Platform**: Production is hosted on Vercel at https://personal-knowledge-vault.vercel.app/. The main branch auto-deploys to production; pull requests receive preview deployments.
+- **Build command**: Vercel runs 
+pm run build (Vite) with Node 18+. The generated assets must live under dist/; avoid relying on files outside that folder.
+- **Environment configuration**: Manage environment variables in the Vercel dashboard (Project Settings ? Environment Variables). Keep .env local-only and never commit secrets. Use the same variable names across Production and Preview to avoid surprises.
+- **Deployment checklist**:
+  1. Run 
+npm run build locally before pushing to main.
+  2. Scan the emitted dist/assets/*.js for unexpected chunk splits (React core and markdown runtime should stay together; see section above).
+  3. After deployment, open the production URL and the Vercel dashboard logs to ensure no runtime errors.
