@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚨 MANDATORY: Read This File FIRST
+
+**CRITICAL RULE**: Before making ANY assumptions about tools, workflows, or architecture:
+1. **READ this entire CLAUDE.md file thoroughly**
+2. **CHECK existing code patterns and imports**
+3. **VERIFY current project status and phase completion**
+4. **UNDERSTAND the established workflows before suggesting alternatives**
+
+**Failure to read documentation first leads to:**
+- Wasted time on incorrect approaches
+- Contradicting established workflows
+- Making assumptions about missing tools that actually exist
+- Implementing solutions that conflict with existing architecture
+
 ## ⚠️ IMPORTANT: Documentation First Approach
 
 **ALWAYS check relevant documentation before coding**, especially when working with:
@@ -21,20 +35,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### CLI Commands for Development:
 ```bash
-# Project setup
-supabase init                    # Initialize config files
-supabase login                   # Authenticate with Supabase
-supabase link --project-ref <id> # Link to hosted project
+# Project setup (run with npx prefix)
+npx supabase init                    # Initialize config files
+npx supabase login                   # Authenticate with Supabase
+npx supabase link --project-ref <id> # Link to hosted project
 
 # Configuration management
-supabase db push                 # Deploy local config to remote
-supabase db pull                 # Pull remote config changes
-supabase validate               # Validate config before deployment
+npx supabase db push                 # Deploy local config to remote
+npx supabase db pull                 # Pull remote config changes
+npx supabase validate               # Validate config before deployment
 
 # Auth configuration via config.toml only
 # Database schema via migrations only
 # No dashboard clicking for configuration
 ```
+
+### Database Migration Best Practices:
+- **Use modern PostgreSQL functions**: `gen_random_uuid()` instead of `uuid_generate_v4()`
+- **Handle Unicode/emojis carefully**: Test emoji storage in JSONB fields
+- **Test end-to-end workflows**: Ensure navigation works after database changes
+- **Use incremental migrations**: Separate schema changes from data fixes
+- **Always verify CLI is linked**: Check project connection before pushing migrations
 
 **Rationale**: This approach ensures all changes are version-controlled, reproducible, and eliminates dependency on local Docker setup while maintaining full control over project configuration.
 
@@ -106,8 +127,8 @@ This is a React-based personal knowledge storage application built with:
 - **shadcn/ui** component library with Radix UI primitives
 - **Tailwind CSS** for styling with custom design tokens
 - **@uiw/react-md-editor** for markdown editing
-- **Supabase** for authentication and future data persistence (Phase 5+)
-- **localStorage** for current data persistence (transitioning to Supabase)
+- **Supabase** for authentication and database persistence (COMPLETED Phase 5-6)
+- **Hybrid Storage System** - Automatically switches between Supabase (authenticated) and localStorage (unauthenticated)
 
 ### Key Architecture Patterns
 
@@ -117,12 +138,27 @@ This is a React-based personal knowledge storage application built with:
 - `src/components/resources/` - Domain-specific components
 - `src/pages/` - Route components (Dashboard, Resources, ResourceDetail, NewResource, Settings, NotFound)
 
-**Data Layer:**
-- `src/data/storage.ts` - **CRITICAL: Always use this for data operations**
+**Data Layer (Phase 6 - Hybrid Storage Architecture):**
+- `src/data/storageAdapter.ts` - **CRITICAL: Primary data access layer (ALWAYS USE THIS)**
+- `src/data/supabaseStorage.ts` - Supabase backend operations (authenticated users)
+- `src/data/storage.ts` - localStorage operations (fallback for unauthenticated users)
 - `src/data/mockData.ts` - Resource interfaces and sample data
-- **Never use mockResources directly** - always use storage layer functions
-- Available functions: `getResources()`, `addResource()`, `updateResource()`, `getResourceById()`
-- **Dynamic Configuration**: `getResourceTypeConfig()`, `addFieldToResourceType()`, `removeFieldFromResourceType()`
+- **NEVER use mockResources directly** - always use storageAdapter functions
+- **NEVER import storage.ts or supabaseStorage.ts directly** - use storageAdapter instead
+
+**Hybrid Storage Pattern:**
+```typescript
+// ✅ CORRECT - Use hybrid storage adapter
+import { useStorageAdapter } from '@/data/storageAdapter';
+
+const storageAdapter = useStorageAdapter(); // Auto-switches based on auth state
+const resources = await storageAdapter.getResources();
+```
+
+**Available Async Functions:**
+- `getResources()`, `addResource()`, `updateResource()`, `getResourceById()`
+- `getResourceTypeConfig()`, `addFieldToResourceType()`, `removeFieldFromResourceType()`
+- `subscribeToResourceChanges()` - Real-time updates via Supabase or localStorage events
 
 **Routing:**
 Routes defined in App.tsx:
@@ -139,9 +175,11 @@ Routes defined in App.tsx:
 - shadcn/ui configuration in `components.json`
 
 **State Management:**
-- localStorage for data persistence via `src/data/storage.ts`
+- Hybrid data persistence via `src/data/storageAdapter.ts` (Supabase + localStorage)
 - React Hook Form for form state
 - Local component state for UI interactions
+- Async state management with loading/error states throughout
+- Real-time updates via Supabase subscriptions when authenticated
 
 ### File Aliases
 - `@/` maps to `src/`
@@ -149,18 +187,52 @@ Routes defined in App.tsx:
 
 ## Critical Implementation Patterns
 
-### Resource Management (Core Feature)
+### Resource Management (Core Feature - Phase 6 Async Pattern)
 ```typescript
-// ✅ CORRECT - Use storage layer
-import { getResources, addResource, updateResource } from '@/data/storage';
+// ✅ CORRECT - Use async storage adapter
+import { useStorageAdapter } from '@/data/storageAdapter';
 
-// ❌ WRONG - Never use mockResources directly
-import { mockResources } from '@/data/mockData';
+const Component = () => {
+  const storageAdapter = useStorageAdapter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreateResource = async (resourceData) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const savedResource = await storageAdapter.addResource(resourceData);
+      navigate(`/resource/${savedResource.id}`); // ⚠️ CRITICAL: Test navigation!
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+};
+
+// ❌ WRONG - Never use storage layers directly
+import { getResources } from '@/data/storage';
+import { getResources } from '@/data/supabaseStorage';
 ```
 
-### Dynamic Form Patterns
+### Dynamic Form Patterns (Async Configuration)
 ```typescript
-// ✅ CORRECT - Use dynamic configuration
+// ✅ CORRECT - Load dynamic configuration asynchronously
+const [resourceTypeConfig, setResourceTypeConfig] = useState(null);
+
+useEffect(() => {
+  const loadConfig = async () => {
+    try {
+      const config = await storageAdapter.getResourceTypeConfig();
+      setResourceTypeConfig(config);
+    } catch (error) {
+      console.error('Failed to load config:', error);
+    }
+  };
+  loadConfig();
+}, [storageAdapter]);
+
 const renderTypeSpecificFields = () => {
   if (!selectedType || !resourceTypeConfig) return null;
   const config = resourceTypeConfig[selectedType];
@@ -168,13 +240,24 @@ const renderTypeSpecificFields = () => {
 };
 ```
 
-### Component State Management
+### Component State Management (Async with Error Handling)
 ```typescript
-// Controlled components with immediate persistence
+// ✅ CORRECT - Async operations with proper error handling
 const [notes, setNotes] = useState(resource?.notes || '');
-const handleSave = () => {
-  updateResource(resource.id, { notes });
-  setIsEditing(false);
+const [saving, setSaving] = useState(false);
+const [error, setError] = useState(null);
+
+const handleSave = async () => {
+  setSaving(true);
+  setError(null);
+  try {
+    await storageAdapter.updateResource(resource.id, { notes });
+    setIsEditing(false);
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setSaving(false);
+  }
 };
 ```
 
@@ -201,6 +284,26 @@ const handleSave = () => {
 **Issue**: v7 future flag warnings
 **Solution**: Cosmetic warnings about upcoming version, safe to ignore
 
+### Navigation Syntax Errors (Phase 6 Lesson)
+**Issue**: Template literal syntax errors in navigation code
+**Solution**: Always use proper template literals: `navigate(\`/resource/${id}\`)` not `navigate(/resource/)`
+**Prevention**: Test navigation end-to-end during implementation
+
+### Database Table Not Found (404 Errors)
+**Issue**: PostgREST returns 404 for missing tables during development
+**Solution**: Apply database migrations using `npx supabase db push`
+**Prevention**: Always deploy migrations before testing new storage features
+
+### Emoji/Unicode Encoding Issues
+**Issue**: Emojis appear as question marks in database JSONB fields
+**Solution**: Use proper Unicode strings in migrations and test emoji storage
+**Prevention**: Test special characters and Unicode in database contexts
+
+### Async State Management Issues
+**Issue**: Components break when switching from sync to async storage
+**Solution**: Always implement loading/error states for async operations
+**Pattern**: Use `useState` for loading/error states and `try/catch` blocks
+
 ## Testing After Changes
 
 After making larger changes, verify functionality with these commands:
@@ -212,27 +315,57 @@ npm run lint          # Check code quality
 npm run dev           # Start development server
 ```
 
-**Test Core Functionality:**
+**Test Core Functionality (MANDATORY after changes):**
+
+**CRITICAL - End-to-End Navigation Testing:**
 1. Navigate to all main routes (`/`, `/resources`, `/resources/new`, `/resource/:id`, `/settings`)
-2. Create a new resource and verify it saves
-3. Edit notes in an existing resource and verify persistence
-4. Test search and filtering on resources page
-5. Test dynamic settings: Add/remove fields in Settings and verify they appear in NewResource forms
+2. **Create a new resource and VERIFY it navigates to the correct detail page** ⚠️
+3. Test resource detail page loads with correct data
+4. Test navigation between different resource detail pages
+
+**Storage & Persistence Testing:**
+1. Test both authenticated (Supabase) and unauthenticated (localStorage) modes
+2. Create, edit, and delete resources in both modes
+3. Test real-time updates if authenticated
+4. Verify data isolation between different users
+
+**UI & Configuration Testing:**
+1. Edit notes in an existing resource and verify persistence
+2. Test search and filtering on resources page
+3. Test dynamic settings: Add/remove fields in Settings and verify they appear in NewResource forms
+4. **Test emoji display in resource type icons** 📚🎬🎧📄
+5. Verify loading states display during async operations
+6. Test error handling for failed operations
+
+**Database & Migration Testing (when applicable):**
+1. Verify database tables exist via Supabase dashboard
+2. Test RLS policies prevent cross-user data access
+3. Confirm migration deployment with `npx supabase db push`
 
 ## Development Notes
 
-**Current Status**:
-- **Completed**: Phases 1-4 (Frontend structure, resource management, dynamic configuration)
-- **In Progress**: Phase 5 (Supabase authentication with magic-link email)
-- **Next**: Phase 6 (Database migration to Supabase)
+**Current Status** (Updated: Phase 6 Completed):
+- **✅ Completed**: Phases 1-6 (Frontend, resource management, authentication, database migration)
+  - Phase 1-4: Core frontend structure and dynamic configuration
+  - Phase 5: Magic-link authentication system fully operational
+  - Phase 6: **COMPLETED** - Hybrid storage architecture with Supabase database backend
+- **🎯 Next**: Phase 7 (Sharing & collaboration features)
+- **🚀 Future**: Phase 8 (Production deployment and optimization)
 
-See `Planning and Task Files/9-7 - Original Planning Files/implementation_plan.md` for detailed feature completion status and development roadmap.
+### Phase 6 Implementation Summary (COMPLETED)
+- ✅ **Hybrid Storage Architecture**: Seamless switching between Supabase (authenticated) and localStorage (unauthenticated)
+- ✅ **Database Schema**: Complete with RLS policies, indexes, and triggers
+- ✅ **Real-time Updates**: Supabase subscriptions for live data synchronization
+- ✅ **Async Operations**: All components updated with proper loading/error states
+- ✅ **User Data Isolation**: Row Level Security ensuring user privacy
+- ✅ **Migration System**: Deployed via CLI with version control
 
-### Supabase Integration Notes
-- Authentication will be implemented via magic-link email flow
-- All Supabase configuration managed through `supabase/config.toml` and CLI commands
-- Database schema and auth settings deployed via `supabase db push`
-- Environment variables required: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+### Supabase Integration (ACTIVE)
+- ✅ Authentication implemented via magic-link email flow
+- ✅ All configuration managed through `supabase/config.toml` and CLI commands
+- ✅ Database schema and auth settings deployed via `npx supabase db push`
+- ✅ Environment variables configured: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+- ✅ CLI workflow established and tested
 
 ### Technical Notes
 - The project uses ESLint with TypeScript rules
