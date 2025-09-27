@@ -53,9 +53,12 @@ npx supabase validate               # Validate config before deployment
 ### Database Migration Best Practices:
 - **Use modern PostgreSQL functions**: `gen_random_uuid()` instead of `uuid_generate_v4()`
 - **Handle Unicode/emojis carefully**: Test emoji storage in JSONB fields
+- **CRITICAL: Use ASCII-only in SQL files**: Unicode characters (✅⚠️) cause deployment failures
+- **Document object dependencies**: Track triggers → policies → functions → tables → enums for removal order
 - **Test end-to-end workflows**: Ensure navigation works after database changes
 - **Use incremental migrations**: Separate schema changes from data fixes
 - **Always verify CLI is linked**: Check project connection before pushing migrations
+- **Preserve migration history**: Never delete migration files, even for removed features
 
 **Rationale**: This approach ensures all changes are version-controlled, reproducible, and eliminates dependency on local Docker setup while maintaining full control over project configuration.
 
