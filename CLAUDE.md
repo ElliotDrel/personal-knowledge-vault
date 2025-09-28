@@ -345,6 +345,26 @@ npm run dev           # Start development server
 2. Test RLS policies prevent cross-user data access
 3. Confirm migration deployment with `npx supabase db push`
 
+## 🚨 CRITICAL: Implementation Quality Standards
+
+**MANDATORY before claiming any feature "complete":**
+1. **No placeholders** - Real endpoints, auth tokens, UI elements (no `??` or `TODO`)
+2. **Cross-system sync** - When changing shared utilities, update ALL consumers
+3. **Quality gates** - Pass `npm run lint`, `npm run typecheck`, `npm run build`
+4. **End-to-end test** - Complete user workflow works with real data
+
+**Warning signs to STOP and fix:**
+- `any` types, ESLint suppressions, or dependency array warnings
+- Components work in isolation but fail when integrated
+- Platform regexes don't match normalized URLs (frontend/backend)
+- Authentication bypasses or hard-coded credentials
+
+**Critical Integration Patterns:**
+- **Shared URLs**: When changing `normalizeUrl()`, update regex patterns in both `src/utils/urlDetection.ts` and `supabase/functions/short-form/types.ts`
+- **Auth Flow**: Use service-role key in Edge Functions, pass user JWT from frontend
+- **Type Contracts**: Always import shared types (`shortFormApi.ts`) - never redefine shapes
+- **Switch Cases**: Wrap `const` declarations in blocks: `case 'value': { const x = ...; }`
+
 ## Development Notes
 
 **Current Status** (Updated: Phase 6 Completed):
