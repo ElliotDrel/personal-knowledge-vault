@@ -87,7 +87,7 @@ This prevents implementation errors, ensures best practices, and saves developme
 ## Commands
 
 ### Development
-- `npm run dev` - Start development server on port 8080
+- `npm run dev` - Start development server on port 2222
 - `npm run build` - Build for production
 - `npm run lint` - Run ESLint to check code quality
 - `npm run preview` - Preview production build locally
