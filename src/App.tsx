@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Resources = lazy(() => import("./pages/Resources"));
 const ResourceDetail = lazy(() => import("./pages/ResourceDetail"));
 const NewResource = lazy(() => import("./pages/NewResource"));
+const ProcessVideo = lazy(() => import("./pages/ProcessVideo"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -50,6 +51,11 @@ const App = () => (
               <Route path="/resources/new" element={
                 <RequireAuth>
                   <NewResource />
+                </RequireAuth>
+              } />
+              <Route path="/resources/process" element={
+                <RequireAuth>
+                  <ProcessVideo />
                 </RequireAuth>
               } />
               <Route path="/resource/:id" element={
