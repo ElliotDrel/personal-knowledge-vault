@@ -1,3 +1,18 @@
+/**
+ * NewResource Component
+ *
+ * Form for creating new resources with dynamic field configuration.
+ * Features include:
+ * - Dynamic form fields based on resource type configuration
+ * - Pre-selection of resource type via URL parameters
+ * - Markdown editor for notes with live preview
+ * - Transcript input for video/podcast resources
+ * - Comprehensive validation and error handling
+ * - Async storage with loading states
+ *
+ * @component
+ */
+
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
@@ -151,8 +166,6 @@ const NewResource = () => {
       };
 
       const savedResource = await storageAdapter.addResource(newResource);
-
-      console.log('Created new resource:', savedResource);
       navigate(`/resource/${savedResource.id}`);
     } catch (error) {
       console.error('Error creating resource:', error);

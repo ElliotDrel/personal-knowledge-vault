@@ -1,12 +1,26 @@
+/**
+ * Storage Adapter
+ *
+ * This module provides a unified interface for resource storage that automatically
+ * switches between Supabase (for authenticated users) and localStorage (for
+ * unauthenticated users). This hybrid approach ensures the app works both
+ * offline and online seamlessly.
+ *
+ * @module storageAdapter
+ */
+
 import { useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Resource } from './mockData';
 import * as localStorageOps from './storage';
 import * as supabaseOps from './supabaseStorage';
 
-// Type definitions for storage operations
+/**
+ * Storage adapter interface that provides unified access to resource storage
+ * operations regardless of the underlying storage mechanism (localStorage or Supabase)
+ */
 export interface StorageAdapter {
-  // Resource operations
+  // Resource CRUD operations
   getResources(): Promise<Resource[]>;
   getResourceById(id: string): Promise<Resource | null>;
   addResource(resource: Resource): Promise<Resource>;
@@ -30,15 +44,22 @@ export interface StorageAdapter {
     fieldName: string
   ): Promise<supabaseOps.ResourceTypeConfig>;
 
-  // Subscription operations
+  // Real-time subscription operations
   subscribeToResourceChanges(callback: () => void): () => void;
   subscribeToResourceTypeConfigChanges?(callback: () => void): () => void;
 
-  // Utility
+  // Utility methods
   isOnline(): boolean;
 }
 
-// localStorage adapter (wraps sync operations in promises)
+/**
+ * localStorage adapter that wraps synchronous localStorage operations
+ * in promises to maintain API consistency with the Supabase adapter.
+ *
+ * This adapter provides offline-first functionality for unauthenticated users,
+ * storing data locally in the browser. All methods return promises to match
+ * the async nature of the Supabase adapter.
+ */
 class LocalStorageAdapter implements StorageAdapter {
   async getResources(): Promise<Resource[]> {
     return localStorageOps.getResources();
@@ -111,6 +132,13 @@ class LocalStorageAdapter implements StorageAdapter {
 }
 
 // Supabase adapter (uses existing async operations)
+/**
+ * Supabase adapter that provides database-backed storage for authenticated users.
+ *
+ * This adapter handles all Supabase operations including row-level security,
+ * real-time subscriptions, and user-scoped data access. It provides the full
+ * feature set for authenticated users including real-time synchronization.
+ */
 class SupabaseStorageAdapter implements StorageAdapter {
   async getResources(): Promise<Resource[]> {
     return supabaseOps.getResources();
@@ -178,7 +206,12 @@ class SupabaseStorageAdapter implements StorageAdapter {
   }
 }
 
-// Factory function to get the appropriate storage adapter
+/**
+ * Factory function that returns the appropriate storage adapter based on authentication status
+ *
+ * @param isAuthenticated - Whether the user is currently authenticated
+ * @returns SupabaseStorageAdapter for authenticated users, LocalStorageAdapter for anonymous users
+ */
 export const getStorageAdapter = (isAuthenticated: boolean): StorageAdapter => {
   if (isAuthenticated) {
     return new SupabaseStorageAdapter();
@@ -187,11 +220,18 @@ export const getStorageAdapter = (isAuthenticated: boolean): StorageAdapter => {
   }
 };
 
-// Hook to get the current storage adapter
+/**
+ * React hook that provides the current storage adapter based on user authentication status
+ *
+ * This hook automatically switches between Supabase and localStorage adapters
+ * based on whether the user is authenticated, providing seamless data persistence.
+ *
+ * @returns The appropriate StorageAdapter instance
+ */
 export const useStorageAdapter = (): StorageAdapter => {
   const { user } = useAuth();
 
-  const adapter = useMemo(() => getStorageAdapter(!!user), [user?.id]);
+  const adapter = useMemo(() => getStorageAdapter(!!user), [user]);
 
   return adapter;
 };

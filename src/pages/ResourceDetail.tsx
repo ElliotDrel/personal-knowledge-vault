@@ -1,3 +1,16 @@
+/**
+ * ResourceDetail Component
+ *
+ * Displays detailed view of a single resource with editing capabilities.
+ * Features include:
+ * - Inline editing of metadata, notes, and transcripts
+ * - Type-specific field display based on resource type configuration
+ * - Real-time persistence through hybrid storage adapter
+ * - Delete functionality with confirmation dialog
+ *
+ * @component
+ */
+
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
@@ -167,7 +180,6 @@ const ResourceDetail = () => {
     setError(null);
     try {
       await storageAdapter.updateResource(resource.id, { notes });
-      console.log('Saved notes for resource:', resource.id);
       setIsEditingNotes(false);
     } catch (err) {
       console.error('Error saving notes:', err);
@@ -183,7 +195,6 @@ const ResourceDetail = () => {
     setError(null);
     try {
       await storageAdapter.updateResource(resource.id, { transcript });
-      console.log('Saved transcript for resource:', resource.id);
       setIsEditingTranscript(false);
     } catch (err) {
       console.error('Error saving transcript:', err);
@@ -225,7 +236,6 @@ const ResourceDetail = () => {
       if (metadataForm.url) updatedData.url = metadataForm.url.trim();
 
       await storageAdapter.updateResource(resource.id, updatedData);
-      console.log('Saved metadata for resource:', resource.id);
       setIsEditingMetadata(false);
     } catch (err) {
       console.error('Error saving metadata:', err);
@@ -243,7 +253,6 @@ const ResourceDetail = () => {
 
     try {
       await storageAdapter.deleteResource(resource.id);
-      console.log('Successfully deleted resource:', resource.id);
       // Navigate to resources list on success
       navigate('/resources');
     } catch (err) {
