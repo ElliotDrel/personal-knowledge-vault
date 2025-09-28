@@ -14,6 +14,15 @@ export interface Resource {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  shortFormPlatform?: 'tiktok' | 'youtube-short' | 'instagram-reel';
+  shortFormMetadata?: {
+    handle?: string;
+    channelName?: string;
+    hashtags?: string[];
+    viewCount?: number;
+    extractedAt?: string;
+    extractionMethod?: 'auto' | 'manual';
+  };
 }
 
 export const mockResources: Resource[] = [
@@ -207,6 +216,13 @@ export const getRecentResources = (limit: number = 3) => {
     .slice(0, limit);
 };
 
+// Platform-specific field mapping for short-form videos
+export const shortFormFieldMap: Record<string, string[]> = {
+  'youtube-short': ['channelName', 'hashtags', 'viewCount'],
+  tiktok: ['handle', 'hashtags'],
+  'instagram-reel': ['handle', 'hashtags']
+};
+
 export const resourceTypeConfig = {
   book: {
     label: 'Books',
@@ -218,7 +234,8 @@ export const resourceTypeConfig = {
     label: 'Videos',
     icon: '🎬',
     color: 'knowledge-video',
-    fields: ['creator', 'platform', 'duration', 'url']
+    fields: ['creator', 'platform', 'duration', 'url'],
+    optionalShortFormFields: ['shortFormPlatform', 'handle', 'channelName', 'hashtags', 'viewCount']
   },
   podcast: {
     label: 'Podcasts',
