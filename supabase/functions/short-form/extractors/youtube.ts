@@ -57,9 +57,9 @@ export async function extractYouTubeMetadata(
 
     if (!response.ok) {
       const rawBody = await response.text()
-      let errorJson: any
+      let errorJson: YouTubeApiErrorResponse | undefined
       try {
-        errorJson = rawBody ? JSON.parse(rawBody) : undefined
+        errorJson = rawBody ? (JSON.parse(rawBody) as YouTubeApiErrorResponse) : undefined
       } catch (_parseError) {
         // Ignore JSON parse failures; fall back to raw response
       }
@@ -211,6 +211,17 @@ export async function extractYouTubeMetadata(
         details: message
       }
     }
+  }
+}
+
+type YouTubeApiErrorResponse = {
+  error?: {
+    message?: string
+    errors?: Array<{
+      message?: string
+      domain?: string
+      reason?: string
+    }>
   }
 }
 
