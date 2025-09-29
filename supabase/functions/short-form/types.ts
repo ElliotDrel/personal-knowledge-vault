@@ -57,9 +57,10 @@ export interface ProcessVideoRequest {
   };
 }
 
-export interface GetJobStatusRequest {
-  jobId: string;
-}
+// Discriminated union ensures exactly one parameter is provided (compile-time safety)
+export type GetJobStatusRequest =
+  | { jobId: string; normalizedUrl?: never }
+  | { normalizedUrl: string; jobId?: never }
 
 export interface ShortFormMetadata {
   platform: ShortFormPlatform;

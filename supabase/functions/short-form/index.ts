@@ -3,7 +3,8 @@
  *
  * Endpoints:
  * POST /short-form/process - Initiate processing of a short-form video URL
- * GET  /short-form/status?jobId={id} - Get status of a processing job
+ * GET  /short-form/status?jobId={id} - Get status of a processing job by ID
+ * GET  /short-form/status?normalizedUrl={url} - Get most recent job for a URL
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -222,15 +223,16 @@ async function handleStatusRequest(
   try {
     const url = new URL(req.url)
     const jobId = url.searchParams.get('jobId')
+    const normalizedUrl = url.searchParams.get('normalizedUrl')
 
-    if (!jobId) {
-      logError('Missing jobId parameter', { userId: user.id })
+    if (!jobId && !normalizedUrl) {
+      logError('Missing jobId or normalizedUrl parameter', { userId: user.id })
       return Response.json(
         {
           success: false,
           error: {
             code: 'invalid_job_id' as const,
-            message: 'jobId parameter is required'
+            message: 'Either jobId or normalizedUrl parameter is required'
           }
         },
         { status: HTTP_STATUS.BAD_REQUEST, headers: corsHeaders }
@@ -239,11 +241,16 @@ async function handleStatusRequest(
 
     logInfo('Status request received', {
       userId: user.id,
-      jobId
+      jobId,
+      normalizedUrl
     })
 
+    const request: GetJobStatusRequest = {}
+    if (jobId) request.jobId = jobId
+    if (normalizedUrl) request.normalizedUrl = normalizedUrl
+
     const response: JobStatusApiResponse = await getJobStatusHandler(
-      { jobId },
+      request,
       user,
       supabaseClient,
       config
