@@ -72,29 +72,30 @@ export function normalizeUrl(url: string): string {
 
 /**
  * Normalizes YouTube URLs to a standard format
+ * IMPORTANT: Keep /shorts/ path intact for platform detection!
  */
 function normalizeYouTubeUrl(parsed: URL): string {
   const originalHost = parsed.hostname.toLowerCase()
-
-  // Handle youtu.be short URLs
-  if (originalHost === 'youtu.be') {
-    const videoId = parsed.pathname.substring(1) // Remove leading slash
-    return `https://youtube.com/watch?v=${videoId}`
-  }
-
   parsed.hostname = 'youtube.com'
 
-  // Handle /shorts/ URLs
+  // Handle /shorts/ URLs - PRESERVE the /shorts/ path for platform detection
   if (parsed.pathname.startsWith('/shorts/')) {
-    const videoId = parsed.pathname.split('/shorts/')[1].split('?')[0]
-    parsed.pathname = '/watch'
-    parsed.searchParams.set('v', videoId)
+    const videoId = parsed.pathname.split('/shorts/')[1].split('?')[0].split('/')[0]
+    // Keep it as a shorts URL so detectPlatform can recognize it
+    return `https://youtube.com/shorts/${videoId}`
   }
 
-  // Keep only essential parameters
+  // Handle youtu.be short URLs - these are typically Shorts too
+  if (originalHost === 'youtu.be') {
+    const videoId = parsed.pathname.substring(1).split('?')[0].split('/')[0]
+    // Assume youtu.be links are Shorts (YouTube uses this for short URLs)
+    return `https://youtube.com/shorts/${videoId}`
+  }
+
+  // Keep only essential parameters for regular watch URLs
   const videoId = parsed.searchParams.get('v')
   if (videoId) {
-    parsed.search = `?v=${videoId}`
+    return `https://youtube.com/watch?v=${videoId}`
   }
 
   return parsed.toString()
