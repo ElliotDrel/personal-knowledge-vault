@@ -31,7 +31,7 @@ const FRONTEND_PLATFORM_CONFIGS: Record<ShortFormPlatform, PlatformInfo> = {
   'youtube-short': {
     name: 'youtube-short',
     displayName: 'YouTube Shorts',
-    icon: '??', // YouTube icon
+    icon: '▶️', // YouTube icon (play button emoji)
     supportedFeatures: {
       metadata: true,
       transcript: true,
