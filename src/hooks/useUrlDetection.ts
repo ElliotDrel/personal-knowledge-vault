@@ -6,18 +6,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import {
   detectShortFormVideo,
-  checkClipboardForVideo,
   getSuggestedActions,
   formatPlatformDisplay,
   type UrlDetectionResult
 } from '@/utils/urlDetection'
 
 export interface UseUrlDetectionOptions {
-  /**
-   * Whether to automatically check clipboard on mount
-   */
-  checkClipboardOnMount?: boolean
-
   /**
    * Debounce delay for URL input changes (in ms)
    */
@@ -45,10 +39,6 @@ export interface UseUrlDetectionReturn {
   setUrl: (url: string) => void
   clearUrl: () => void
 
-  // Clipboard operations
-  checkClipboard: () => Promise<boolean>
-  canAccessClipboard: boolean
-
   // Computed values
   isShortFormVideo: boolean
   platform: string | null
@@ -74,7 +64,6 @@ export function useUrlDetection(
   options: UseUrlDetectionOptions = {}
 ): UseUrlDetectionReturn {
   const {
-    checkClipboardOnMount = false,
     debounceMs = 300,
     onVideoDetected,
     onInvalidUrl
@@ -84,7 +73,6 @@ export function useUrlDetection(
   const [url, setUrlState] = useState(initialUrl)
   const [result, setResult] = useState<UrlDetectionResult | null>(null)
   const [isDetecting, setIsDetecting] = useState(false)
-  const [canAccessClipboard, setCanAccessClipboard] = useState(false)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Check clipboard access on mount
@@ -144,27 +132,6 @@ export function useUrlDetection(
   }, [analyzeUrl, debounceMs])
 
   useEffect(() => {
-    const checkClipboardAccess = async () => {
-      try {
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          setCanAccessClipboard(true)
-
-          if (checkClipboardOnMount) {
-            const clipboardResult = await checkClipboardForVideo()
-            if (clipboardResult) {
-              setUrl(clipboardResult.originalUrl)
-            }
-          }
-        }
-      } catch {
-        setCanAccessClipboard(false)
-      }
-    }
-
-    void checkClipboardAccess()
-  }, [checkClipboardOnMount, setUrl])
-
-  useEffect(() => {
     if (initialUrl.trim()) {
       setUrl(initialUrl)
     }
@@ -181,21 +148,6 @@ export function useUrlDetection(
       debounceTimerRef.current = null
     }
   }, [])
-
-  // Check clipboard for video URLs
-  const checkClipboard = useCallback(async (): Promise<boolean> => {
-    try {
-      const clipboardResult = await checkClipboardForVideo()
-      if (clipboardResult) {
-        setUrl(clipboardResult.originalUrl)
-        return true
-      }
-      return false
-    } catch (error) {
-      console.debug('Clipboard check failed:', error)
-      return false
-    }
-  }, [setUrl])
 
   // Cleanup effect
   useEffect(() => {
@@ -276,10 +228,6 @@ export function useUrlDetection(
     setUrl,
     clearUrl,
 
-    // Clipboard operations
-    checkClipboard,
-    canAccessClipboard,
-
     // Computed values
     isShortFormVideo: result?.isShortFormVideo || false,
     platform: result?.platform || null,
@@ -306,36 +254,6 @@ export function useUrlValidation(url: string) {
     platform: result.platform,
     errorMessage: result.errorMessage,
     normalizedUrl: result.normalizedUrl
-  }
-}
-
-/**
- * Hook for clipboard monitoring (for paste detection)
- */
-export function useClipboardMonitor(onVideoDetected: (result: UrlDetectionResult) => void) {
-  const [isMonitoring, setIsMonitoring] = useState(false)
-
-  const startMonitoring = useCallback(() => {
-    setIsMonitoring(true)
-  }, [])
-
-  const stopMonitoring = useCallback(() => {
-    setIsMonitoring(false)
-  }, [])
-
-  const checkNow = useCallback(async () => {
-    const result = await checkClipboardForVideo()
-    if (result) {
-      onVideoDetected(result)
-    }
-    return result !== null
-  }, [onVideoDetected])
-
-  return {
-    isMonitoring,
-    startMonitoring,
-    stopMonitoring,
-    checkNow
   }
 }
 

@@ -136,11 +136,8 @@ export default function ProcessVideo() {
     isDetecting,
     shouldShowProcessButton,
     getStatusMessage,
-    getStatusColor,
-    checkClipboard,
-    canAccessClipboard
+    getStatusColor
   } = useUrlDetection(initialUrl, {
-    checkClipboardOnMount: true,
     onVideoDetected: (result) => {
       console.log('🎯 [URL Detection] Video detected:', {
         platform: result.platform,
@@ -506,16 +503,6 @@ export default function ProcessVideo() {
     }
   }, [toast, url])
 
-  const handlePasteFromClipboard = useCallback(async () => {
-    const found = await checkClipboard()
-    if (!found) {
-      toast({
-        title: 'No Video URL Found',
-        description: 'No supported video URL found in clipboard',
-      })
-    }
-  }, [checkClipboard, toast])
-
   const isProcessing = processMutation.isPending || isPolling
   const jobProgress = jobStatus?.progress ?? 0
   const jobStatusDescription = jobStatus ? getProgressLabel(jobStatus.status, jobStatus.currentStep ?? undefined) : ''
@@ -570,17 +557,6 @@ export default function ProcessVideo() {
                     disabled={isProcessing}
                     className="flex-1"
                   />
-                  {canAccessClipboard && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={handlePasteFromClipboard}
-                      disabled={isProcessing}
-                      title="Paste from clipboard"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  )}
                 </div>
               </div>
 
