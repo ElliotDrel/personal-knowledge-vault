@@ -5,7 +5,7 @@ import {
   ShortFormMetadata,
   TIMEOUTS
 } from '../types.ts'
-import { logInfo, logError, logWarning } from '../utils/logging.ts'
+import { logInfo, logError, logWarn } from '../utils/logging.ts'
 
 /**
  * Extract metadata from YouTube using Data API v3
