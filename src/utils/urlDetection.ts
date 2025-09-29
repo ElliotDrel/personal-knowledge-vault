@@ -347,30 +347,6 @@ export function extractVideoId(url: string, platform: ShortFormPlatform): string
 }
 
 /**
- * Checks if clipboard contains a short-form video URL
- */
-export async function checkClipboardForVideo(): Promise<UrlDetectionResult | null> {
-  try {
-    if (!navigator.clipboard || !navigator.clipboard.readText) {
-      return null
-    }
-
-    const text = await navigator.clipboard.readText()
-    if (!text || text.length > 500) { // Reasonable URL length limit
-      return null
-    }
-
-    const result = detectShortFormVideo(text)
-    return result.isShortFormVideo ? result : null
-
-  } catch (error) {
-    // Clipboard access might be denied
-    console.debug('Could not access clipboard:', error)
-    return null
-  }
-}
-
-/**
  * Formats platform info for display
  */
 export function formatPlatformDisplay(platform: ShortFormPlatform): string {
