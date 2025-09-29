@@ -24,29 +24,62 @@ export async function getJobStatusHandler(
   config: EdgeFunctionConfig
 ): Promise<JobStatusApiResponse> {
   const timer = new Timer()
-  const { jobId } = request
+  const { jobId, normalizedUrl } = request
 
-  logUserAction(user.id, 'get_job_status', jobId)
+  logUserAction(user.id, 'get_job_status', jobId || normalizedUrl)
 
   try {
-    // Validate jobId format (should be UUID)
-    if (!isValidUUID(jobId)) {
-      logError('Invalid job ID format', { jobId, userId: user.id })
+    // Validate request - must have either jobId or normalizedUrl (but not both)
+    if (!jobId && !normalizedUrl) {
+      logError('Missing jobId or normalizedUrl', { userId: user.id })
       return {
         success: false,
         error: {
           code: 'invalid_job_id',
-          message: 'Invalid job ID format'
+          message: 'Either jobId or normalizedUrl must be provided'
         }
       }
     }
 
+    // Reject if both parameters provided to prevent ambiguity
+    if (jobId && normalizedUrl) {
+      logError('Both jobId and normalizedUrl provided', { userId: user.id })
+      return {
+        success: false,
+        error: {
+          code: 'invalid_job_id',
+          message: 'Provide either jobId or normalizedUrl, not both'
+        }
+      }
+    }
+
+    let query = supabase.from('processing_jobs').select('*')
+
+    if (jobId) {
+      // Validate jobId format (should be UUID)
+      if (!isValidUUID(jobId)) {
+        logError('Invalid job ID format', { jobId, userId: user.id })
+        return {
+          success: false,
+          error: {
+            code: 'invalid_job_id',
+            message: 'Invalid job ID format'
+          }
+        }
+      }
+      // SECURITY: Filter by user_id at query level to prevent information leakage
+      query = query.eq('id', jobId).eq('user_id', user.id)
+    } else if (normalizedUrl) {
+      // Query by normalized URL - get most recent job for this URL
+      query = query
+        .eq('user_id', user.id)
+        .eq('normalized_url', normalizedUrl)
+        .order('created_at', { ascending: false })
+        .limit(1)
+    }
+
     // Fetch job from database
-    const { data, error } = await supabase
-      .from('processing_jobs')
-      .select('*')
-      .eq('id', jobId)
-      .single()
+    const { data, error } = await query.single()
 
     if (error) {
       if (error.code === 'PGRST116') { // No rows returned

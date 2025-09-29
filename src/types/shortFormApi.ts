@@ -48,9 +48,11 @@ export interface ProcessVideoRequest {
   };
 }
 
-export interface GetJobStatusRequest {
-  jobId: string;
-}
+// Discriminated union ensures exactly one parameter is provided (compile-time safety)
+// Must match backend type in supabase/functions/short-form/types.ts
+export type GetJobStatusRequest =
+  | { jobId: string; normalizedUrl?: never }
+  | { normalizedUrl: string; jobId?: never }
 
 // Extracted metadata structure for different platforms
 export interface ShortFormMetadata {
