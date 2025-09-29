@@ -10,11 +10,15 @@ import {
   ProcessingStatus,
   EdgeFunctionConfig,
   POLLING_CONFIG,
-  PLATFORM_CONFIGS
+  PLATFORM_CONFIGS,
+  PlatformExtractionResult
 } from '../types.ts'
 import { User } from '../auth.ts'
 import { logInfo, logError, logUserAction, Timer } from '../utils/logging.ts'
 import { normalizeUrl, detectPlatform, validateUrl } from '../utils/urlUtils.ts'
+import { extractYouTubeMetadata } from '../extractors/youtube.ts'
+import { extractTikTokMetadata } from '../extractors/tiktok.ts'
+import { extractInstagramMetadata } from '../extractors/instagram.ts'
 
 /**
  * Main handler for processing video URLs
@@ -268,42 +272,79 @@ async function startAsyncProcessing(
       progress: 20
     })
 
-    // Simulate processing delay (in real implementation, this would be actual API calls)
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    // Brief delay for UX (shows progress)
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     // Update status to metadata extraction
     await updateJobStatus(supabase, job.id, {
       status: 'metadata',
       current_step: 'metadata_extraction',
-      progress: 50
+      progress: 40
     })
 
-    // Simulate metadata extraction
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    // Extract metadata based on platform
+    const extractionResult = await extractPlatformMetadata(
+      job.platform as ShortFormPlatform,
+      job.original_url,
+      config,
+      job.include_transcript
+    )
 
-    // For now, mark as completed with placeholder metadata
-    // In real implementation, this would contain actual extracted data
-    const placeholderMetadata = {
-      platform: job.platform as ShortFormPlatform,
-      title: 'Sample Video Title',
-      sourceUrl: job.original_url,
-      normalizedUrl: job.normalized_url,
-      extraction: {
-        method: 'auto' as const,
-        extractedAt: new Date().toISOString(),
-        warnings: ['This is placeholder data - actual extraction not yet implemented']
-      }
+    if (!extractionResult.success) {
+      // Handle extraction failure
+      logError('Metadata extraction failed', {
+        jobId: job.id,
+        platform: job.platform,
+        error: extractionResult.error
+      })
+
+      await updateJobStatus(supabase, job.id, {
+        status: 'failed',
+        current_step: 'metadata_extraction',
+        error_code: extractionResult.error?.code || 'extraction_failed',
+        error_message: extractionResult.error?.message || 'Failed to extract metadata',
+        error_details: extractionResult.error?.details
+      })
+
+      return
     }
 
+    // Update progress for transcript extraction if requested
+    let transcript: string | undefined
+    if (job.include_transcript) {
+      await updateJobStatus(supabase, job.id, {
+        status: 'transcript',
+        current_step: 'transcript_extraction',
+        progress: 80
+      })
+
+      transcript = extractionResult.transcript
+    }
+
+    // Final completion update
     await updateJobStatus(supabase, job.id, {
       status: 'completed',
       current_step: 'completion',
       progress: 100,
-      metadata_json: placeholderMetadata,
-      warnings: ['Processing completed with placeholder data']
+      metadata_json: extractionResult.metadata,
+      transcript: transcript,
+      warnings: extractionResult.metadata?.extraction.warnings || []
     })
 
-    timer.logElapsed('async_processing_completed', { jobId: job.id })
+    timer.logElapsed('async_processing_completed', {
+      jobId: job.id,
+      platform: job.platform,
+      hasTranscript: !!transcript,
+      title: extractionResult.metadata?.title
+    })
+
+    logInfo('Video processing completed successfully', {
+      jobId: job.id,
+      platform: job.platform,
+      title: extractionResult.metadata?.title,
+      duration: extractionResult.metadata?.duration,
+      hasTranscript: !!transcript
+    })
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
@@ -322,6 +363,34 @@ async function startAsyncProcessing(
   }
 }
 
+async function extractPlatformMetadata(
+  platform: ShortFormPlatform,
+  url: string,
+  config: EdgeFunctionConfig,
+  includeTranscript: boolean
+): Promise<PlatformExtractionResult> {
+  switch (platform) {
+    case 'youtube-short':
+      return extractYouTubeMetadata(url, config, includeTranscript)
+
+    case 'tiktok':
+      return extractTikTokMetadata(url, config)
+
+    case 'instagram-reel':
+      return extractInstagramMetadata(url, config)
+
+    default:
+      logError('Unsupported platform for extraction', { platform, url })
+      return {
+        success: false,
+        error: {
+          code: 'unsupported_platform',
+          message: `Platform ${platform} is not supported for extraction`,
+          details: 'The platform extractor is not implemented'
+        }
+      }
+  }
+}
 /**
  * Update job status in database
  */
@@ -359,7 +428,3 @@ function getEstimatedProcessingTime(platform: ShortFormPlatform): number {
 
   return estimates[platform] || 8000
 }
-
-
-
-

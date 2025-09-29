@@ -5,7 +5,16 @@
 
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-export type SupabaseServerClient = SupabaseClient<Record<string, never>>
+// Type alias for clarity - using simple SupabaseClient to avoid deployment issues
+// The complex generic Record<string, never> was causing boot errors
+export type SupabaseServerClient = SupabaseClient
+
+// Add timeout constants for better maintainability
+export const TIMEOUTS = {
+  YOUTUBE_API: 10000,       // 10 seconds for YouTube API calls
+  DEFAULT_EXTERNAL: 15000,  // 15 seconds for other external APIs
+  PROCESSING_MAX: 300000    // 5 minutes max for complete processing
+} as const
 
 // Re-export the types that are also used on the frontend
 export type ShortFormPlatform = 'tiktok' | 'youtube-short' | 'instagram-reel';
@@ -82,6 +91,17 @@ export interface ShortFormMetadata {
     extractedAt: string;
     apiVersion?: string;
     warnings: string[];
+  };
+}
+
+export interface PlatformExtractionResult {
+  success: boolean;
+  metadata?: ShortFormMetadata;
+  transcript?: string;
+  error?: {
+    code: ProcessingErrorCode;
+    message: string;
+    details?: string;
   };
 }
 
@@ -281,3 +301,4 @@ export const HTTP_STATUS = {
   INTERNAL_SERVER_ERROR: 500,
   SERVICE_UNAVAILABLE: 503,
 } as const;
+
