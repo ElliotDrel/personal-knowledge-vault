@@ -16,6 +16,7 @@ const Resources = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<Resource['type'] | 'all'>('all');
+  const [selectedPlatform, setSelectedPlatform] = useState<'all' | 'youtube-short' | 'tiktok' | 'instagram-reel'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -69,9 +70,10 @@ const Resources = () => {
 
     return resources.filter((resource) => {
       const matchesType = selectedType === 'all' || resource.type === selectedType;
+      const matchesPlatform = selectedPlatform === 'all' || resource.shortFormPlatform === selectedPlatform;
 
       if (!query) {
-        return matchesType;
+        return matchesType && matchesPlatform;
       }
 
       const matchesSearch =
@@ -79,11 +81,14 @@ const Resources = () => {
         resource.description.toLowerCase().includes(query) ||
         resource.author?.toLowerCase().includes(query) ||
         resource.creator?.toLowerCase().includes(query) ||
-        resource.tags.some((tag) => tag.toLowerCase().includes(query));
+        resource.shortFormMetadata?.channelName?.toLowerCase().includes(query) ||
+        resource.shortFormMetadata?.handle?.toLowerCase().includes(query) ||
+        resource.tags.some((tag) => tag.toLowerCase().includes(query)) ||
+        resource.shortFormMetadata?.hashtags?.some((tag) => tag.toLowerCase().includes(query));
 
-      return matchesType && matchesSearch;
+      return matchesType && matchesPlatform && matchesSearch;
     });
-  }, [resources, searchQuery, selectedType]);
+  }, [resources, searchQuery, selectedType, selectedPlatform]);
 
   const typeCounts = useMemo(() => {
     if (!resourceTypeConfig) {
@@ -95,6 +100,16 @@ const Resources = () => {
       return acc;
     }, {} as Record<string, number>);
   }, [resources, resourceTypeConfig]);
+
+  const platformCounts = useMemo(() => {
+    return {
+      'youtube-short': resources.filter((r) => r.shortFormPlatform === 'youtube-short').length,
+      'tiktok': resources.filter((r) => r.shortFormPlatform === 'tiktok').length,
+      'instagram-reel': resources.filter((r) => r.shortFormPlatform === 'instagram-reel').length
+    };
+  }, [resources]);
+
+  const hasShortFormVideos = platformCounts['youtube-short'] + platformCounts['tiktok'] + platformCounts['instagram-reel'] > 0;
 
   const isLoading = resourcesLoading || configLoading;
   const showError = !isLoading && (resourcesError || configError);
@@ -166,7 +181,10 @@ const Resources = () => {
             <Button
               variant={selectedType === 'all' ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setSelectedType('all')}
+              onClick={() => {
+                setSelectedType('all')
+                setSelectedPlatform('all')
+              }}
               className="transition-smooth"
               disabled={isLoading}
             >
@@ -178,7 +196,12 @@ const Resources = () => {
                   key={type}
                   variant={selectedType === type ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => setSelectedType(type as Resource['type'])}
+                  onClick={() => {
+                    setSelectedType(type as Resource['type'])
+                    if (type !== 'video') {
+                      setSelectedPlatform('all')
+                    }
+                  }}
                   className="transition-smooth"
                   disabled={isLoading}
                 >
@@ -193,6 +216,60 @@ const Resources = () => {
               </div>
             )}
           </div>
+
+          {/* Platform Filters - Only show when viewing videos or all */}
+          {hasShortFormVideos && (selectedType === 'all' || selectedType === 'video') && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
+              <span className="text-sm font-medium text-muted-foreground flex items-center">
+                Platforms:
+              </span>
+              <Button
+                variant={selectedPlatform === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedPlatform('all')}
+                className="transition-smooth"
+                disabled={isLoading}
+              >
+                All Platforms
+              </Button>
+              {platformCounts['youtube-short'] > 0 && (
+                <Button
+                  variant={selectedPlatform === 'youtube-short' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedPlatform('youtube-short')}
+                  className="transition-smooth"
+                  disabled={isLoading}
+                >
+                  <span className="mr-1">▶</span>
+                  YouTube Shorts ({platformCounts['youtube-short']})
+                </Button>
+              )}
+              {platformCounts['tiktok'] > 0 && (
+                <Button
+                  variant={selectedPlatform === 'tiktok' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedPlatform('tiktok')}
+                  className="transition-smooth"
+                  disabled={isLoading}
+                >
+                  <span className="mr-1">🎵</span>
+                  TikTok ({platformCounts['tiktok']})
+                </Button>
+              )}
+              {platformCounts['instagram-reel'] > 0 && (
+                <Button
+                  variant={selectedPlatform === 'instagram-reel' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedPlatform('instagram-reel')}
+                  className="transition-smooth"
+                  disabled={isLoading}
+                >
+                  <span className="mr-1">📸</span>
+                  Instagram Reels ({platformCounts['instagram-reel']})
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Resources Grid/List */}

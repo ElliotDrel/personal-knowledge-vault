@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStorageAdapter, type ResourceTypeConfig, type Resource } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import { Link } from 'react-router-dom';
-import { Plus, TrendingUp, Brain, Loader2 } from 'lucide-react';
+import { Plus, TrendingUp, Brain, Loader2, Sparkles } from 'lucide-react';
 
 const Dashboard = () => {
   const { resources, loading: resourcesLoading, error: resourcesError } = useResources();
@@ -190,6 +190,22 @@ const Dashboard = () => {
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold mb-2">Ready to Learn?</h2>
             <p className="text-muted-foreground">Add a new resource to your knowledge vault</p>
+          </div>
+
+          {/* Featured: Short-Form Video Processing */}
+          <div className="mb-6">
+            <Link to="/resources/process">
+              <Button
+                size="lg"
+                className="w-full bg-gradient-primary hover:shadow-knowledge transition-smooth flex items-center justify-center gap-3 min-h-16 py-3"
+              >
+                <Sparkles className="w-5 h-5 flex-shrink-0" />
+                <div className="flex flex-col items-start">
+                  <span className="font-semibold text-base">Add Short-Form Video</span>
+                  <span className="text-xs opacity-90">Auto-extract from YouTube Shorts, TikTok, or Instagram Reels</span>
+                </div>
+              </Button>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
