@@ -354,8 +354,9 @@ npm run dev           # Start development server
 4. **End-to-end test** - Complete user workflow works with real data
 
 **Warning signs to STOP and fix:**
-- `any` types, ESLint suppressions, or dependency array warnings
+- Feature "works" but delivers placeholder/fake data to users
 - Components work in isolation but fail when integrated
+- `any` types, ESLint suppressions, or dependency array warnings
 - Platform regexes don't match normalized URLs (frontend/backend)
 - Authentication bypasses or hard-coded credentials
 
@@ -367,11 +368,17 @@ npm run dev           # Start development server
 
 ## Development Notes
 
-**Current Status** (Updated: Phase 6 Completed):
+**Current Status** (Updated: Short-Form Video Processing Completed):
 - **✅ Completed**: Phases 1-6 (Frontend, resource management, authentication, database migration)
   - Phase 1-4: Core frontend structure and dynamic configuration
   - Phase 5: Magic-link authentication system fully operational
   - Phase 6: **COMPLETED** - Hybrid storage architecture with Supabase database backend
+- **✅ Completed**: Short-Form Video Processing (Phase 2)
+  - **YouTube Integration**: Full YouTube Data API v3 metadata extraction
+  - **Edge Functions**: Production-ready video processing pipeline
+  - **Real Data Extraction**: Titles, descriptions, creators, views, thumbnails, upload dates
+  - **Error Handling**: Comprehensive timeout protection and user-friendly error messages
+  - **API Security**: YouTube API key properly configured via Supabase secrets
 - **🎯 Next**: Phase 7 (Sharing & collaboration features)
 - **🚀 Future**: Phase 8 (Production deployment and optimization)
 
@@ -383,12 +390,43 @@ npm run dev           # Start development server
 - ✅ **User Data Isolation**: Row Level Security ensuring user privacy
 - ✅ **Migration System**: Deployed via CLI with version control
 
+### Short-Form Video Processing Summary (COMPLETED)
+- ✅ **YouTube Metadata Extraction**: Real title, description, creator, view count, thumbnails, upload dates
+- ✅ **Edge Function Infrastructure**: Complete processing pipeline with job tracking and real-time updates
+- ✅ **Error Handling**: Comprehensive timeout protection, API quota management, user-friendly error messages
+- ✅ **Security**: API keys securely managed via Supabase secrets, no hardcoded credentials
+- ✅ **Platform Detection**: Automatic URL parsing and platform identification
+- ✅ **Pragmatic Architecture**: Inline implementation prioritizing working functionality over modularity
+- ⏳ **Limitations**: Transcript extraction not yet implemented, TikTok/Instagram require app approvals
+
 ### Supabase Integration (ACTIVE)
 - ✅ Authentication implemented via magic-link email flow
 - ✅ All configuration managed through `supabase/config.toml` and CLI commands
 - ✅ Database schema and auth settings deployed via `npx supabase db push`
 - ✅ Environment variables configured: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
 - ✅ CLI workflow established and tested
+
+## 🔐 **Supabase Secrets Management**
+
+**Current Secrets Configuration:**
+```bash
+# View current secrets (shows digests only for security)
+npx supabase secrets list
+
+# Current secrets configured:
+- SUPABASE_ANON_KEY         # Auto-configured by Supabase
+- SUPABASE_DB_URL          # Auto-configured by Supabase
+- SUPABASE_SERVICE_ROLE_KEY # Auto-configured by Supabase
+- SUPABASE_URL             # Auto-configured by Supabase
+- YOUTUBE_API_KEY          # Manually configured for video processing
+```
+
+**CRITICAL Secret Management Rules:**
+- ✅ **Always use Supabase secrets for production** - Never environment files
+- ✅ **Test API keys before deployment** - Verify they work with test calls
+- ❌ **Never commit API keys to git** - Use secrets system exclusively
+- ❌ **Never use VITE_ prefix for server secrets** - This exposes to browser
+- ⚠️ **Update CLI regularly** - `npm install supabase@latest` for latest features
 
 ### Technical Notes
 - The project uses ESLint with TypeScript rules
