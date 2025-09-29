@@ -66,8 +66,11 @@ const FRONTEND_PLATFORM_CONFIGS: Record<ShortFormPlatform, PlatformInfo> = {
 export function detectShortFormVideo(url: string): UrlDetectionResult {
   const trimmedUrl = url.trim()
 
+  console.log('🔍 [URL Detection] Starting detection:', { originalUrl: url })
+
   // Basic URL validation
   if (!trimmedUrl) {
+    console.log('❌ [URL Detection] Empty URL')
     return {
       isShortFormVideo: false,
       platform: null,
@@ -80,6 +83,7 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
   }
 
   if (!isValidUrl(trimmedUrl)) {
+    console.log('❌ [URL Detection] Invalid URL format')
     return {
       isShortFormVideo: false,
       platform: null,
@@ -93,11 +97,16 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
 
   // Normalize URL
   const normalizedUrl = normalizeUrl(trimmedUrl)
+  console.log('🔄 [URL Detection] Normalized:', {
+    from: trimmedUrl,
+    to: normalizedUrl
+  })
 
   // Detect platform
   const platform = detectPlatform(normalizedUrl)
 
   if (!platform) {
+    console.log('⚠️ [URL Detection] Platform not recognized:', { normalizedUrl })
     return {
       isShortFormVideo: false,
       platform: null,
@@ -108,6 +117,12 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
       errorMessage: 'This platform is not supported for automatic processing'
     }
   }
+
+  console.log('✅ [URL Detection] Platform detected:', {
+    platform,
+    normalizedUrl,
+    displayName: FRONTEND_PLATFORM_CONFIGS[platform].displayName
+  })
 
   return {
     isShortFormVideo: true,
@@ -187,21 +202,23 @@ export function normalizeUrl(url: string): string {
  * Normalizes YouTube URLs to a standard format
  */
 function normalizeYouTubeUrl(parsed: URL): string {
-  // Handle youtu.be short URLs
-  if (parsed.hostname === 'youtu.be') {
-    const videoId = parsed.pathname.substring(1) // Remove leading slash
-    return `https://youtube.com/watch?v=${videoId}`
-  }
-
   parsed.hostname = 'youtube.com'
 
-  // Handle /shorts/ URLs
+  // Handle /shorts/ URLs - PRESERVE the /shorts/ path for platform detection
   if (parsed.pathname.startsWith('/shorts/')) {
-    const videoId = parsed.pathname.split('/shorts/')[1].split('?')[0]
-    return `https://youtube.com/watch?v=${videoId}`
+    const videoId = parsed.pathname.split('/shorts/')[1].split('?')[0].split('/')[0]
+    // Keep it as a shorts URL so detectPlatform can recognize it
+    return `https://youtube.com/shorts/${videoId}`
   }
 
-  // Keep only essential parameters
+  // Handle youtu.be short URLs - these are typically Shorts too
+  if (parsed.hostname === 'youtu.be') {
+    const videoId = parsed.pathname.substring(1).split('?')[0].split('/')[0]
+    // Assume youtu.be links are Shorts (YouTube uses this for short URLs)
+    return `https://youtube.com/shorts/${videoId}`
+  }
+
+  // Keep only essential parameters for regular watch URLs
   const videoId = parsed.searchParams.get('v')
   if (videoId) {
     return `https://youtube.com/watch?v=${videoId}`
