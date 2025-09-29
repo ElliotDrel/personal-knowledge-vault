@@ -182,7 +182,7 @@ export async function extractYouTubeMetadata(
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
-          logWarning('Transcript extraction failed', { videoId, error: message })
+          logWarn('Transcript extraction failed', { videoId, error: message })
           warnings.push('Transcript extraction encountered an error')
         }
       } else {

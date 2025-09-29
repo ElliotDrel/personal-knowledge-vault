@@ -8,8 +8,11 @@ import {
   ProcessingJobRecord,
   ShortFormMetadata,
   ProcessingStatus,
+  ProcessingStep,
+  ProcessingErrorCode,
   EdgeFunctionConfig,
-  POLLING_CONFIG
+  POLLING_CONFIG,
+  SupabaseServerClient
 } from '../types.ts'
 import { User, checkResourcePermission } from '../auth.ts'
 import { logInfo, logError, logUserAction, Timer } from '../utils/logging.ts'
@@ -233,7 +236,10 @@ function calculatePollInterval(pollCount: number, status: ProcessingStatus): num
 /**
  * Generates fallback suggestions based on error code
  */
-function generateFallbackSuggestion(errorCode: string | null, _originalUrl: string): string | undefined {
+function generateFallbackSuggestion(
+  errorCode: ProcessingErrorCode | null,
+  _originalUrl: string
+): string | undefined {
   if (!errorCode) return undefined
 
   switch (errorCode) {

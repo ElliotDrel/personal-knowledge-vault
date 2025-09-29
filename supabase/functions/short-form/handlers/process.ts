@@ -11,7 +11,8 @@ import {
   EdgeFunctionConfig,
   POLLING_CONFIG,
   PLATFORM_CONFIGS,
-  PlatformExtractionResult
+  PlatformExtractionResult,
+  SupabaseServerClient
 } from '../types.ts'
 import { User } from '../auth.ts'
 import { logInfo, logError, logUserAction, Timer } from '../utils/logging.ts'
