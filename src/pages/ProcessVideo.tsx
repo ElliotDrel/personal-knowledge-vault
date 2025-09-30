@@ -6,11 +6,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Layout } from '@/components/layout/Layout'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useUrlDetection } from '@/hooks/useUrlDetection'
 import { useStorageAdapter } from '@/data/storageAdapter'
@@ -25,12 +21,7 @@ import {
   POLLING_CONFIG,
   ProcessingStatus
 } from '@/types/shortFormApi'
-import {
-  AlertCircle,
-  Loader2,
-  ArrowLeft,
-  Sparkles
-} from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 // Status constants for job processing (module-level to avoid re-renders)
 const IN_PROGRESS_STATUSES: ProcessingStatus[] = ['created', 'detecting', 'metadata', 'transcript']
@@ -124,29 +115,9 @@ export default function ProcessVideo() {
 
   // URL detection and validation (without callback to prevent re-render loops)
   const {
-    url,
-    setUrl,
     result: urlResult,
-    isDetecting,
-    shouldShowProcessButton,
-    getStatusMessage,
-    getStatusColor
+    shouldShowProcessButton
   } = useUrlDetection(initialUrl)
-
-  // Log URL changes
-  React.useEffect(() => {
-    if (url) {
-      console.log('🔗 [URL Change]', {
-        url,
-        isDetecting,
-        urlResult: urlResult ? {
-          isShortFormVideo: urlResult.isShortFormVideo,
-          platform: urlResult.platform,
-          normalizedUrl: urlResult.normalizedUrl
-        } : null
-      })
-    }
-  }, [url, isDetecting, urlResult])
 
   // Processing state
   const [jobId, setJobId] = useState<string | null>(null)
@@ -487,6 +458,7 @@ export default function ProcessVideo() {
   const isProcessing = processMutation.isPending || isPolling
   const jobProgress = jobStatus?.progress ?? 0
   const jobStatusDescription = jobStatus ? getProgressLabel(jobStatus.status, jobStatus.currentStep ?? undefined) : ''
+  const currentStatusText = jobStatusDescription || (isProcessing ? 'Processing...' : 'Preparing...')
 
   // Auto-start processing when page loads with valid URL (gated by existing job check)
   useEffect(() => {
@@ -550,123 +522,14 @@ export default function ProcessVideo() {
 
   return (
     <Layout>
-      <div className="container max-w-4xl mx-auto py-8 px-4">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Button>
-        </div>
-
-        <div className="space-y-6">
-          {/* Title */}
-          <div className="text-center space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-2">
-              <Sparkles className="h-8 w-8 text-primary" />
-              Processing Video
-            </h1>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Monitoring your video processing job. You can safely navigate away and return later.
-            </p>
+      <div className="container max-w-2xl mx-auto py-12 px-4">
+        <div className="max-w-xl mx-auto space-y-4">
+          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>{currentStatusText}</span>
           </div>
-
-          {/* Processing Status */}
-          {isProcessing && jobStatus && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  Processing Video
-                </CardTitle>
-                <CardDescription>
-                  Extracting metadata and content from your video
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Progress Bar */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>{jobStatusDescription}</span>
-                    <span>{jobProgress}%</span>
-                  </div>
-                  <Progress value={jobProgress} className="w-full" />
-                </div>
-
-                {/* Platform Info */}
-                {urlResult?.platformInfo && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Processing {urlResult.platformInfo.displayName} video</span>
-                    <Badge variant="outline" className="text-xs">
-                      {urlResult.platformInfo.icon} {urlResult.platform}
-                    </Badge>
-                  </div>
-                )}
-
-                {/* Job Details */}
-                {jobId && (
-                  <div className="text-xs text-muted-foreground">
-                    Job ID: {jobId}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Error State */}
-          {jobError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {jobStatusError?.message || 'Processing failed. You can try again or create the resource manually.'}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Instructions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Supported Platforms</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">??</span>
-                    <span className="font-medium">YouTube Shorts</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Metadata, thumbnails, and transcripts
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">??</span>
-                    <span className="font-medium">TikTok</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Metadata and thumbnails
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">??</span>
-                    <span className="font-medium">Instagram Reels</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Metadata and thumbnails (public only)
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <Progress value={jobProgress} className="w-full" />
+          <div className="text-center text-xs text-muted-foreground">{jobProgress}%</div>
         </div>
       </div>
     </Layout>
