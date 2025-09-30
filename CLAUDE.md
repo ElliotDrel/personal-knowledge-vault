@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 2. **DOCUMENTATION-FIRST**: Always check official documentation for Supabase, Vercel, and complex libraries before coding. Use the **Context7 MCP** tools for library docs.
 
-3. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**: Run `rg "normalizeUrl" --type ts` to find ALL occurrences in both `src/` and `supabase/functions/`. Update all locations simultaneously.
+3. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**: Before creating ANY utility function, search for existing ones first: `rg "normalize" --type ts` or `rg "function.*Url" --type ts`. Reuse existing functions (especially `normalizeUrl`, `detectPlatform`) to ensure consistency. Update ALL occurrences in both `src/` and `supabase/functions/` simultaneously.
 
 4. **Use Storage Adapter Only**: Always `import { useStorageAdapter } from '@/data/storageAdapter'`. Never import `storage.ts` or `supabaseStorage.ts` directly.
 
@@ -74,14 +74,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Critical Code Patterns
 
-### React Hooks Order
-**NEVER add `useEffect` in the middle of other hooks** - only at the very end. Hot reload changes hook order causing crashes. Use inline `console.log()` instead, or place `useEffect` after all `useState`/`useQuery`/`useMutation` calls.
+### React Hooks Order & Dependencies
+**Hook Execution Order** (CRITICAL - violating causes "Cannot access before initialization"):
+1. All `useState` declarations
+2. All `useQuery`/`useMutation` calls
+3. **Derived state** (computed from hooks above)
+4. All `useEffect`/`useCallback`/`useMemo` hooks
 
-### React Query: Pure queryFn
+Avoid referencing derived state (e.g., flags from queries/mutations) before it is declared. Define derived state first, then reference it in effects.
+
+**Callback Stability** (CRITICAL - violating causes infinite loops):
+- **NEVER pass inline callbacks to custom hooks** → creates re-render cascade
+- Inline functions = new reference every render → all dependencies update → re-render loop
+Prefer returning values from hooks and reacting in components. If a callback is unavoidable, stabilize it with `useCallback`.
+
+### React Query: Pure queryFn & Reliable State
 Keep `queryFn` pure - **never** call `setLoading(false)` or `setState()` inside it. Use `onSuccess`, `onError`, or `onSettled` callbacks for side effects. Putting state updates in `queryFn` breaks retry/refetch logic.
 
+**Critical State Flags** (CRITICAL - callbacks don't always fire):
+- **DON'T rely on `onSettled`/`onSuccess` for critical state** (caching/strict mode breaks them)
+- **DO set state in effects that handle query data** (always run when data changes)
+Use an effect that watches reliable flags (e.g., `query.isFetched`) to set critical state; do not depend solely on callbacks.
+
 ### Data Hierarchy: Cascading Ternary
-Display **one creator field** using cascading ternary: `channelName ? ... : handle ? ... : author ? ... : creator ? ... : null`. Prevents showing "John Doe" three times from different metadata sources.
+Display exactly one creator field. Prefer `channelName`; otherwise fall back to `handle`, then `author`, then `creator`. This prevents duplicate names from multiple metadata sources.
 
 ### Type Safety: Discriminated Unions
 For mutually exclusive params, use `| { jobId: string; normalizedUrl?: never } | { normalizedUrl: string; jobId?: never }`. Compiler catches invalid combinations at build-time instead of runtime.
@@ -96,16 +112,23 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 
 | Issue | Solution |
 |-------|----------|
+| **"Cannot access before initialization"** | Define derived state BEFORE useEffect that uses it |
+| **Infinite re-render loop** | Remove inline callbacks from custom hooks OR wrap in useCallback |
+| **State flag never sets (query.onSettled)** | Set state in useEffect with query.isFetched dependency instead |
+| **URL comparison fails (duplicate detection)** | Use same `normalizeUrl()` function for both sides of comparison |
 | **404 Table Not Found** | Run `npx supabase db push` to deploy migrations |
-| **Frontend/Backend Mismatch** | Search-first pattern: `rg "normalizeUrl" --type ts` → update ALL files |
-| **Hooks Order Error** | Move all `useEffect` calls to END of component after other hooks |
-| **Duplicate Creator Display** | Use cascading ternary (platform-specific > generic fields) |
+| **Frontend/Backend Mismatch** | Search-first: `rg "normalizeUrl" --type ts` → update ALL files |
+| **Hooks Order Error** | Move all `useEffect` to END after useState/useQuery/derived-state |
 | **Background Polling Noise** | Hard refresh: `Ctrl+Shift+R` (Win) / `Cmd+Shift+R` (Mac) |
-| **Navigation Template Errors** | Use proper template literals: `` navigate(`/resource/${id}`) `` |
-| **Emoji Display Issues** | Test Unicode in JSONB; keep SQL files ASCII-only |
-| **React Query Side Effects** | Never set state in `queryFn`; use `onSuccess`/`onSettled` callbacks |
+| **React Query Side Effects** | Never set state in `queryFn`; use effects with query.isFetched |
 
 ## Lessons Learned (Quick Reference)
+
+**URL Processing Refactor (2025-09-30) - Critical Mistakes**:
+1. **Hooks Order Violation**: Defined `isProcessing` AFTER useEffect that used it → "Cannot access before initialization" crash
+2. **Infinite Loop**: Passed inline callback to `useUrlDetection` → unstable reference cascade → infinite re-renders
+3. **Unreliable Callback**: Relied on `query.onSettled` for critical flag → never fired due to caching
+4. **Duplicate Detection Bug**: Created new `new URL().toString()` instead of reusing `normalizeUrl()` → comparison failed
 
 **Phase 5 Mistakes & Fixes**:
 1. **URL Normalization Mismatch**: Fixed frontend, forgot backend → Always search-first with `rg`
@@ -116,16 +139,24 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 
 **What Worked**:
 - Systematic use of TodoWrite tool for tracking
+- Debug logging immediately identified root causes
+- Deep thinking before coding (architecture analysis)
 - Comprehensive code review caught issues pre-production
-- End-to-end testing validated complete workflow
 
-**Key Takeaway**: THE GUIDANCE WAS ALREADY IN CLAUDE.md. Read patterns BEFORE coding.
+**Key Takeaway**: THE GUIDANCE WAS ALREADY IN CLAUDE.md. Read patterns BEFORE coding. Search for existing utilities BEFORE creating new ones.
 
 ## Project Status (Updated 2025-09-30)
 
 **Completed**:
 - ✅ Phases 1-6: Core frontend, authentication, hybrid storage (Supabase + localStorage)
 - ✅ Short-Form Video Phase 5: YouTube integration, metadata extraction, dashboard UI, job recovery
+- ✅ URL Processing Refactor: Dashboard input, auto-processing, duplicate detection, front/back parity
+
+**Recent Enhancements**:
+- Dashboard URL input with smart routing (processable vs manual)
+- ProcessVideo auto-start with job recovery
+- Duplicate URL detection prevents re-processing
+- Front/back normalization parity (fixed youtu.be bug)
 
 **Next**:
 - 🎯 Short-Form Video Phase 6: Observability, hardening, launch prep
