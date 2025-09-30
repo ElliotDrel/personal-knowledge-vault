@@ -4,19 +4,91 @@ import { ResourceCard } from '@/components/resources/ResourceCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useStorageAdapter, type ResourceTypeConfig, type Resource } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
-import { Link } from 'react-router-dom';
-import { Plus, TrendingUp, Brain, Loader2, Sparkles } from 'lucide-react';
+import { useUrlDetection } from '@/hooks/useUrlDetection';
+import { normalizeUrl } from '@/utils/urlDetection';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, TrendingUp, Brain, Loader2, Sparkles, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 
 const Dashboard = () => {
   const { resources, loading: resourcesLoading, error: resourcesError } = useResources();
   const storageAdapter = useStorageAdapter();
+  const navigate = useNavigate();
 
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [recentResources, setRecentResources] = useState<Resource[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
+
+  // URL detection for smart routing
+  const {
+    url,
+    setUrl,
+    result: urlResult,
+    isDetecting,
+    shouldShowProcessButton,
+    getStatusMessage,
+    getStatusColor
+  } = useUrlDetection('', { debounceMs: 300 });
+
+  // Check for duplicate resource by URL
+  const existingResource = useMemo(() => {
+    if (!urlResult?.normalizedUrl || !urlResult.isValid) return null;
+
+    console.log('🔍 [Duplicate Check] Checking for duplicates:', {
+      normalizedUrl: urlResult.normalizedUrl,
+      totalResources: resources.length,
+      resourcesWithUrls: resources.filter(r => r.url).length
+    });
+
+    // Check if any resource has this exact URL
+    const found = resources.find(resource => {
+      if (!resource.url) return false;
+
+      console.log('🔍 [Duplicate Check] Comparing:', {
+        resourceTitle: resource.title,
+        resourceUrl: resource.url,
+        checkingAgainst: urlResult.normalizedUrl
+      });
+
+      // Use the same normalization function for consistency
+      try {
+        const normalizedResourceUrl = normalizeUrl(resource.url).toLowerCase();
+        const checkUrl = urlResult.normalizedUrl.toLowerCase();
+
+        const matches = normalizedResourceUrl === checkUrl;
+        console.log('🔍 [Duplicate Check] Normalized comparison:', {
+          normalized: normalizedResourceUrl,
+          against: checkUrl,
+          matches
+        });
+
+        return matches;
+      } catch (error) {
+        // If URL parsing fails, do exact string match
+        const matches = resource.url.toLowerCase() === urlResult.normalizedUrl.toLowerCase();
+        console.log('🔍 [Duplicate Check] Direct comparison (parse failed):', {
+          resourceUrl: resource.url,
+          checkUrl: urlResult.normalizedUrl,
+          matches,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        return matches;
+      }
+    });
+
+    if (found) {
+      console.log('✅ [Duplicate Check] Found duplicate:', found.title);
+    } else {
+      console.log('❌ [Duplicate Check] No duplicate found');
+    }
+
+    return found;
+  }, [urlResult?.normalizedUrl, urlResult?.isValid, resources]);
 
   useEffect(() => {
     let isMounted = true;
@@ -57,6 +129,40 @@ const Dashboard = () => {
       isMounted = false;
     };
   }, [storageAdapter]);
+
+  // Navigation handlers for URL processing
+  const handleProcessVideo = () => {
+    if (!urlResult?.normalizedUrl) return;
+    navigate(`/resources/process?url=${encodeURIComponent(urlResult.normalizedUrl)}`);
+  };
+
+  const handleViewExisting = () => {
+    if (!existingResource?.id) return;
+    navigate(`/resource/${existingResource.id}`);
+  };
+
+  const handleManualAdd = () => {
+    const params = new URLSearchParams();
+    if (url && urlResult?.isValid) {
+      params.set('url', url);
+      params.set('type', 'video');
+    }
+    navigate(`/resources/new${params.toString() ? `?${params.toString()}` : ''}`);
+  };
+
+  // Status color mapping helper
+  const statusColorToClass = (color: 'success' | 'warning' | 'error' | 'neutral') => {
+    switch (color) {
+      case 'success':
+        return 'text-green-600 dark:text-green-400';
+      case 'error':
+        return 'text-destructive';
+      case 'warning':
+        return 'text-amber-600 dark:text-amber-400';
+      default:
+        return 'text-muted-foreground';
+    }
+  };
 
   const summary = useMemo(() => {
     const statsByType = resourceTypeConfig
@@ -185,54 +291,149 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-gradient-card rounded-2xl p-8 shadow-card border-0">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold mb-2">Ready to Learn?</h2>
-            <p className="text-muted-foreground">Add a new resource to your knowledge vault</p>
-          </div>
-
-          {/* Featured: Short-Form Video Processing */}
-          <div className="mb-6">
-            <Link to="/resources/process">
-              <Button
-                size="lg"
-                className="w-full bg-gradient-primary hover:shadow-knowledge transition-smooth flex items-center justify-center gap-3 min-h-16 py-3"
-              >
-                <Sparkles className="w-5 h-5 flex-shrink-0" />
-                <div className="flex flex-col items-start">
-                  <span className="font-semibold text-base">Add Short-Form Video</span>
-                  <span className="text-xs opacity-90">Auto-extract from YouTube Shorts, TikTok, or Instagram Reels</span>
-                </div>
-              </Button>
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {resourceTypeConfig ? (
-              Object.entries(resourceTypeConfig).map(([type, config]) => (
-                <Link key={type} to={`/resources/new?type=${type}`}>
-                  <Button
-                    variant="outline"
-                    className="w-full h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent-soft hover:border-accent transition-smooth group"
-                  >
-                    <span className="text-2xl group-hover:scale-110 transition-smooth">{config.icon}</span>
-                    <span className="font-medium">Add {config.label.slice(0, -1)}</span>
-                  </Button>
-                </Link>
-              ))
-            ) : (
-              <div className="col-span-full flex items-center justify-center text-muted-foreground">
-                {configLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Loading resource types...
-                  </>
-                ) : (
-                  <span>{configError ?? 'Resource type configuration is unavailable.'}</span>
-                )}
+        {/* Add Resource Section */}
+        <div className="space-y-8">
+          {/* URL Processing Card */}
+          <Card className="bg-gradient-card border-0 shadow-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                Add Resource
+              </CardTitle>
+              <CardDescription>
+                Paste a URL for automatic extraction, or add manually
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* URL Input */}
+              <div className="space-y-2">
+                <Label htmlFor="url-input">Resource URL</Label>
+                <Input
+                  id="url-input"
+                  type="url"
+                  placeholder="Paste a YouTube Shorts, TikTok, or Instagram Reels URL..."
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (shouldShowProcessButton) handleProcessVideo();
+                      else if (urlResult?.isValid) handleManualAdd();
+                    }
+                  }}
+                  className="text-base h-12"
+                />
               </div>
-            )}
+
+              {/* Detection Status */}
+              {url && (
+                <div className="rounded-md border p-4 bg-muted/30">
+                  <div className="flex items-start gap-3">
+                    {/* Status Icon */}
+                    {isDetecting ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    ) : existingResource ? (
+                      <CheckCircle2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    ) : urlResult?.isShortFormVideo ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    ) : urlResult?.isValid === false ? (
+                      <AlertCircle className="h-5 w-5 text-destructive" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                    )}
+
+                    {/* Status Message */}
+                    <div className="space-y-1 text-sm flex-1">
+                      {existingResource ? (
+                        <>
+                          <p className="text-blue-600 dark:text-blue-400 font-medium">
+                            This resource already exists in your vault
+                          </p>
+                          <p className="text-muted-foreground text-xs">
+                            "{existingResource.title}"
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className={statusColorToClass(getStatusColor())}>
+                            {getStatusMessage()}
+                          </p>
+                          {urlResult?.platformInfo && (
+                            <Badge variant="outline" className="text-xs mt-1">
+                              {urlResult.platformInfo.icon} {urlResult.platformInfo.displayName}
+                            </Badge>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {existingResource ? (
+                  <Button
+                    onClick={handleViewExisting}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    View Existing Resource
+                  </Button>
+                ) : shouldShowProcessButton ? (
+                  <Button
+                    onClick={handleProcessVideo}
+                    className="flex-1 bg-gradient-primary hover:shadow-knowledge transition-smooth"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Process Video
+                  </Button>
+                ) : null}
+
+                <Button
+                  variant={(existingResource || shouldShowProcessButton) ? "outline" : "default"}
+                  onClick={handleManualAdd}
+                  className={(existingResource || shouldShowProcessButton) ? "" : "flex-1"}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Manual Resource
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Quick Actions - Resource Type Buttons */}
+          <div className="bg-gradient-card rounded-2xl p-8 shadow-card border-0">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold mb-2">Or Choose a Resource Type</h2>
+              <p className="text-muted-foreground text-sm">Create a resource manually</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {resourceTypeConfig ? (
+                Object.entries(resourceTypeConfig).map(([type, config]) => (
+                  <Link key={type} to={`/resources/new?type=${type}`}>
+                    <Button
+                      variant="outline"
+                      className="w-full h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent-soft hover:border-accent transition-smooth group"
+                    >
+                      <span className="text-2xl group-hover:scale-110 transition-smooth">{config.icon}</span>
+                      <span className="font-medium">Add {config.label.slice(0, -1)}</span>
+                    </Button>
+                  </Link>
+                ))
+              ) : (
+                <div className="col-span-full flex items-center justify-center text-muted-foreground">
+                  {configLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Loading resource types...
+                    </>
+                  ) : (
+                    <span>{configError ?? 'Resource type configuration is unavailable.'}</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
