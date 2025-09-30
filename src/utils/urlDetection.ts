@@ -211,11 +211,12 @@ function normalizeYouTubeUrl(parsed: URL): string {
     return `https://youtube.com/shorts/${videoId}`
   }
 
-  // Handle youtu.be short URLs - these are typically Shorts too
+  // Handle youtu.be short URLs - convert to /watch format (NOT /shorts)
+  // youtu.be is YouTube's generic short URL format used for BOTH regular videos and Shorts
+  // Only explicit /shorts/ URLs should be treated as Shorts
   if (parsed.hostname === 'youtu.be') {
     const videoId = parsed.pathname.substring(1).split('?')[0].split('/')[0]
-    // Assume youtu.be links are Shorts (YouTube uses this for short URLs)
-    return `https://youtube.com/shorts/${videoId}`
+    return `https://youtube.com/watch?v=${videoId}`
   }
 
   // Keep only essential parameters for regular watch URLs
