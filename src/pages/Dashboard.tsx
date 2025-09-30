@@ -132,8 +132,10 @@ const Dashboard = () => {
 
   // Navigation handlers for URL processing
   const handleProcessVideo = () => {
-    if (!urlResult?.normalizedUrl) return;
-    navigate(`/resources/process?url=${encodeURIComponent(urlResult.normalizedUrl)}`);
+    if (!url || !urlResult?.isShortFormVideo) return;
+    // Use original URL to preserve user's input format (keeps www, etc.)
+    // Use template literal for readable address bar (backend normalizes anyway)
+    navigate(`/resources/process?url=${url}`);
   };
 
   const handleViewExisting = () => {
