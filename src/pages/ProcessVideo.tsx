@@ -8,8 +8,6 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Layout } from '@/components/layout/Layout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -29,11 +27,7 @@ import {
 } from '@/types/shortFormApi'
 import {
   AlertCircle,
-  CheckCircle2,
-  Clock,
-  ExternalLink,
   Loader2,
-  Copy,
   ArrowLeft,
   Sparkles
 } from 'lucide-react'
@@ -128,7 +122,7 @@ export default function ProcessVideo() {
   // Get initial URL from query params
   const initialUrl = searchParams.get('url') || ''
 
-  // URL detection and validation
+  // URL detection and validation (without callback to prevent re-render loops)
   const {
     url,
     setUrl,
@@ -137,20 +131,7 @@ export default function ProcessVideo() {
     shouldShowProcessButton,
     getStatusMessage,
     getStatusColor
-  } = useUrlDetection(initialUrl, {
-    onVideoDetected: (result) => {
-      console.log('🎯 [URL Detection] Video detected:', {
-        platform: result.platform,
-        displayName: result.platformInfo?.displayName,
-        normalizedUrl: result.normalizedUrl,
-        isValid: result.isValid
-      })
-      toast({
-        title: 'Video URL Detected',
-        description: `Found ${result.platformInfo?.displayName} video`,
-      })
-    }
-  })
+  } = useUrlDetection(initialUrl)
 
   // Log URL changes
   React.useEffect(() => {
@@ -171,6 +152,7 @@ export default function ProcessVideo() {
   const [jobId, setJobId] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(false)
   const [existingJobChecked, setExistingJobChecked] = useState(false)
+  const [autoProcessAttempted, setAutoProcessAttempted] = useState(false)
 
   // Check for existing job when URL is detected
   const checkExistingJobQuery = useQuery<JobStatusResponse | null, Error>({
@@ -227,7 +209,19 @@ export default function ProcessVideo() {
 
   // Handle existing job detection
   useEffect(() => {
-    if (!checkExistingJobQuery.data) return
+    // If query hasn't run yet or is still loading, don't process
+    if (checkExistingJobQuery.isLoading || !checkExistingJobQuery.isFetched) {
+      return
+    }
+
+    // Mark as checked even if no data (404 case)
+    if (!checkExistingJobQuery.data) {
+      console.log('✅ [Job Recovery] No existing job found - ready to process')
+      if (!existingJobChecked) {
+        setExistingJobChecked(true)
+      }
+      return
+    }
 
     const existingJob = checkExistingJobQuery.data
 
@@ -242,6 +236,9 @@ export default function ProcessVideo() {
         title: 'Video Previously Processed',
         description: 'This video has been processed before. You can process it again or search for the existing resource.',
       })
+      if (!existingJobChecked) {
+        setExistingJobChecked(true)
+      }
       return
     }
 
@@ -259,6 +256,9 @@ export default function ProcessVideo() {
         title: 'Resuming Processing',
         description: `Found existing job in progress (${existingJob.currentStep || existingJob.status}). Resuming...`,
       })
+      if (!existingJobChecked) {
+        setExistingJobChecked(true)
+      }
       return
     }
 
@@ -274,8 +274,11 @@ export default function ProcessVideo() {
         description: existingJob.error?.message || 'The previous attempt failed. You can try processing again.',
         variant: 'destructive'
       })
+      if (!existingJobChecked) {
+        setExistingJobChecked(true)
+      }
     }
-  }, [checkExistingJobQuery.data, toast, setJobId, setIsPolling])
+  }, [checkExistingJobQuery.data, checkExistingJobQuery.isLoading, checkExistingJobQuery.isFetched, toast, existingJobChecked])
 
   const processMutation = useMutation<ProcessVideoResponse, Error, string>({
     mutationFn: async (videoUrl: string) => {
@@ -480,32 +483,70 @@ export default function ProcessVideo() {
     }
   }, [handleJobCompletion, jobStatus, toast])
 
-  const handleManualCreation = useCallback(() => {
-    const params = new URLSearchParams()
-    if (url) {
-      params.set('url', url)
-      params.set('type', 'video')
-    }
-    navigate(`/resources/new?${params.toString()}`)
-  }, [navigate, url])
-
-  const handleCopyUrl = useCallback(async () => {
-    if (url && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(url)
-        toast({
-          title: 'URL Copied',
-          description: 'URL has been copied to clipboard',
-        })
-      } catch (error) {
-        console.debug('Clipboard write failed', error)
-      }
-    }
-  }, [toast, url])
-
+  // Derived state (must come before useEffect hooks that use it)
   const isProcessing = processMutation.isPending || isPolling
   const jobProgress = jobStatus?.progress ?? 0
   const jobStatusDescription = jobStatus ? getProgressLabel(jobStatus.status, jobStatus.currentStep ?? undefined) : ''
+
+  // Auto-start processing when page loads with valid URL (gated by existing job check)
+  useEffect(() => {
+    // Only attempt auto-processing once per session
+    if (autoProcessAttempted) {
+      console.log('⏭️ [Auto-Process] Already attempted, skipping')
+      return
+    }
+
+    if (!existingJobChecked) {
+      console.log('⏳ [Auto-Process] Waiting for existing job check to complete')
+      return
+    }
+
+    if (!urlResult?.normalizedUrl) {
+      console.log('⏳ [Auto-Process] Waiting for URL detection')
+      return
+    }
+
+    if (!shouldShowProcessButton) {
+      console.log('⚠️ [Auto-Process] URL not processable, skipping auto-process')
+      setAutoProcessAttempted(true)
+      return
+    }
+
+    if (jobId) {
+      console.log('ℹ️ [Auto-Process] Job already exists, skipping auto-process')
+      setAutoProcessAttempted(true)
+      return
+    }
+
+    if (processMutation.isPending || isPolling) {
+      console.log('ℹ️ [Auto-Process] Processing already in progress')
+      return
+    }
+
+    console.log('🚀 [Auto-Process] Starting automatic processing for:', urlResult.normalizedUrl)
+    setAutoProcessAttempted(true)
+    processMutation.mutate(urlResult.normalizedUrl)
+  }, [
+    autoProcessAttempted,
+    existingJobChecked,
+    shouldShowProcessButton,
+    jobId,
+    processMutation,
+    isPolling,
+    urlResult?.normalizedUrl
+  ])
+
+  // Warn on navigation during processing
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isProcessing) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [isProcessing])
 
   return (
     <Layout>
@@ -515,11 +556,11 @@ export default function ProcessVideo() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/resources')}
+            onClick={() => navigate('/')}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Resources
+            Back to Dashboard
           </Button>
         </div>
 
@@ -528,100 +569,12 @@ export default function ProcessVideo() {
           <div className="text-center space-y-2">
             <h1 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-2">
               <Sparkles className="h-8 w-8 text-primary" />
-              Process Short-Form Video
+              Processing Video
             </h1>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Automatically extract metadata, thumbnails, and transcripts from TikTok, YouTube Shorts, and Instagram Reels
+              Monitoring your video processing job. You can safely navigate away and return later.
             </p>
           </div>
-
-          {/* URL Input Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Video URL</CardTitle>
-              <CardDescription>
-                Enter or paste a link to a short-form video for automatic processing
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* URL Input */}
-              <div className="space-y-2">
-                <Label htmlFor="video-url">Video URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="video-url"
-                    type="url"
-                    placeholder="https://www.tiktok.com/@user/video/... or https://youtube.com/shorts/..."
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    disabled={isProcessing}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-
-              {/* Status */}
-              <div className={`rounded-md border p-4 ${isDetecting ? 'opacity-70' : ''}`}>
-                <div className="flex items-start gap-3">
-                  {urlResult?.isShortFormVideo ? (
-                    <CheckCircle2 className="h-5 w-5 text-success" />
-                  ) : urlResult?.isValid === false ? (
-                    <AlertCircle className="h-5 w-5 text-destructive" />
-                  ) : (
-                    <Clock className="h-5 w-5 text-muted-foreground" />
-                  )}
-                  <div className="space-y-1 text-sm">
-                    <p className={`font-medium ${getStatusColor() === 'success' ? 'text-success' : getStatusColor() === 'error' ? 'text-destructive' : getStatusColor() === 'warning' ? 'text-amber-600' : 'text-muted-foreground'}`}>
-                      {getStatusMessage() || 'Awaiting URL input'}
-                    </p>
-                    {urlResult?.platformInfo && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Badge variant="outline" className="text-xs">
-                          {urlResult.platformInfo.icon} {urlResult.platformInfo.displayName}
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => processMutation.mutate(url)}
-                  disabled={!shouldShowProcessButton || isProcessing}
-                  className="flex items-center gap-2"
-                >
-                  {processMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-4 w-4" />
-                  )}
-                  {processMutation.isPending ? 'Starting...' : 'Process Video'}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={handleManualCreation}
-                  disabled={!url || isProcessing}
-                  className="flex items-center gap-2"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Create Manually
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  onClick={handleCopyUrl}
-                  disabled={!url}
-                  className="flex items-center gap-2"
-                >
-                  <Copy className="h-4 w-4" />
-                  Copy URL
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Processing Status */}
           {isProcessing && jobStatus && (
