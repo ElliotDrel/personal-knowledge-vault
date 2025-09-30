@@ -41,6 +41,7 @@ const NewResource = () => {
   const storageAdapter = useStorageAdapter();
 
   const preSelectedType = (searchParams.get('type') as keyof ResourceTypeConfig | null) || null;
+  const preFilledUrl = searchParams.get('url') || null;
 
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -63,7 +64,7 @@ const NewResource = () => {
     platform: '',
     year: '',
     duration: '',
-    url: '',
+    url: preFilledUrl || '',
     isbn: '',
     episode: '',
     readTime: ''
@@ -390,6 +391,14 @@ const NewResource = () => {
             <p className="text-muted-foreground">Capture insights from your learning journey</p>
           </div>
         </div>
+
+        {preFilledUrl && (
+          <Alert className="mb-8">
+            <AlertDescription>
+              We couldn't automatically process this URL. Please fill in the details manually.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {configError && (
           <Alert variant="destructive" className="mb-8">
