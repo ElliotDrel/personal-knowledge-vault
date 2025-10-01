@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useStorageAdapter, type ResourceTypeConfig, type Resource } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import { useUrlDetection } from '@/hooks/useUrlDetection';
-import { normalizeUrl } from '@/utils/urlDetection';
+import { findDuplicateResourceByNormalizedUrl } from '@/utils/resourceDuplicateLookup';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, TrendingUp, Brain, Loader2, Sparkles, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 
@@ -45,41 +45,7 @@ const Dashboard = () => {
       resourcesWithUrls: resources.filter(r => r.url).length
     });
 
-    // Check if any resource has this exact URL
-    const found = resources.find(resource => {
-      if (!resource.url) return false;
-
-      console.log('🔍 [Duplicate Check] Comparing:', {
-        resourceTitle: resource.title,
-        resourceUrl: resource.url,
-        checkingAgainst: urlResult.normalizedUrl
-      });
-
-      // Use the same normalization function for consistency
-      try {
-        const normalizedResourceUrl = normalizeUrl(resource.url).toLowerCase();
-        const checkUrl = urlResult.normalizedUrl.toLowerCase();
-
-        const matches = normalizedResourceUrl === checkUrl;
-        console.log('🔍 [Duplicate Check] Normalized comparison:', {
-          normalized: normalizedResourceUrl,
-          against: checkUrl,
-          matches
-        });
-
-        return matches;
-      } catch (error) {
-        // If URL parsing fails, do exact string match
-        const matches = resource.url.toLowerCase() === urlResult.normalizedUrl.toLowerCase();
-        console.log('🔍 [Duplicate Check] Direct comparison (parse failed):', {
-          resourceUrl: resource.url,
-          checkUrl: urlResult.normalizedUrl,
-          matches,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-        return matches;
-      }
-    });
+    const found = findDuplicateResourceByNormalizedUrl(resources, urlResult.normalizedUrl);
 
     if (found) {
       console.log('✅ [Duplicate Check] Found duplicate:', found.title);
