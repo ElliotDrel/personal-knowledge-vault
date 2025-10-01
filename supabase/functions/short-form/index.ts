@@ -245,9 +245,9 @@ async function handleStatusRequest(
       normalizedUrl
     })
 
-    const request: GetJobStatusRequest = {}
-    if (jobId) request.jobId = jobId
-    if (normalizedUrl) request.normalizedUrl = normalizedUrl
+    const request: GetJobStatusRequest = jobId
+      ? { jobId }
+      : { normalizedUrl: normalizedUrl! }
 
     const response: JobStatusApiResponse = await getJobStatusHandler(
       request,

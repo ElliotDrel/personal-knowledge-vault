@@ -9,7 +9,10 @@ import {
   ShortFormMetadata,
   ProcessingStatus,
   EdgeFunctionConfig,
-  POLLING_CONFIG
+  POLLING_CONFIG,
+  type SupabaseServerClient,
+  type ProcessingStep,
+  type ProcessingErrorCode
 } from '../types.ts'
 import { User, checkResourcePermission } from '../auth.ts'
 import { logInfo, logError, logUserAction, Timer } from '../utils/logging.ts'
