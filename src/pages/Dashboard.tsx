@@ -101,7 +101,7 @@ const Dashboard = () => {
     if (!url || !urlResult?.isShortFormVideo) return;
     // Use original URL to preserve user's input format (keeps www, etc.)
     // Use template literal for readable address bar (backend normalizes anyway)
-    navigate(`/resources/process?url=${url}`);
+    navigate(`/resources/process?url=${encodeURIComponent(url)}`);
   };
 
   const handleViewExisting = () => {
