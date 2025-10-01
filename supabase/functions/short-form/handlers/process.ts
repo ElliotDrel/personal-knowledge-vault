@@ -11,7 +11,8 @@ import {
   EdgeFunctionConfig,
   POLLING_CONFIG,
   PLATFORM_CONFIGS,
-  PlatformExtractionResult
+  PlatformExtractionResult,
+  type SupabaseServerClient
 } from '../types.ts'
 import { User } from '../auth.ts'
 import { logInfo, logError, logUserAction, Timer } from '../utils/logging.ts'
@@ -204,10 +205,21 @@ export async function processVideoHandler(
     // Step 5: Start async processing (fire and forget)
     // Note: In a real implementation, this would trigger background processing
     // For now, we'll use a simple setTimeout to simulate async processing
-    startAsyncProcessing(job, supabase, config).catch(error => {
+    startAsyncProcessing(job, supabase, config).catch(async (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      try {
+        await updateJobStatus(supabase, job.id, {
+          status: 'failed',
+          error_code: 'internal_error',
+          error_message: message || 'Processing failed',
+          error_details: message
+        })
+      } catch (_updateError) {
+        // Best-effort; even if this fails, we still log the original error
+      }
       logError('Async processing error', {
         jobId: job.id,
-        error: error.message
+        error: message
       })
     })
 
