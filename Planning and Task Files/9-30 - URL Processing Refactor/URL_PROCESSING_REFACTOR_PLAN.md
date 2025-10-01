@@ -8,7 +8,7 @@
 - Parity strategy: Keep frontend and backend URL normalization/detection in sync via shared patterns or tests.
 
 ## Current Status (Updated 2025-09-30)
-- Overall feature: **Planning phase - Implementation pending**
+- Overall feature: **✅ Completed**
 - Current pain point identified:
   - ❌ URL input requires navigation (Dashboard → Click button → Navigate to ProcessVideo page → Paste URL)
   - ❌ 3-step process creates friction for primary use case
@@ -26,7 +26,9 @@
   - ✅ Front/back parity enforced (normalization and detection stay aligned)
   - ⚠️ SPA requires JavaScript (no claim of non-JS progressive enhancement)
 
-## Phase 1: Dashboard URL Input Section (Status: Planned)
+> Plan Disposition: This implementation plan is now closed. Core functionality has been shipped. Remaining optional/documentation/monitoring items are deferred and intentionally not marked as completed.
+
+## Phase 1: Dashboard URL Input Section (Status: ✅ Completed)
 *Goal: Add immediate URL input capability to Dashboard home page.*
 
 ### Implementation Details
@@ -186,15 +188,15 @@
 - **Graceful fallback**: Manual resource option always available
 
 ### Testing Checklist
-- [ ] Empty state: textbox visible, placeholder shown, manual button available
-- [ ] Valid processable URL: success indicator, platform badge, "Process Video" button shown
-- [ ] Valid non-processable URL: info message, "Add Manual Resource" button emphasized
-- [ ] Invalid URL: error message shown, user can manually clear
-- [ ] Navigation: "Process Video" navigates to `/resources/process?url=...`
-- [ ] Navigation: "Add Manual Resource" navigates to `/resources/new?url=...&type=video`
-- [ ] Debouncing: typing doesn't trigger excessive detection calls
+- [x] Empty state: textbox visible, placeholder shown, manual button available
+- [x] Valid processable URL: success indicator, platform badge, "Process Video" button shown
+- [x] Valid non-processable URL: info message, "Add Manual Resource" button emphasized
+- [x] Invalid URL: error message shown, user can manually clear
+- [x] Navigation: "Process Video" navigates to `/resources/process?url=...`
+- [x] Navigation: "Add Manual Resource" navigates to `/resources/new?url=...&type=video`
+- [x] Debouncing: typing doesn't trigger excessive detection calls
 
-## Phase 2: Transform ProcessVideo to Status-Only Page (Status: Planned)
+## Phase 2: Transform ProcessVideo to Status-Only Page (Status: ✅ Completed)
 *Goal: Remove URL input from ProcessVideo page; focus solely on job status monitoring.*
 
 ### Implementation Details
@@ -291,15 +293,15 @@ ProcessVideo Page (Status-Only):
 - **No Duplicate Jobs**: Existing job recovery logic prevents race conditions (lines 176-278)
 
 ### Testing Checklist
-- [ ] Direct navigation with URL: `/resources/process?url=https://youtube.com/shorts/abc` auto-starts processing
-- [ ] No URL input visible on page
-- [ ] Progress indicators show correctly
-- [ ] Error states display properly
-- [ ] "Back to Dashboard" button navigates to `/`
-- [ ] Job recovery logic still works (existing job detection)
-- [ ] Can't accidentally start duplicate jobs
+- [x] Direct navigation with URL: `/resources/process?url=https://youtube.com/shorts/abc` auto-starts processing
+- [x] No URL input visible on page
+- [x] Progress indicators show correctly
+- [x] Error states display properly
+- [x] "Back to Dashboard" button navigates to `/`
+- [x] Job recovery logic still works (existing job detection)
+- [x] Can't accidentally start duplicate jobs
 
-## Phase 3: NewResource URL Pre-fill Enhancement (Status: Planned)
+## Phase 3: NewResource URL Pre-fill Enhancement (Status: ✅ Completed)
 *Goal: Pre-populate URL field when navigated from Dashboard with unsupported URL.*
 
 ### Implementation Details
@@ -367,14 +369,14 @@ Form loads with:
 - **Type-Safe**: Uses existing query param extraction pattern
 
 ### Testing Checklist
-- [ ] Navigate with URL param: `/resources/new?url=https://vimeo.com/123`
-- [ ] URL field shows pre-filled value
-- [ ] Info alert visible explaining manual entry
-- [ ] Type pre-selected when `type` param provided
-- [ ] Form submission works normally with pre-filled URL
-- [ ] Navigate without URL param: form loads empty (existing behavior)
+- [x] Navigate with URL param: `/resources/new?url=https://vimeo.com/123`
+- [x] URL field shows pre-filled value
+- [x] Info alert visible explaining manual entry
+- [x] Type pre-selected when `type` param provided
+- [x] Form submission works normally with pre-filled URL
+- [x] Navigate without URL param: form loads empty (existing behavior)
 
-## Phase 4: Detection Robustness & Front/Back Parity (Status: Planned)
+## Phase 4: Detection Robustness & Front/Back Parity (Status: ✅ Completed)
 *Goal: Ensure resilient, consistent URL detection across frontend and backend.*
 
 ### Normalize and Detect Consistently
@@ -438,18 +440,18 @@ Form loads with:
 - ✅ useUrlDetection hook (reads from PLATFORM_CONFIGS)
 
 ### Architecture Validation Checklist
-- [ ] Normalization/detection parity tests pass (front/back)
-- [ ] New platform added to `PLATFORM_CONFIGS`
-- [ ] Detection automatically works on Dashboard
-- [ ] ProcessVideo can monitor new platform jobs
-- [ ] No changes needed to component logic
-- [ ] Type safety maintained (ShortFormPlatform union type)
+- [x] Normalization/detection parity tests pass (front/back)
+- [x] New platform added to `PLATFORM_CONFIGS`
+- [x] Detection automatically works on Dashboard
+- [x] ProcessVideo can monitor new platform jobs
+- [x] No changes needed to component logic
+- [x] Type safety maintained (ShortFormPlatform union type)
 
 ## Milestones & Testing Checkpoints
-- 📅 **Phase 1 (Day 1)**: Dashboard URL input section implemented and tested
-- 📅 **Phase 2 (Day 1-2)**: ProcessVideo refactored to status-only, auto-processing validated
-- 📅 **Phase 3 (Day 2)**: NewResource URL pre-fill implemented
-- 📅 **Phase 4 (Day 2)**: Robust detection parity and E2E validation
+- 📅 **Phase 1 (Day 1)**: Dashboard URL input section implemented and tested - **✅ Done**
+- 📅 **Phase 2 (Day 1-2)**: ProcessVideo refactored to status-only, auto-processing validated - **✅ Done**
+- 📅 **Phase 3 (Day 2)**: NewResource URL pre-fill implemented - **✅ Done**
+- 📅 **Phase 4 (Day 2)**: Robust detection parity and E2E validation - **✅ Done**
 - 📅 **Phase 5 (Day 2-3)**: Platform addition playbook validated (optional)
 - 🎯 **Production Ready (Day 3)**: All phases tested, documentation updated, monitoring in place
 
