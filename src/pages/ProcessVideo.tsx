@@ -12,6 +12,8 @@ import { useUrlDetection } from '@/hooks/useUrlDetection'
 import { useStorageAdapter } from '@/data/storageAdapter'
 import { Resource } from '@/data/mockData'
 import { useAuth } from '@/hooks/useAuth'
+import { useResources } from '@/hooks/use-resources'
+import { findDuplicateResourceByNormalizedUrl } from '@/utils/resourceDuplicateLookup'
 import {
   ProcessVideoApiResponse,
   ProcessVideoRequest,
@@ -84,6 +86,7 @@ export default function ProcessVideo() {
   const { toast } = useToast()
   const storageAdapter = useStorageAdapter()
   const { session } = useAuth()
+  const { resources, loading: resourcesLoading } = useResources()
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
   const explicitFunctionsUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string | undefined
@@ -124,6 +127,25 @@ export default function ProcessVideo() {
   const [isPolling, setIsPolling] = useState(false)
   const [existingJobChecked, setExistingJobChecked] = useState(false)
   const [autoProcessAttempted, setAutoProcessAttempted] = useState(false)
+
+  // Duplicate resource check (runs regardless of navigation origin)
+  const duplicateResource = useMemo(() => {
+    return findDuplicateResourceByNormalizedUrl(resources, urlResult?.normalizedUrl)
+  }, [resources, urlResult?.normalizedUrl])
+
+  // If duplicate exists, redirect immediately and inform the user
+  useEffect(() => {
+    if (resourcesLoading) return
+    if (!urlResult?.normalizedUrl) return
+    if (!duplicateResource) return
+
+    toast({
+      title: 'Resource already exists',
+      description: 'Redirecting to the existing resource for this URL.',
+    })
+    setAutoProcessAttempted(true)
+    navigate(`/resource/${duplicateResource.id}`)
+  }, [duplicateResource, navigate, resourcesLoading, toast, urlResult?.normalizedUrl])
 
   // Check for existing job when URL is detected
   const checkExistingJobQuery = useQuery<JobStatusResponse | null, Error>({
@@ -468,6 +490,13 @@ export default function ProcessVideo() {
       return
     }
 
+    // Abort auto-process if duplicate was found (redirect handled elsewhere)
+    if (duplicateResource) {
+      console.log('⛔ [Auto-Process] Duplicate resource exists, skipping processing')
+      setAutoProcessAttempted(true)
+      return
+    }
+
     if (!existingJobChecked) {
       console.log('⏳ [Auto-Process] Waiting for existing job check to complete')
       return
@@ -500,6 +529,7 @@ export default function ProcessVideo() {
     processMutation.mutate(urlResult.normalizedUrl)
   }, [
     autoProcessAttempted,
+    duplicateResource,
     existingJobChecked,
     shouldShowProcessButton,
     jobId,
