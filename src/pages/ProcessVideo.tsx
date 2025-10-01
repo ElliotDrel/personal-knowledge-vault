@@ -21,7 +21,9 @@ import {
   JobStatusApiResponse,
   JobStatusResponse,
   POLLING_CONFIG,
-  ProcessingStatus
+  ProcessingStatus,
+  isProcessVideoSuccess,
+  isJobStatusSuccess
 } from '@/types/shortFormApi'
 import { Loader2 } from 'lucide-react'
 
@@ -71,13 +73,23 @@ const getProgressLabel = (status: ProcessingStatus, step?: string): string => {
 
 const safeUuid = () => {
   try {
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID()
     }
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(16)
+      crypto.getRandomValues(bytes)
+      // Set version (4) and variant (RFC 4122)
+      bytes[6] = (bytes[6] & 0x0f) | 0x40
+      bytes[8] = (bytes[8] & 0x3f) | 0x80
+      const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+      return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`
+    }
   } catch (error) {
-    console.debug('randomUUID unavailable, falling back', error)
+    console.debug('randomUUID/getRandomValues unavailable, falling back', error)
   }
-  return `resource-${Date.now()}`
+  // Last resort fallback (non-UUID, but unique enough for dev)
+  return `resource-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 export default function ProcessVideo() {
@@ -175,7 +187,7 @@ export default function ProcessVideo() {
       const payload: JobStatusApiResponse = await response.json()
 
       // Type guard: narrow to success response
-      if (!payload.success) {
+      if (!isJobStatusSuccess(payload)) {
         console.log('⚠️ [Job Recovery] API returned error:', payload.error)
         return null
       }
@@ -189,16 +201,19 @@ export default function ProcessVideo() {
       })
 
       // Now TypeScript knows this is JobStatusResponse
-      return payload as JobStatusResponse
-    },
-    onSettled: () => {
-      // Mark check as complete regardless of outcome
-      setExistingJobChecked(true)
-      console.log('✓ [Job Recovery] Check complete')
+      return payload
     },
     retry: false, // Don't retry job existence checks
     staleTime: Infinity // Job check result doesn't change during session
   })
+
+  // Mark the existing job check as complete when the query has finished
+  useEffect(() => {
+    if (checkExistingJobQuery.isFetched) {
+      setExistingJobChecked(true)
+      console.log('✓ [Job Recovery] Check complete')
+    }
+  }, [checkExistingJobQuery.isFetched])
 
   // Handle existing job detection
   useEffect(() => {
@@ -216,7 +231,7 @@ export default function ProcessVideo() {
       return
     }
 
-    const existingJob = checkExistingJobQuery.data
+    const existingJob = checkExistingJobQuery.data as JobStatusResponse
 
     // Completed job: Allow reprocessing but inform user
     if (existingJob.status === 'completed' && existingJob.metadata) {
@@ -289,15 +304,15 @@ export default function ProcessVideo() {
         body: JSON.stringify({
           url: videoUrl,
           options: {
-            includeTranscript: true
+            includeTranscript: false
           }
         } satisfies ProcessVideoRequest)
       })
 
       const payload: ProcessVideoApiResponse = await response.json()
 
-      if (!response.ok || !payload.success) {
-        const message = payload.success ? 'Failed to start processing' : payload.error.message
+      if (!response.ok || !isProcessVideoSuccess(payload)) {
+        const message = isProcessVideoSuccess(payload) ? 'Failed to start processing' : payload.error.message
         console.error('❌ [Processing] Failed to start:', { error: message, payload })
         throw new Error(message)
       }
@@ -351,8 +366,8 @@ export default function ProcessVideo() {
       const response = await fetch(statusUrl.toString(), { headers })
       const payload: JobStatusApiResponse = await response.json()
 
-      if (!response.ok || !payload.success) {
-        const message = payload.success ? 'Failed to get job status' : payload.error.message
+      if (!response.ok || !isJobStatusSuccess(payload)) {
+        const message = isJobStatusSuccess(payload) ? 'Failed to get job status' : payload.error.message
         console.error('❌ [Polling] Status check failed:', { error: message, payload })
         throw new Error(message)
       }
@@ -367,7 +382,8 @@ export default function ProcessVideo() {
 
       return payload
     },
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data
       if (!data) {
         return false
       }
