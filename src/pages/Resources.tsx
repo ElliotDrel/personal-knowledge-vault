@@ -70,7 +70,9 @@ const Resources = () => {
 
     return resources.filter((resource) => {
       const matchesType = selectedType === 'all' || resource.type === selectedType;
-      const matchesPlatform = selectedPlatform === 'all' || resource.shortFormPlatform === selectedPlatform;
+      // Platform filter only applies to short-video resources
+      const matchesPlatform = selectedPlatform === 'all' ||
+        (resource.type === 'short-video' && resource.platform === selectedPlatform);
 
       if (!query) {
         return matchesType && matchesPlatform;
@@ -81,10 +83,10 @@ const Resources = () => {
         resource.description.toLowerCase().includes(query) ||
         resource.author?.toLowerCase().includes(query) ||
         resource.creator?.toLowerCase().includes(query) ||
-        resource.shortFormMetadata?.channelName?.toLowerCase().includes(query) ||
-        resource.shortFormMetadata?.handle?.toLowerCase().includes(query) ||
+        resource.channelName?.toLowerCase().includes(query) ||
+        resource.handle?.toLowerCase().includes(query) ||
         resource.tags.some((tag) => tag.toLowerCase().includes(query)) ||
-        resource.shortFormMetadata?.hashtags?.some((tag) => tag.toLowerCase().includes(query));
+        resource.hashtags?.some((tag) => tag.toLowerCase().includes(query));
 
       return matchesType && matchesPlatform && matchesSearch;
     });
@@ -103,9 +105,9 @@ const Resources = () => {
 
   const platformCounts = useMemo(() => {
     return {
-      'youtube-short': resources.filter((r) => r.shortFormPlatform === 'youtube-short').length,
-      'tiktok': resources.filter((r) => r.shortFormPlatform === 'tiktok').length,
-      'instagram-reel': resources.filter((r) => r.shortFormPlatform === 'instagram-reel').length
+      'youtube-short': resources.filter((r) => r.type === 'short-video' && r.platform === 'youtube-short').length,
+      'tiktok': resources.filter((r) => r.type === 'short-video' && r.platform === 'tiktok').length,
+      'instagram-reel': resources.filter((r) => r.type === 'short-video' && r.platform === 'instagram-reel').length
     };
   }, [resources]);
 
@@ -198,7 +200,8 @@ const Resources = () => {
                   size="sm"
                   onClick={() => {
                     setSelectedType(type as Resource['type'])
-                    if (type !== 'video') {
+                    // Reset platform filter when switching away from short-video
+                    if (type !== 'short-video') {
                       setSelectedPlatform('all')
                     }
                   }}
@@ -217,8 +220,8 @@ const Resources = () => {
             )}
           </div>
 
-          {/* Platform Filters - Only show when viewing videos or all */}
-          {hasShortFormVideos && (selectedType === 'all' || selectedType === 'video') && (
+          {/* Platform Filters - Only show when viewing short-videos or all */}
+          {hasShortFormVideos && (selectedType === 'all' || selectedType === 'short-video') && (
             <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
               <span className="text-sm font-medium text-muted-foreground flex items-center">
                 Platforms:
