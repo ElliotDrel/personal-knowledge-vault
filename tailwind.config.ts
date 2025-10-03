@@ -56,6 +56,7 @@ export default {
           video: "hsl(var(--video))",
           podcast: "hsl(var(--podcast))",
           article: "hsl(var(--article))",
+          'short-video': "hsl(var(--short-video))",
         },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
