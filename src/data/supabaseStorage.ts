@@ -5,7 +5,7 @@ import { Resource } from './mockData';
 export interface DatabaseResource {
   id: string;
   user_id: string;
-  type: 'book' | 'video' | 'podcast' | 'article';
+  type: 'book' | 'video' | 'podcast' | 'article' | 'short-video';
   title: string;
   description: string;
   notes: string;
@@ -19,7 +19,7 @@ export interface DatabaseResource {
 export interface DatabaseResourceTypeConfig {
   id: string;
   user_id: string;
-  resource_type: 'book' | 'video' | 'podcast' | 'article';
+  resource_type: 'book' | 'video' | 'podcast' | 'article' | 'short-video';
   config: {
     label: string;
     icon: string;
@@ -262,7 +262,7 @@ export const getRecentResources = async (limit = 5): Promise<Resource[]> => {
 // Resource Type Configuration Operations
 
 export type ResourceTypeConfig = {
-  [key in 'book' | 'video' | 'podcast' | 'article']: {
+  [key in 'book' | 'video' | 'podcast' | 'article' | 'short-video']: {
     label: string;
     icon: string;
     color: string;
@@ -288,6 +288,7 @@ export const getResourceTypeConfig = async (): Promise<ResourceTypeConfig> => {
     const config: ResourceTypeConfig = {
       book: { label: 'Books', icon: '📚', color: 'knowledge-book', fields: ['author', 'year', 'isbn'] },
       video: { label: 'Videos', icon: '🎬', color: 'knowledge-video', fields: ['creator', 'platform', 'duration', 'url'] },
+      'short-video': { label: 'Short Videos', icon: '📱', color: 'knowledge-short-video', fields: ['platform', 'channelName', 'handle', 'viewCount', 'hashtags', 'duration', 'url'] },
       podcast: { label: 'Podcasts', icon: '🎧', color: 'knowledge-podcast', fields: ['creator', 'platform', 'duration', 'episode'] },
       article: { label: 'Articles', icon: '📄', color: 'knowledge-article', fields: ['author', 'platform', 'readTime', 'url'] }
     };
