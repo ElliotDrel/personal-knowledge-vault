@@ -419,7 +419,7 @@ export default function ProcessVideo() {
       const now = new Date().toISOString()
       const resource: Resource = {
         id: safeUuid(),
-        type: 'video',
+        type: 'short-video',
         title: metadata.title ?? 'Short-form Video',
         description: metadata.description ?? '',
         notes: '',
@@ -428,25 +428,24 @@ export default function ProcessVideo() {
         updatedAt: now,
         url: metadata.sourceUrl,
         platform: metadata.platform ?? undefined,
-        creator: metadata.creator?.name ?? metadata.creator?.handle,
         duration: metadata.duration ? formatDuration(metadata.duration) : undefined,
         transcript: job.transcript || undefined,
-        shortFormPlatform: metadata.platform,
-        shortFormMetadata: {
-          handle: metadata.creator?.handle,
-          channelName: metadata.creator?.channelName,
-          hashtags: metadata.content?.hashtags,
-          viewCount: metadata.content?.viewCount,
-          extractedAt: metadata.extraction?.extractedAt,
-          extractionMethod: metadata.extraction?.method
-        }
+        // Flattened short-video metadata
+        channelName: metadata.creator?.channelName,
+        handle: metadata.creator?.handle,
+        viewCount: metadata.content?.viewCount,
+        hashtags: metadata.content?.hashtags,
+        extractedAt: metadata.extraction?.extractedAt,
+        extractionMethod: metadata.extraction?.method
       }
 
       console.log('💾 [Completion] Creating resource:', {
         id: resource.id,
+        type: resource.type,
         title: resource.title,
-        platform: resource.shortFormPlatform,
-        viewCount: resource.shortFormMetadata?.viewCount
+        platform: resource.platform,
+        channelName: resource.channelName,
+        viewCount: resource.viewCount
       })
 
       const savedResource = await storageAdapter.addResource(resource)

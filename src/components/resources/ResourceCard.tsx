@@ -31,11 +31,15 @@ const platformInfo: Record<'youtube-short' | 'tiktok' | 'instagram-reel', { icon
 export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProps) => {
   const config = resourceTypeConfig[resource.type];
   const isCompact = variant === 'compact';
-  const platform = resource.shortFormPlatform ? platformInfo[resource.shortFormPlatform] : null;
+  // Platform badge only for short-video resources
+  const platform = resource.type === 'short-video' && resource.platform
+    ? platformInfo[resource.platform as keyof typeof platformInfo]
+    : null;
 
   return (
     <Card className={cn(
       "group transition-smooth hover:shadow-card hover:-translate-y-1 bg-gradient-card border-0",
+      config.color, // Apply type-specific styling (e.g., knowledge-short-video)
       isCompact ? "h-full" : ""
     )}>
       <CardHeader className={cn(isCompact ? "pb-3" : "pb-4")}>
@@ -89,16 +93,16 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
         <div className="space-y-3">
           {/* Metadata */}
           <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-            {/* Creator/Author: Prioritize shortFormMetadata over generic fields to avoid duplicates */}
-            {resource.shortFormMetadata?.channelName ? (
+            {/* Creator/Author: Cascading fallback for short-video and other types */}
+            {resource.channelName ? (
               <div className="flex items-center gap-1">
                 <User className="w-3 h-3" />
-                <span>{resource.shortFormMetadata.channelName}</span>
+                <span>{resource.channelName}</span>
               </div>
-            ) : resource.shortFormMetadata?.handle ? (
+            ) : resource.handle ? (
               <div className="flex items-center gap-1">
                 <User className="w-3 h-3" />
-                <span>@{resource.shortFormMetadata.handle}</span>
+                <span>@{resource.handle}</span>
               </div>
             ) : resource.author ? (
               <div className="flex items-center gap-1">
@@ -117,10 +121,10 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
                 <span>{resource.duration}</span>
               </div>
             )}
-            {resource.shortFormMetadata?.viewCount && (
+            {resource.viewCount && (
               <div className="flex items-center gap-1">
                 <Eye className="w-3 h-3" />
-                <span>{formatViewCount(resource.shortFormMetadata.viewCount)} views</span>
+                <span>{formatViewCount(resource.viewCount)} views</span>
               </div>
             )}
             {resource.year && (
@@ -132,7 +136,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
           </div>
 
           {/* Tags and Extraction Method */}
-          {!isCompact && (resource.tags.length > 0 || resource.shortFormMetadata?.extractionMethod === 'auto') && (
+          {!isCompact && (resource.tags.length > 0 || resource.extractionMethod === 'auto') && (
             <div className="flex flex-wrap gap-1 items-center">
               {resource.tags.slice(0, 3).map((tag) => (
                 <Badge key={tag} variant="outline" className="text-xs">
@@ -144,7 +148,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
                   +{resource.tags.length - 3}
                 </Badge>
               )}
-              {resource.shortFormMetadata?.extractionMethod === 'auto' && (
+              {resource.extractionMethod === 'auto' && (
                 <Badge variant="secondary" className="text-xs bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
                   Auto-processed
                 </Badge>

@@ -102,7 +102,12 @@ const ResourceDetail = () => {
     platform: '',
     year: '',
     duration: '',
-    url: ''
+    url: '',
+    // Short-video specific fields
+    channelName: '',
+    handle: '',
+    viewCount: '',
+    hashtags: ''
   });
 
   useEffect(() => {
@@ -123,7 +128,11 @@ const ResourceDetail = () => {
           platform: '',
           year: '',
           duration: '',
-          url: ''
+          url: '',
+          channelName: '',
+          handle: '',
+          viewCount: '',
+          hashtags: ''
         });
       }
       return;
@@ -147,7 +156,11 @@ const ResourceDetail = () => {
         platform: resource.platform || '',
         year: resource.year?.toString() || '',
         duration: resource.duration || '',
-        url: resource.url || ''
+        url: resource.url || '',
+        channelName: resource.channelName || '',
+        handle: resource.handle || '',
+        viewCount: resource.viewCount?.toString() || '',
+        hashtags: resource.hashtags?.join(', ') || ''
       });
     }
   }, [resource, isEditingNotes, isEditingTranscript, isEditingMetadata]);
@@ -234,6 +247,14 @@ const ResourceDetail = () => {
       if (metadataForm.year) updatedData.year = parseInt(metadataForm.year);
       if (metadataForm.duration) updatedData.duration = metadataForm.duration.trim();
       if (metadataForm.url) updatedData.url = metadataForm.url.trim();
+
+      // Add short-video specific fields if they have values
+      if (metadataForm.channelName) updatedData.channelName = metadataForm.channelName.trim();
+      if (metadataForm.handle) updatedData.handle = metadataForm.handle.trim();
+      if (metadataForm.viewCount) updatedData.viewCount = parseInt(metadataForm.viewCount);
+      if (metadataForm.hashtags) {
+        updatedData.hashtags = metadataForm.hashtags.split(',').map(tag => tag.trim()).filter(Boolean);
+      }
 
       await storageAdapter.updateResource(resource.id, updatedData);
       setIsEditingMetadata(false);
@@ -476,7 +497,66 @@ const ResourceDetail = () => {
                         />
                       </div>
                     )}
+
+                    {/* Short-video specific fields */}
+                    {config.fields.includes('channelName') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="channelName" className="text-sm font-medium">
+                          Channel Name
+                        </Label>
+                        <Input
+                          id="channelName"
+                          value={metadataForm.channelName}
+                          onChange={(e) => handleMetadataChange('channelName', e.target.value)}
+                          placeholder="YouTube channel name"
+                        />
+                      </div>
+                    )}
+
+                    {config.fields.includes('handle') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="handle" className="text-sm font-medium">
+                          Handle
+                        </Label>
+                        <Input
+                          id="handle"
+                          value={metadataForm.handle}
+                          onChange={(e) => handleMetadataChange('handle', e.target.value)}
+                          placeholder="@username"
+                        />
+                      </div>
+                    )}
+
+                    {config.fields.includes('viewCount') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="viewCount" className="text-sm font-medium">
+                          View Count
+                        </Label>
+                        <Input
+                          id="viewCount"
+                          type="number"
+                          value={metadataForm.viewCount}
+                          onChange={(e) => handleMetadataChange('viewCount', e.target.value)}
+                          placeholder="Number of views"
+                        />
+                      </div>
+                    )}
                   </div>
+
+                  {/* Hashtags - for short-video */}
+                  {config.fields.includes('hashtags') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="hashtags" className="text-sm font-medium">
+                        Hashtags
+                      </Label>
+                      <Input
+                        id="hashtags"
+                        value={metadataForm.hashtags}
+                        onChange={(e) => handleMetadataChange('hashtags', e.target.value)}
+                        placeholder="Enter hashtags separated by commas"
+                      />
+                    </div>
+                  )}
 
                   {/* Tags - always shown */}
                   <div className="space-y-2">
@@ -531,8 +611,56 @@ const ResourceDetail = () => {
                         </div>
                       </div>
                     )}
+                    {/* Short-video specific fields in display mode */}
+                    {resource.channelName && (
+                      <div className="flex items-center space-x-2">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Channel</p>
+                          <p className="font-medium">{resource.channelName}</p>
+                        </div>
+                      </div>
+                    )}
+                    {resource.handle && (
+                      <div className="flex items-center space-x-2">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Handle</p>
+                          <p className="font-medium">@{resource.handle}</p>
+                        </div>
+                      </div>
+                    )}
+                    {resource.viewCount && (
+                      <div className="flex items-center space-x-2">
+                        <span className="w-4 h-4 text-muted-foreground">👁</span>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Views</p>
+                          <p className="font-medium">{resource.viewCount.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  
+
+                  {/* Hashtags for short-video */}
+                  {resource.hashtags && resource.hashtags.length > 0 && (
+                    <>
+                      <Separator className="my-4" />
+                      <div className="flex items-center space-x-2">
+                        <Tag className="w-4 h-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-sm text-muted-foreground mb-2">Hashtags</p>
+                          <div className="flex flex-wrap gap-2">
+                            {resource.hashtags.map((tag) => (
+                              <Badge key={tag} variant="secondary" className="text-xs">
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   {resource.tags.length > 0 && (
                     <>
                       <Separator className="my-4" />
