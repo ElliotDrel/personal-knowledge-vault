@@ -46,44 +46,25 @@ export const useResources = () => {
     }
   }, [storageAdapter]);
 
-  // Load resources on mount and auth state changes
+  // Load resources on mount and when the authenticated user changes
   useEffect(() => {
     loadResources();
-  }, [loadResources, user?.id]); // Re-load when user changes (login/logout)
+  }, [loadResources, user?.id]);
 
   // Subscribe to resource changes for real-time updates
   useEffect(() => {
     const unsubscribe = storageAdapter.subscribeToResourceChanges(() => {
-      // Reload resources when changes occur
       loadResources();
     });
 
     return unsubscribe;
   }, [loadResources, user?.id, storageAdapter]);
 
-  // For localStorage fallback, listen to storage events across tabs
-  useEffect(() => {
-    if (!user) {
-      // Only listen to storage events when not authenticated (localStorage mode)
-      const handleStorage = (event: StorageEvent) => {
-        if (event.key === 'knowledge-vault-resources') {
-          loadResources();
-        }
-      };
-
-      window.addEventListener('storage', handleStorage);
-      return () => {
-        window.removeEventListener('storage', handleStorage);
-      };
-    }
-  }, [loadResources, user]);
-
   return {
     resources,
     loading,
     error,
     refetch: loadResources,
-    isOnline: storageAdapter.isOnline()
   };
 };
 
