@@ -1,5 +1,11 @@
 /**
  * Handler for /process endpoint - initiates short-form video processing
+ *
+ * IMPORTANT: This edge function only extracts and returns metadata in a nested structure.
+ * The FRONTEND is responsible for:
+ * 1. Setting the resource type to 'short-video' (NOT 'video')
+ * 2. Flattening nested metadata before saving to database
+ * 3. Converting creator.channelName → channelName, creator.handle → handle, etc.
  */
 
 import {
