@@ -1,6 +1,6 @@
 export interface Resource {
   id: string;
-  type: 'book' | 'video' | 'podcast' | 'article';
+  type: 'book' | 'video' | 'podcast' | 'article' | 'short-video';
   title: string;
   author?: string;
   creator?: string;
@@ -14,15 +14,13 @@ export interface Resource {
   tags: string[];
   createdAt: string;
   updatedAt: string;
-  shortFormPlatform?: 'tiktok' | 'youtube-short' | 'instagram-reel';
-  shortFormMetadata?: {
-    handle?: string;
-    channelName?: string;
-    hashtags?: string[];
-    viewCount?: number;
-    extractedAt?: string;
-    extractionMethod?: 'auto' | 'manual';
-  };
+  // Short-video specific fields (flattened from legacy nested structure)
+  channelName?: string;
+  handle?: string;
+  viewCount?: number;
+  hashtags?: string[];
+  extractedAt?: string;
+  extractionMethod?: 'auto' | 'manual';
 }
 
 export const mockResources: Resource[] = [
@@ -217,6 +215,7 @@ export const getRecentResources = (limit: number = 3) => {
 };
 
 // Platform-specific field mapping for short-form videos
+// @deprecated - Kept for backwards compatibility, but platform is now a top-level field
 export const shortFormFieldMap: Record<string, string[]> = {
   'youtube-short': ['channelName', 'hashtags', 'viewCount'],
   tiktok: ['handle', 'hashtags'],
@@ -234,8 +233,13 @@ export const resourceTypeConfig = {
     label: 'Videos',
     icon: '🎬',
     color: 'knowledge-video',
-    fields: ['creator', 'platform', 'duration', 'url'],
-    optionalShortFormFields: ['shortFormPlatform', 'handle', 'channelName', 'hashtags', 'viewCount']
+    fields: ['creator', 'platform', 'duration', 'url']
+  },
+  'short-video': {
+    label: 'Short Videos',
+    icon: '📱',
+    color: 'knowledge-short-video',
+    fields: ['platform', 'channelName', 'handle', 'viewCount', 'hashtags', 'duration', 'url']
   },
   podcast: {
     label: 'Podcasts',
