@@ -16,6 +16,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 6. **No Placeholders**: Before claiming "complete", ensure: real endpoints, passes `npm run lint` + `npm run build`, end-to-end test works.
 
+7. **Cross-Reference Before Complete** (CRITICAL - Prevents Missing Requirements): Before marking ANY task complete, explicitly check ALL relevant patterns in this file. Create checklist: Search-First ✓, Cascading Fallbacks ✓, Security ✓, etc. Missing this step causes bugs that code review finds later.
+
 ### Supabase CLI-Only Workflow
 
 **CRITICAL RULE**: This project uses the Supabase CLI **EXCLUSIVELY** against the deployed Supabase project. **NO local Docker setup.**
@@ -39,6 +41,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 *   Use modern PostgreSQL functions: `gen_random_uuid()` instead of `uuid_generate_v4()`.
 *   Handle Unicode/emojis carefully in your application code when storing them in JSONB.
 *   Never delete old migration files.
+
+### Post-Migration Validation (MANDATORY)
+
+After running `npx supabase db push`, ALWAYS verify migrations succeeded:
+
+1. **Check NOTICE logs** - Migration output shows counts/warnings
+2. **If needed run validation queries and verify indexes created** - Use queries from migration comments:
+3. **Query sample data** - Confirm data structure matches expectations
+4. **Document findings** - State "Verified: X resources migrated, Y indexes created"
+
+**CRITICAL**: NOTICE logs show execution, not correctness. Always query actual data.
 
 ### Commands
 
@@ -137,29 +150,44 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 4. **Duplicate Display**: Showed same creator 3x → Cascading ternary for hierarchy
 5. **React Query Side Effects**: Set state in `queryFn` → Use `onSettled` callback
 
+**Short-Video Type Refactor (2025-10-02) - Critical Mistake**:
+1. **Broken Fallback Chain**: Flattened metadata but forgot to populate `creator` field → Display fallback failed
+   - **Why**: Focused on new flat fields (channelName, handle) without mapping ALL fields from old structure
+   - **Fix**: Always populate every level of cascading fallback, even if redundant
+   - **Pattern Violated**: "Data Hierarchy: Cascading Fallbacks" was in CLAUDE.md but not explicitly checked
+2. **No Post-Migration Validation**: Trusted NOTICE logs without querying actual data structure
+   - **Why**: Assumed migrations worked correctly based on execution logs
+   - **Fix**: Always run validation queries from migration comments
+   - **New Rule**: NOTICE logs show execution, not correctness
+3. **Missing Cross-Reference**: Didn't explicitly check all CLAUDE.md patterns before marking "complete"
+   - **Why**: Assumed dynamic config would handle everything automatically
+   - **Fix**: Create explicit checklist of patterns and check each one
+   - **New Rule**: Cross-reference BEFORE complete (now mandatory item #7)
+
 **What Worked**:
-- Systematic use of TodoWrite tool for tracking
-- Debug logging immediately identified root causes
-- Deep thinking before coding (architecture analysis)
-- Comprehensive code review caught issues pre-production
+- Systematic use of TodoWrite tool for tracking (20 tasks)
+- Deep thinking before coding (architecture analysis for each phase)
+- Comprehensive code review caught creator field bug before deployment
+- Database migrations followed best practices (transactions, validation logging, idempotent)
+- Type safety maintained (build passed, 0 TypeScript errors)
 
-**Key Takeaway**: THE GUIDANCE WAS ALREADY IN CLAUDE.md. Read patterns BEFORE coding. Search for existing utilities BEFORE creating new ones.
+**Key Takeaway**: THE GUIDANCE WAS ALREADY IN CLAUDE.md. The "Data Hierarchy: Cascading Fallbacks" pattern directly applied but wasn't explicitly checked. New mandatory rule #7 requires cross-referencing ALL patterns before claiming complete.
 
-## Project Status (Updated 2025-09-30)
+## Project Status (Updated 2025-10-02)
 
 **Completed**:
 - ✅ Phases 1-6: Core frontend, authentication, hybrid storage (Supabase + localStorage)
 - ✅ Short-Form Video Phase 5: YouTube integration, metadata extraction, dashboard UI, job recovery
 - ✅ URL Processing Refactor: Dashboard input, auto-processing, duplicate detection, front/back parity
+- ✅ Short-Video Type Refactor: First-class type, flat metadata, purple theme, platform filtering
 
-**Recent Enhancements**:
-- Dashboard URL input with smart routing (processable vs manual)
-- ProcessVideo auto-start with job recovery
-- Duplicate URL detection prevents re-processing
-- Front/back normalization parity (fixed youtu.be bug)
-
-**Next**:
-- 🎯 Short-Form Video Phase 6: Observability, hardening, launch prep
+**Recent Enhancements (2025-10-02)**:
+- Short-videos are now `type='short-video'` (not nested under `type='video'`)
+- Flat metadata structure (channelName, handle, viewCount at top level)
+- Platform filtering (YouTube Shorts, TikTok, Instagram Reels)
+- Purple theme styling with light/dark mode support
+- Partial index on platform for performance
+- Database migrations deployed successfully (1 resource migrated)
 
 **Limitations**:
 - ⏳ Transcript extraction not yet implemented
