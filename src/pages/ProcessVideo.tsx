@@ -428,6 +428,7 @@ export default function ProcessVideo() {
         updatedAt: now,
         url: metadata.sourceUrl,
         platform: metadata.platform ?? undefined,
+        creator: metadata.creator?.name ?? metadata.creator?.handle,
         duration: metadata.duration ? formatDuration(metadata.duration) : undefined,
         transcript: job.transcript || undefined,
         // Flattened short-video metadata
