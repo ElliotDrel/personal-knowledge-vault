@@ -58,6 +58,20 @@ export default {
           article: "hsl(var(--article))",
           'short-video': "hsl(var(--short-video))",
         },
+        // Purple color palette for short-video theme
+        purple: {
+          50: "hsl(270 100% 98%)",
+          100: "hsl(270 90% 95%)",
+          200: "hsl(270 80% 90%)",
+          300: "hsl(270 70% 80%)",
+          400: "hsl(270 65% 70%)",
+          500: "hsl(var(--short-video))", // Main short-video color
+          600: "hsl(270 65% 50%)",
+          700: "hsl(270 65% 40%)",
+          800: "hsl(270 60% 30%)",
+          900: "hsl(270 55% 20%)",
+          950: "hsl(270 50% 10%)",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
