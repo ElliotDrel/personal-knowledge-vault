@@ -193,35 +193,15 @@
 @layer components {
   /* Short-video resource card styling - Purple theme */
   .knowledge-short-video {
-    background: linear-gradient(145deg, hsl(var(--short-video) / 0.05) 0%, hsl(var(--short-video) / 0.08) 100%);
-    border-color: hsl(var(--short-video) / 0.2);
+    @apply bg-purple-50 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800;
   }
 
   .knowledge-short-video:hover {
-    border-color: hsl(var(--short-video) / 0.35);
-    box-shadow: 0 4px 20px -4px hsl(var(--short-video) / 0.2);
-  }
-
-  .dark .knowledge-short-video {
-    background: linear-gradient(145deg, hsl(var(--short-video) / 0.08) 0%, hsl(var(--short-video) / 0.12) 100%);
-    border-color: hsl(var(--short-video) / 0.25);
-  }
-
-  .dark .knowledge-short-video:hover {
-    border-color: hsl(var(--short-video) / 0.4);
-    box-shadow: 0 4px 20px -4px hsl(var(--short-video) / 0.3);
+    @apply border-purple-300 dark:border-purple-700 shadow-[0_4px_20px_-4px] shadow-purple-200/50 dark:shadow-purple-800/50;
   }
 
   /* Short-video badge styling */
   .badge-short-video {
-    background-color: hsl(var(--short-video) / 0.1);
-    color: hsl(var(--short-video));
-    border-color: hsl(var(--short-video) / 0.3);
-  }
-
-  .dark .badge-short-video {
-    background-color: hsl(var(--short-video) / 0.15);
-    color: hsl(var(--short-video) / 0.9);
-    border-color: hsl(var(--short-video) / 0.35);
+    @apply bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700;
   }
 }
