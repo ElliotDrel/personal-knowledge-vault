@@ -58,7 +58,7 @@ const getConfig = (): EdgeFunctionConfig => {
       connectionString: Deno.env.get('SUPABASE_DB_URL') || '',
     },
     features: {
-      enableYouTubeTranscripts: Deno.env.get('ENABLE_YOUTUBE_TRANSCRIPTS') === 'true',
+      enableYouTubeTranscripts: Deno.env.get('ENABLE_YOUTUBE_TRANSCRIPTS') !== 'false', // Default true
       enableRateLimiting: Deno.env.get('ENABLE_RATE_LIMITING') !== 'false', // Default true
       maxJobsPerUser: parseInt(Deno.env.get('MAX_JOBS_PER_USER') || '50'),
     },
