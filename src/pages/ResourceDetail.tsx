@@ -741,8 +741,8 @@ const ResourceDetail = () => {
           </CardContent>
         </Card>
 
-        {/* Transcript Section (for videos/podcasts) */}
-        {(resource.type === 'video' || resource.type === 'podcast') && (
+        {/* Transcript Section (for videos/podcasts/short-videos) */}
+        {(resource.type === 'video' || resource.type === 'podcast' || resource.type === 'short-video') && (
           <Card className="bg-gradient-card border-0 shadow-card">
             <CardHeader>
               <div className="flex items-center justify-between">
