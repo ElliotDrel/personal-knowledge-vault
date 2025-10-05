@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "youtube-caption-extractor": "npm:youtube-caption-extractor@^1.8.2"
+  }
+}
