@@ -77,59 +77,60 @@ export async function processVideoHandler(
     logInfo('Platform detected', { platform, normalizedUrl, userId: user.id })
 
     // Step 3: Check for existing job (idempotency)
+    // TEMPORARILY DISABLED - Always force fresh processing for testing
     let existingJob: ProcessingJobRecord | null = null
 
-    if (!options.forceRefresh) {
-      const { data, error } = await supabase
-        .from('processing_jobs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('normalized_url', normalizedUrl)
-        .single()
+    // if (!options.forceRefresh) {
+    //   const { data, error } = await supabase
+    //     .from('processing_jobs')
+    //     .select('*')
+    //     .eq('user_id', user.id)
+    //     .eq('normalized_url', normalizedUrl)
+    //     .single()
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        logError('Database error checking existing job', {
-          error: error.message,
-          userId: user.id,
-          normalizedUrl
-        })
-        return {
-          success: false,
-          error: {
-            code: 'internal_error',
-            message: 'Database error occurred',
-            details: error.message
-          }
-        }
-      }
+    //   if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+    //     logError('Database error checking existing job', {
+    //       error: error.message,
+    //       userId: user.id,
+    //       normalizedUrl
+    //     })
+    //     return {
+    //       success: false,
+    //       error: {
+    //         code: 'internal_error',
+    //         message: 'Database error occurred',
+    //         details: error.message
+    //       }
+    //     }
+    //   }
 
-      if (data) {
-        existingJob = data as ProcessingJobRecord
-        logInfo('Found existing job', { jobId: existingJob.id, status: existingJob.status, userId: user.id })
+    //   if (data) {
+    //     existingJob = data as ProcessingJobRecord
+    //     logInfo('Found existing job', { jobId: existingJob.id, status: existingJob.status, userId: user.id })
 
-        // If job is still in progress, return the existing job
-        if (!['completed', 'failed', 'unsupported'].includes(existingJob.status)) {
-          return {
-            success: true,
-            jobId: existingJob.id,
-            status: existingJob.status as ProcessingStatus,
-            pollIntervalMs: existingJob.poll_interval_ms,
-            message: 'Processing already in progress'
-          }
-        }
+    //     // If job is still in progress, return the existing job
+    //     if (!['completed', 'failed', 'unsupported'].includes(existingJob.status)) {
+    //       return {
+    //         success: true,
+    //         jobId: existingJob.id,
+    //         status: existingJob.status as ProcessingStatus,
+    //         pollIntervalMs: existingJob.poll_interval_ms,
+    //         message: 'Processing already in progress'
+    //       }
+    //     }
 
-        // If job completed successfully and not forcing refresh, return completed job
-        if (existingJob.status === 'completed' && !options.forceRefresh) {
-          return {
-            success: true,
-            jobId: existingJob.id,
-            status: 'completed' as ProcessingStatus,
-            pollIntervalMs: existingJob.poll_interval_ms,
-            message: 'Video already processed'
-          }
-        }
-      }
-    }
+    //     // If job completed successfully and not forcing refresh, return completed job
+    //     if (existingJob.status === 'completed' && !options.forceRefresh) {
+    //       return {
+    //         success: true,
+    //         jobId: existingJob.id,
+    //         status: 'completed' as ProcessingStatus,
+    //         pollIntervalMs: existingJob.poll_interval_ms,
+    //         message: 'Video already processed'
+    //       }
+    //     }
+    //   }
+    // }
 
     // Step 4: Create or update processing job
     const jobData = {
