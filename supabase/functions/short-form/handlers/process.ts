@@ -40,7 +40,8 @@ export async function processVideoHandler(
   const { url, options = {} } = request
 
   logUserAction(user.id, 'process_video_request', url, {
-    includeTranscript: options.includeTranscript
+    includeTranscript: options.includeTranscript,
+    forceRefresh: options.forceRefresh
   })
 
   try {
@@ -58,24 +59,7 @@ export async function processVideoHandler(
     }
 
     // Step 2: Normalize URL and detect platform
-    let normalizedUrl: string
-    try {
-      normalizedUrl = normalizeUrl(url)
-    } catch (normalizationError) {
-      // Handle validation errors from normalization (e.g., invalid video IDs)
-      const errorMessage = normalizationError instanceof Error ? normalizationError.message : String(normalizationError)
-      logError('URL normalization failed', { url, userId: user.id, error: errorMessage })
-      return {
-        success: false,
-        error: {
-          code: 'invalid_url',
-          message: 'The provided URL is not valid',
-          details: errorMessage,
-          fallbackSuggestion: 'Please check the URL and try again, or create the resource manually'
-        }
-      }
-    }
-
+    const normalizedUrl = normalizeUrl(url)
     const platform = detectPlatform(normalizedUrl)
 
     if (!platform) {
@@ -92,7 +76,62 @@ export async function processVideoHandler(
 
     logInfo('Platform detected', { platform, normalizedUrl, userId: user.id })
 
-    // Step 3: Create new processing job
+    // Step 3: Check for existing job (idempotency)
+    let existingJob: ProcessingJobRecord | null = null
+
+    if (!options.forceRefresh) {
+      const { data, error } = await supabase
+        .from('processing_jobs')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('normalized_url', normalizedUrl)
+        .single()
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        logError('Database error checking existing job', {
+          error: error.message,
+          userId: user.id,
+          normalizedUrl
+        })
+        return {
+          success: false,
+          error: {
+            code: 'internal_error',
+            message: 'Database error occurred',
+            details: error.message
+          }
+        }
+      }
+
+      if (data) {
+        existingJob = data as ProcessingJobRecord
+        logInfo('Found existing job', { jobId: existingJob.id, status: existingJob.status, userId: user.id })
+
+        // If job is still in progress, return the existing job
+        if (!['completed', 'failed', 'unsupported'].includes(existingJob.status)) {
+          return {
+            success: true,
+            jobId: existingJob.id,
+            status: existingJob.status as ProcessingStatus,
+            pollIntervalMs: existingJob.poll_interval_ms,
+            message: 'Processing already in progress'
+          }
+        }
+
+        // If job completed successfully and not forcing refresh, return completed job
+        if (existingJob.status === 'completed' && !options.forceRefresh) {
+          return {
+            success: true,
+            jobId: existingJob.id,
+            status: 'completed' as ProcessingStatus,
+            pollIntervalMs: existingJob.poll_interval_ms,
+            message: 'Video already processed'
+          }
+        }
+      }
+    }
+
+    // Step 4: Create or update processing job
     const jobData = {
       user_id: user.id,
       original_url: url,
@@ -102,37 +141,74 @@ export async function processVideoHandler(
       current_step: 'url_validation',
       progress: 10,
       include_transcript: options.includeTranscript || false,
+      force_refresh: options.forceRefresh || false,
       poll_interval_ms: POLLING_CONFIG.DEFAULT_INTERVAL_MS,
       max_poll_count: POLLING_CONFIG.MAX_POLL_COUNT,
       warnings: []
     }
 
-    // Insert new processing job
-    const { data, error } = await supabase
-      .from('processing_jobs')
-      .insert(jobData)
-      .select()
-      .single()
+    let job: ProcessingJobRecord
 
-    if (error) {
-      logError('Failed to create processing job', {
-        error: error.message,
-        userId: user.id,
-        normalizedUrl
-      })
-      return {
-        success: false,
-        error: {
-          code: 'internal_error',
-          message: 'Failed to create processing job'
+    if (existingJob && options.forceRefresh) {
+      // Update existing job for refresh
+      const { data, error } = await supabase
+        .from('processing_jobs')
+        .update({
+          ...jobData,
+          poll_count: 0, // Reset poll count
+          error_code: null,
+          error_message: null,
+          error_details: null,
+          metadata_json: null,
+          transcript: null,
+          completed_at: null
+        })
+        .eq('id', existingJob.id)
+        .select()
+        .single()
+
+      if (error) {
+        logError('Failed to update existing job', { error: error.message, jobId: existingJob.id })
+        return {
+          success: false,
+          error: {
+            code: 'internal_error',
+            message: 'Failed to update processing job'
+          }
         }
       }
+
+      job = data as ProcessingJobRecord
+      logInfo('Updated existing job for refresh', { jobId: job.id, userId: user.id })
+
+    } else {
+      // Create new job
+      const { data, error } = await supabase
+        .from('processing_jobs')
+        .insert(jobData)
+        .select()
+        .single()
+
+      if (error) {
+        logError('Failed to create processing job', {
+          error: error.message,
+          userId: user.id,
+          normalizedUrl
+        })
+        return {
+          success: false,
+          error: {
+            code: 'internal_error',
+            message: 'Failed to create processing job'
+          }
+        }
+      }
+
+      job = data as ProcessingJobRecord
+      logInfo('Created new processing job', { jobId: job.id, userId: user.id })
     }
 
-    const job = data as ProcessingJobRecord
-    logInfo('Created new processing job', { jobId: job.id, userId: user.id })
-
-    // Step 4: Start async processing (fire and forget)
+    // Step 5: Start async processing (fire and forget)
     // Note: In a real implementation, this would trigger background processing
     // For now, we'll use a simple setTimeout to simulate async processing
     startAsyncProcessing(job, supabase, config).catch(async (error: unknown) => {
@@ -159,7 +235,7 @@ export async function processVideoHandler(
       userId: user.id
     })
 
-    // Step 5: Return job information for polling
+    // Step 6: Return job information for polling
     return {
       success: true,
       jobId: job.id,

@@ -6,14 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useStorageAdapter, type ResourceTypeConfig, type Resource } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Search, Plus, Grid, List, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const Resources = () => {
   const { resources, loading: resourcesLoading, error: resourcesError } = useResources();
   const storageAdapter = useStorageAdapter();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<Resource['type'] | 'all'>('all');
@@ -22,14 +21,6 @@ const Resources = () => {
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [configError, setConfigError] = useState<string | null>(null);
-
-  // Read filter from URL on mount
-  useEffect(() => {
-    const typeParam = searchParams.get('type');
-    if (typeParam && typeParam !== 'all') {
-      setSelectedType(typeParam as Resource['type']);
-    }
-  }, [searchParams]);
 
   useEffect(() => {
     let isMounted = true;
@@ -137,7 +128,7 @@ const Resources = () => {
                 {filteredResources.length} of {resources.length} resources
               </p>
             </div>
-            <Link to="/dashboard/resources/new">
+            <Link to="/resources/new">
               <Button className="bg-gradient-primary hover:shadow-knowledge transition-smooth">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Resource
@@ -329,7 +320,7 @@ const Resources = () => {
                 Clear filters
               </Button>
             ) : (
-              <Link to="/dashboard/resources/new">
+              <Link to="/resources/new">
                 <Button className="bg-gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Your First Resource
