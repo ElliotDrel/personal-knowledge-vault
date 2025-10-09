@@ -58,7 +58,24 @@ export async function processVideoHandler(
     }
 
     // Step 2: Normalize URL and detect platform
-    const normalizedUrl = normalizeUrl(url)
+    let normalizedUrl: string
+    try {
+      normalizedUrl = normalizeUrl(url)
+    } catch (normalizationError) {
+      // Handle validation errors from normalization (e.g., invalid video IDs)
+      const errorMessage = normalizationError instanceof Error ? normalizationError.message : String(normalizationError)
+      logError('URL normalization failed', { url, userId: user.id, error: errorMessage })
+      return {
+        success: false,
+        error: {
+          code: 'invalid_url',
+          message: 'The provided URL is not valid',
+          details: errorMessage,
+          fallbackSuggestion: 'Please check the URL and try again, or create the resource manually'
+        }
+      }
+    }
+
     const platform = detectPlatform(normalizedUrl)
 
     if (!platform) {
