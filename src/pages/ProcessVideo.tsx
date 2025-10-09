@@ -7,6 +7,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Layout } from '@/components/layout/Layout'
 import { Progress } from '@/components/ui/progress'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useToast } from '@/hooks/use-toast'
 import { useUrlDetection } from '@/hooks/useUrlDetection'
 import { useStorageAdapter } from '@/data/storageAdapter'
@@ -25,7 +28,7 @@ import {
   isProcessVideoSuccess,
   isJobStatusSuccess
 } from '@/types/shortFormApi'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertCircle, RefreshCw, Home } from 'lucide-react'
 
 // Status constants for job processing (module-level to avoid re-renders)
 const IN_PROGRESS_STATUSES: ProcessingStatus[] = ['created', 'detecting', 'metadata', 'transcript']
@@ -139,6 +142,10 @@ export default function ProcessVideo() {
   const [isPolling, setIsPolling] = useState(false)
   const [existingJobChecked, setExistingJobChecked] = useState(false)
   const [autoProcessAttempted, setAutoProcessAttempted] = useState(false)
+  const [failureInfo, setFailureInfo] = useState<{
+    message: string
+    details?: string
+  } | null>(null)
 
   // Duplicate resource check (runs regardless of navigation origin)
   const duplicateResource = useMemo(() => {
@@ -337,6 +344,10 @@ export default function ProcessVideo() {
     },
     onError: (error) => {
       setIsPolling(false)
+      setFailureInfo({
+        message: error.message,
+        details: error instanceof Error ? error.stack : undefined
+      })
       console.error('❌ [Processing] Mutation error:', error)
       toast({
         title: 'Processing Failed',
@@ -483,10 +494,14 @@ export default function ProcessVideo() {
 
     if (jobStatus.status === 'failed' || jobStatus.status === 'unsupported') {
       setIsPolling(false)
-      const description = jobStatus.error?.message || 'Processing could not be completed'
+      const message = jobStatus.error?.message || 'Processing could not be completed'
+      setFailureInfo({
+        message,
+        details: jobStatus.error?.details
+      })
       toast({
         title: 'Processing Failed',
-        description,
+        description: message,
         variant: 'destructive'
       })
     }
@@ -497,6 +512,22 @@ export default function ProcessVideo() {
   const jobProgress = jobStatus?.progress ?? 0
   const jobStatusDescription = jobStatus ? getProgressLabel(jobStatus.status, jobStatus.currentStep ?? undefined) : ''
   const currentStatusText = jobStatusDescription || (isProcessing ? 'Processing...' : 'Preparing...')
+
+  // Handlers for error state actions
+  const handleTryAgain = useCallback(() => {
+    console.log('🔄 [Retry] User requested retry')
+    setFailureInfo(null)
+    setJobId(null)
+    setIsPolling(false)
+    setAutoProcessAttempted(false)
+    setExistingJobChecked(false)
+    // The auto-process effect will trigger again when autoProcessAttempted is reset
+  }, [])
+
+  const handleGoBackToDashboard = useCallback(() => {
+    console.log('🏠 [Navigation] User returning to dashboard')
+    navigate('/')
+  }, [navigate])
 
   // Auto-start processing when page loads with valid URL (gated by existing job check)
   useEffect(() => {
@@ -566,6 +597,65 @@ export default function ProcessVideo() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isProcessing])
 
+  // Show error state if processing failed
+  if (failureInfo) {
+    return (
+      <Layout>
+        <div className="container max-w-2xl mx-auto py-12 px-4">
+          <Card className="border-destructive">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+                <CardTitle className="text-destructive">Processing Failed</CardTitle>
+              </div>
+              <CardDescription>
+                We encountered an error while processing your video
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{failureInfo.message}</AlertDescription>
+              </Alert>
+
+              {failureInfo.details && (
+                <details className="text-sm text-muted-foreground">
+                  <summary className="cursor-pointer hover:text-foreground">
+                    Technical details
+                  </summary>
+                  <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto">
+                    {failureInfo.details}
+                  </pre>
+                </details>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleTryAgain}
+                  className="flex-1"
+                  variant="default"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Try Again
+                </Button>
+                <Button
+                  onClick={handleGoBackToDashboard}
+                  className="flex-1"
+                  variant="outline"
+                >
+                  <Home className="w-4 h-4 mr-2" />
+                  Go to Dashboard
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    )
+  }
+
+  // Show processing state
   return (
     <Layout>
       <div className="container max-w-2xl mx-auto py-12 px-4">
