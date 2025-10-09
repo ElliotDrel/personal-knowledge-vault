@@ -152,6 +152,24 @@ export default function ProcessVideo() {
     return findDuplicateResourceByNormalizedUrl(resources, urlResult?.normalizedUrl)
   }, [resources, urlResult?.normalizedUrl])
 
+  // Redirect to dashboard if no URL was provided
+  useEffect(() => {
+    // Wait for resources to load to avoid premature redirects
+    if (resourcesLoading) return
+
+    // If there's no initial URL, redirect to dashboard
+    if (!initialUrl || initialUrl.trim() === '') {
+      console.log('⚠️ [Validation] No URL provided, redirecting to dashboard')
+      toast({
+        title: 'No URL Provided',
+        description: 'Please provide a video URL to process.',
+        variant: 'destructive'
+      })
+      navigate('/')
+      return
+    }
+  }, [initialUrl, navigate, resourcesLoading, toast])
+
   // If duplicate exists, redirect immediately and inform the user
   useEffect(() => {
     if (resourcesLoading) return
