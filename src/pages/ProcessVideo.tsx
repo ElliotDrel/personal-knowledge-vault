@@ -184,6 +184,37 @@ export default function ProcessVideo() {
     navigate(`/resource/${duplicateResource.id}`)
   }, [duplicateResource, navigate, resourcesLoading, toast, urlResult?.normalizedUrl])
 
+  // If URL validation failed, show error UI
+  useEffect(() => {
+    // Only check after URL detection has run
+    if (!urlResult) return
+
+    // Only handle invalid URLs
+    if (urlResult.isValid) return
+
+    // Don't re-trigger if error is already shown
+    if (failureInfo) return
+
+    console.log('❌ [Validation] Invalid URL detected:', urlResult.errorMessage)
+
+    // Show toast notification
+    toast({
+      title: 'Invalid URL',
+      description: urlResult.errorMessage || 'Please check the URL format and try again.',
+      variant: 'destructive'
+    })
+
+    // Set failure state to show error UI (same pattern as processMutation.onError)
+    setFailureInfo({
+      message: urlResult.errorMessage || 'Invalid URL format',
+      details: 'Please check that you have entered a complete and valid video URL. YouTube video IDs must be exactly 11 characters.'
+    })
+
+    // Prevent infinite loops - mark checks as complete
+    setAutoProcessAttempted(true)
+    setExistingJobChecked(true)
+  }, [urlResult, toast, failureInfo])
+
   // Check for existing job when URL is detected
   const checkExistingJobQuery = useQuery<JobStatusResponse | null, Error>({
     queryKey: ['existing-job', urlResult?.normalizedUrl ?? ''],
@@ -534,12 +565,14 @@ export default function ProcessVideo() {
   // Handlers for error state actions
   const handleTryAgain = useCallback(() => {
     console.log('🔄 [Retry] User requested retry')
+    
+    // Reset state and retry (for both validation and processing errors)
     setFailureInfo(null)
     setJobId(null)
     setIsPolling(false)
     setAutoProcessAttempted(false)
     setExistingJobChecked(false)
-    // The auto-process effect will trigger again when autoProcessAttempted is reset
+    // The validation or auto-process effect will trigger again when state is reset
   }, [])
 
   const handleGoBackToDashboard = useCallback(() => {
