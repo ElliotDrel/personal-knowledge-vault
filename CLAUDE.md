@@ -167,8 +167,9 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 2. **Missing Fields**: Didn't include `body` field for comment text
 3. **Ignored Generated Types**: Didn't read generated types after migrations to sync implementation
 4. **Overcomplicated Types**: Created separate `CommentReply` type instead of using discriminator field
+5. **Boundary Condition Bug**: Left `changeStart <= startOffset` in offset recalculation, so edits at the anchor boundary shifted the highlight instead of expanding it.
 
-**Key Takeaway**: **Data model clarity is MORE critical than algorithm optimization**. Ask about threading model BEFORE creating schema.
+**Key Takeaway**: **Data model clarity is MORE critical than algorithm optimization**. Ask about threading model BEFORE creating schema. After porting algorithms, explicitly test boundary cases (≤, ≥, equal) to avoid regressions like offset shifting.
 
 ### Markdown Editor Refactor (2025-10-10)
 **Key Mistakes**:
