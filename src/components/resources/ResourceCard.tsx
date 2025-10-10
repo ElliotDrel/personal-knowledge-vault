@@ -67,7 +67,16 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
             )}
           </div>
           {resource.url && (
-            <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-smooth">
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              className="opacity-0 group-hover:opacity-100 transition-smooth"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                window.open(resource.url, '_blank', 'noopener,noreferrer');
+              }}
+            >
               <ExternalLink className="w-3 h-3" />
             </Button>
           )}
