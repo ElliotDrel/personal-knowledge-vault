@@ -22,9 +22,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 9. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
 
-10. **Incremental Testing** (NEW): After EACH significant change (new component, integration, refactor), run `npm run build` and test in browser. Don't batch multiple changes before testing. Errors are easier to isolate when you test after each step.
+10. **Incremental Testing**: After EACH significant change, run `npm run build` and test in browser.
 
 11. **Systematic Refactoring** (NEW): When removing state variables, functions, or props: use IDE "Find All References" + search string literals (`rg "isEditingNotes"`), update ALL references, then test immediately to catch "undefined" errors.
+
+12. **CLARIFY DATA MODELS BEFORE SCHEMA** (NEW - Prevents Major Rework): When implementing database tables with relationships (comments/replies, threads, hierarchies), ALWAYS ask specific questions about the data model BEFORE creating migrations:
+   - "Should this be separate tables or a self-referential table?"
+   - "Should child items be the same type or different type as parent?"
+   - "How should threading/nesting work? Foreign keys or linked list?"
+   - **Why**: Choosing wrong model requires refactoring migrations, types, storage adapter, AND components. Asking 2 questions upfront saves 2+ hours of rework.
+
+13. **WATCH GENERATED TYPES AFTER MIGRATIONS** (NEW): After running `npx supabase gen types typescript --linked`, ALWAYS read the generated types to verify they match your implementation. If user modified migrations, the generated types will show fields you may have missed (e.g., `thread_root_id`, `body`). Proactively update implementation to match schema.
 
 ### Supabase CLI-Only Workflow
 
@@ -130,6 +138,13 @@ All data operations need `loading`/`error` state: `setLoading(true)` → `try/ca
 ### Switch Statement Block Scope
 Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const metadata = ...; }` (prevents conflicts).
 
+### Data Modeling: Parent-Child & Types
+
+- Use a single, self-referential table for parent/child data when entities are the same (e.g., comments & replies), recursion/nesting is needed, or CRUD is unified.
+- Use separate tables only when child differs in structure or permissions.
+- Avoid duplicate tables/types for the same structure—prefer a discriminator field.
+- In TypeScript, use discriminated unions for shared fields; avoid copy-paste types named differently for identical data.
+
 ## Common Issues
 
 | Issue | Solution |
@@ -146,47 +161,46 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 ## Lessons Learned
 
-### Most Recent: Markdown Editor Refactor (2025-10-10)
-1. **Requirements Misunderstanding** (MOST CRITICAL): User said "Obsidian-style" → I jumped to implementing Novel (live WYSIWYG) without clarifying
-   - **What I should have done**: Ask 4 specific scenario questions BEFORE researching libraries
-   - **Cost**: Wasted time installing/uninstalling 160+ dependencies, creating wrong component
-   - **Fix**: New mandatory rule #2 - ALWAYS clarify ambiguous UX terms with examples FIRST
+### Comments System Implementation (2025-10-10)
+**Key Mistakes**:
+1. **Wrong Data Model**: Created separate `comment_replies` table instead of self-referential `comments` table with threading fields
+2. **Missing Fields**: Didn't include `body` field for comment text
+3. **Ignored Generated Types**: Didn't read generated types after migrations to sync implementation
+4. **Overcomplicated Types**: Created separate `CommentReply` type instead of using discriminator field
 
-2. **Library API Misuse**: Used Novel's low-level API (`EditorRoot` + `EditorContent`) with empty `extensions={[]}`
-   - **Error**: "Schema is missing its top node type ('doc')" → white screen
-   - **Why**: Didn't read documentation carefully enough, didn't test minimal example first
-   - **Fix**: Updated rule #3 - verify API examples, test in isolation before integration
+**Key Takeaway**: **Data model clarity is MORE critical than algorithm optimization**. Ask about threading model BEFORE creating schema.
 
-3. **No Incremental Testing**: Made multiple changes, then tested → couldn't isolate which change broke things
-   - **Fix**: New mandatory rule #10 - test after EACH significant change
+### Markdown Editor Refactor (2025-10-10)
+**Key Mistakes**:
+1. **Requirements Misunderstanding**: Implemented Novel (WYSIWYG) when user wanted Obsidian-style toggle
+2. **Library API Misuse**: Used empty `extensions={[]}` causing "Schema missing top node type" error
+3. **No Incremental Testing**: Made multiple changes before testing
+4. **API Changes**: Used deprecated `className` prop in react-markdown v10+
+5. **Leftover Code**: Removed state but forgot to remove all references
 
-4. **react-markdown API Change**: Used `className` prop (removed in v10+)
-   - **Error**: "Unexpected className prop, remove it"
-   - **Why**: Didn't check package version or changelog
-   - **Fix**: Updated rule #3 - check version + changelog for external libraries
+**Key Takeaway**: **Clarification BEFORE coding prevents wasted work**. One minute asking questions saves hours implementing wrong solution.
 
-5. **Leftover Code After Refactor**: Removed `isEditingNotes` state but forgot `setIsEditingNotes(false)` call
-   - **Error**: "setIsEditingNotes is not defined"
-   - **Why**: Didn't systematically find all references before deleting
-   - **Fix**: New mandatory rule #11 - use "Find All References", search string literals, test after removal
-
-6. **Missing Tailwind Typography Plugin**: Used `prose` classes without `@tailwindcss/typography` installed
-   - **Result**: Headings, lists didn't format properly
-   - **Fix**: Verify CSS framework plugins/dependencies are configured
-
-**Key Takeaway**: **Clarification BEFORE coding prevents wasted work**. One minute asking questions saves hours implementing the wrong solution. The correct solution (MarkdownField with react-markdown) was simpler, smaller, and exactly what the user wanted.
-
-### Historical Key Patterns (Condensed)
-- **Hooks Order**: Always define derived state BEFORE useEffect that uses it
-- **Callback Stability**: Never pass inline callbacks to custom hooks → wrap in useCallback
+### Key Patterns
+- **Data Model First**: Clarify threading/relationship model BEFORE creating schema
+- **Generated Types = Truth**: Read generated types after migrations, sync implementation
+- **Discriminated Unions**: Use single type with discriminator over separate types
+- **Self-Referential Tables**: Prefer single table with foreign keys when parent/child are same type
+- **Hooks Order**: Define derived state BEFORE useEffect that uses it
+- **Callback Stability**: Never pass inline callbacks to custom hooks
 - **Search-First**: Update ALL occurrences (frontend + backend) when changing shared logic
-- **Security**: Filter at query level (`.eq('user_id', user.id)`) BEFORE `.single()`
-- **Post-Migration Validation**: Query actual data, don't trust NOTICE logs alone
-- **Cross-Reference Patterns**: Check ALL CLAUDE.md patterns before marking complete
+- **Security**: Filter at query level BEFORE `.single()`
 
 ## Project Status (Updated 2025-10-10)
 
 **Latest Update (2025-10-10)**:
+- **Notes Commenting System** (Phases 0-3 Complete):
+  - Database: Self-referential comments table with threading support (thread_root_id, thread_prev_comment_id)
+  - Text anchoring: Character offset tracking with automatic stale detection (>50% text change)
+  - Storage adapter: Full CRUD operations with RLS security
+  - Text tracking: Debounced persistence (2s), real-time offset recalculation
+  - UI components: CommentToolbar, CommentCard (with threaded replies), CommentSidebar
+  - **Remaining**: Phase 4 (NotesEditorDialog integration), Phase 5 (highlight rendering)
+
 - **Markdown Editor Upgrade**: Replaced split-view editor with Obsidian-style toggle (raw markdown ↔ formatted preview)
   - Uses react-markdown + remark-gfm + rehype-sanitize
   - 60% smaller bundle size (976 KB → 389 KB vendor.js)
@@ -201,10 +215,12 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - ✅ Short-Video type: First-class type with flat metadata, purple theme, platform filtering
 - ✅ URL Processing: Dashboard input, auto-processing, duplicate detection
 - ✅ Multiple jobs per URL supported (cache removed)
+- ✅ Comments System: Database tables, storage adapter, text tracking, UI components (Phases 0-3)
 
 **Known Limitations**:
 - ⏳ TikTok/Instagram transcript extraction not yet implemented
 - ⏳ No automatic cleanup of old processing jobs
+- ⏳ Comments system not yet integrated into NotesEditorDialog (Phase 4-5 pending)
 
 ## Vercel Deployment
 
