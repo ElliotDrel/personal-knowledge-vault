@@ -53,6 +53,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { parseTimestamp } from '@/utils/timestamp';
+import { getResourceBadgeClasses } from '@/utils/resourceTypeStyles';
 
 const ResourceDetail = () => {
   const { id } = useParams<{ id: string }>();
@@ -145,42 +147,37 @@ const ResourceDetail = () => {
       return;
     }
 
+    const resourceTimestamp = parseTimestamp(resource.updatedAt);
+
     if (!isEditingNotes) {
-      const resourceTimestamp = resource.updatedAt ? Date.parse(resource.updatedAt) : NaN;
-      const notesSavedTimestamp = notesLastSavedAt ? Date.parse(notesLastSavedAt) : NaN;
+      const notesSavedTimestamp = parseTimestamp(notesLastSavedAt);
       const shouldSyncNotes =
-        Number.isNaN(notesSavedTimestamp) ||
-        Number.isNaN(resourceTimestamp) ||
+        resourceTimestamp === null ||
+        notesSavedTimestamp === null ||
         resourceTimestamp >= notesSavedTimestamp;
 
       if (shouldSyncNotes) {
         setNotes(resource.notes || '');
-      } else {
       }
-    } else {
     }
 
     if (!isEditingTranscript) {
-      const resourceTimestamp = resource.updatedAt ? Date.parse(resource.updatedAt) : NaN;
-      const lastSavedTimestamp = lastSavedAt ? Date.parse(lastSavedAt) : NaN;
+      const lastSavedTimestamp = parseTimestamp(lastSavedAt);
       const shouldSyncTranscript =
-        Number.isNaN(lastSavedTimestamp) ||
-        Number.isNaN(resourceTimestamp) ||
+        resourceTimestamp === null ||
+        lastSavedTimestamp === null ||
         resourceTimestamp >= lastSavedTimestamp;
 
       if (shouldSyncTranscript) {
         setTranscript(resource.transcript || '');
-      } else {
       }
-    } else {
     }
 
     if (!isEditingMetadata) {
-      const resourceTimestamp = resource.updatedAt ? Date.parse(resource.updatedAt) : NaN;
-      const metadataSavedTimestamp = metadataLastSavedAt ? Date.parse(metadataLastSavedAt) : NaN;
+      const metadataSavedTimestamp = parseTimestamp(metadataLastSavedAt);
       const shouldSyncMetadata =
-        Number.isNaN(metadataSavedTimestamp) ||
-        Number.isNaN(resourceTimestamp) ||
+        resourceTimestamp === null ||
+        metadataSavedTimestamp === null ||
         resourceTimestamp >= metadataSavedTimestamp;
 
       if (shouldSyncMetadata) {
@@ -199,9 +196,7 @@ const ResourceDetail = () => {
           viewCount: resource.viewCount?.toString() || '',
           hashtags: resource.hashtags?.join(', ') || ''
         });
-      } else {
       }
-    } else {
     }
   }, [
     resource,
@@ -388,7 +383,7 @@ const ResourceDetail = () => {
                   variant="secondary" 
                   className={cn(
                     "font-medium",
-                    `bg-${config.color}/10 text-${config.color} border-${config.color}/20`
+                    getResourceBadgeClasses(config.color)
                   )}
                 >
                   {config.label.slice(0, -1)}
@@ -898,13 +893,11 @@ const ResourceDetail = () => {
               ) : (
                 <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
                   <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
-                    {(() => {
-                      return transcript || (
-                        <div className="text-muted-foreground italic text-center py-8">
-                          No transcript available. Click Edit to add one.
-                        </div>
-                      );
-                    })()}
+                    {transcript || (
+                      <div className="text-muted-foreground italic text-center py-8">
+                        No transcript available. Click Edit to add one.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
