@@ -85,34 +85,28 @@ const getCurrentUser = async () => {
 
 export const getResources = async (): Promise<Resource[]> => {
   try {
-    console.log('[supabaseStorage] getResources: Starting fresh query');
     const user = await getCurrentUser();
 
-    // Add cache-busting timestamp to force fresh data
-    const cacheKey = Date.now();
-    console.log('[supabaseStorage] getResources: Cache key:', cacheKey);
-
-    const { data, error } = await supabase
+    const query = supabase
       .from('resources')
       .select('*')
       .eq('user_id', user.id)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false })
+      .setHeader('Cache-Control', 'no-store, max-age=0')
+      .setHeader('Pragma', 'no-cache');
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('[supabaseStorage] getResources: Error fetching resources:', error);
       throw new Error(`Failed to fetch resources: ${error.message}`);
     }
 
-    console.log('[supabaseStorage] getResources: Fetched', data?.length || 0, 'resources');
     const transformed = (data || []).map(transformDatabaseResource);
 
-    // Log sample transcript lengths for debugging
-    const transcriptSample = transformed.slice(0, 3).map(r => ({
-      id: r.id.substring(0, 8),
-      title: r.title.substring(0, 30),
-      transcriptLength: r.transcript?.length || 0
-    }));
-    console.log('[supabaseStorage] getResources: Sample transcript lengths:', transcriptSample);
+    if (import.meta.env.DEV) {
+      console.log('[supabaseStorage] getResources: Fetched', transformed.length, 'resources');
+    }
 
     return transformed;
   } catch (error) {
@@ -247,31 +241,33 @@ export const updateResource = async (resourceId: string, updates: Partial<Resour
 
     const transformedResult = transformDatabaseResource(data);
 
-    // Immediately verify what the database returns after the update.
-    try {
-      const { data: verification, error: verificationError } = await supabase
-        .from('resources')
-        .select('id, transcript, updated_at')
-        .eq('id', resourceId)
-        .eq('user_id', user.id)
-        .single();
+    if (import.meta.env.DEV) {
+      // In development, verify the persisted record to catch replication delays early.
+      try {
+        const { data: verification, error: verificationError } = await supabase
+          .from('resources')
+          .select('id, transcript, updated_at')
+          .eq('id', resourceId)
+          .eq('user_id', user.id)
+          .single();
 
-      if (verificationError) {
-        console.warn('[supabaseStorage] updateResource: Verification query failed', verificationError);
-      } else {
-        const verificationTranscript = verification?.transcript ?? '';
-        const verificationLength = verificationTranscript.length;
+        if (verificationError) {
+          console.warn('[supabaseStorage] updateResource: Verification query failed', verificationError);
+        } else {
+          const verificationTranscript = verification?.transcript ?? '';
+          const verificationLength = verificationTranscript.length;
 
-        console.log('[supabaseStorage] updateResource: Verification result', {
-          verificationTranscriptPreview: verification?.transcript?.substring(0, 100),
-          verificationTranscriptEnd: verificationTranscript.substring(
-            Math.max(verificationLength - 100, 0)
-          ),
-          verificationUpdatedAt: verification?.updated_at
-        });
+          console.log('[supabaseStorage] updateResource: Verification result', {
+            verificationTranscriptPreview: verification?.transcript?.substring(0, 100),
+            verificationTranscriptEnd: verificationTranscript.substring(
+              Math.max(verificationLength - 100, 0)
+            ),
+            verificationUpdatedAt: verification?.updated_at
+          });
+        }
+      } catch (verificationException) {
+        console.warn('[supabaseStorage] updateResource: Verification query threw exception', verificationException);
       }
-    } catch (verificationException) {
-      console.warn('[supabaseStorage] updateResource: Verification query threw exception', verificationException);
     }
 
     console.log('[supabaseStorage] updateResource: Returning transformed resource', {

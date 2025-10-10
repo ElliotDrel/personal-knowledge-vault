@@ -4,13 +4,13 @@
  * Obsidian-style markdown editing experience with two modes:
  *
  * **Auto Mode** (default):
- * - Click view → edit mode (raw markdown)
- * - Blur → view mode (formatted HTML)
+ * - Click the rendered content to enter edit mode (raw markdown)
+ * - Blur the textarea to return to formatted preview mode
  *
  * **Controlled Mode** (with readOnly prop):
- * - Parent controls edit/view via isEditing prop
+ * - Parent controls edit/view via the isEditing prop
  * - View is not clickable (use Edit/Save buttons)
- * - Textarea doesn't auto-blur back to view
+ * - Textarea stays active until the parent toggles it off
  *
  * Features:
  * - Single field (not split-screen)
