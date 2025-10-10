@@ -815,7 +815,7 @@ const ResourceDetail = () => {
                   className="min-h-[300px] font-reading text-sm leading-relaxed resize-none"
                 />
               ) : (
-                <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+                <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
                   <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
                     {transcript || (
                       <div className="text-muted-foreground italic text-center py-8">
