@@ -72,6 +72,7 @@ const ResourceDetail = () => {
   const [notes, setNotes] = useState('');
   const [transcript, setTranscript] = useState('');
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
+  const [isNotesDialogDirty, setIsNotesDialogDirty] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -150,15 +151,17 @@ const ResourceDetail = () => {
 
     const resourceTimestamp = parseTimestamp(resource.updatedAt);
 
-    // Always sync notes from resource (dialog manages its own state)
-    const notesSavedTimestamp = parseTimestamp(notesLastSavedAt);
-    const shouldSyncNotes =
-      resourceTimestamp === null ||
-      notesSavedTimestamp === null ||
-      resourceTimestamp >= notesSavedTimestamp;
+    // Sync notes unless the dialog currently has unsaved edits
+    if (!isNotesDialogOpen && !isNotesDialogDirty) {
+      const notesSavedTimestamp = parseTimestamp(notesLastSavedAt);
+      const shouldSyncNotes =
+        resourceTimestamp === null ||
+        notesSavedTimestamp === null ||
+        resourceTimestamp >= notesSavedTimestamp;
 
-    if (shouldSyncNotes) {
-      setNotes(resource.notes || '');
+      if (shouldSyncNotes) {
+        setNotes(resource.notes || '');
+      }
     }
 
     if (!isEditingTranscript) {
@@ -206,7 +209,9 @@ const ResourceDetail = () => {
     notes,
     lastSavedAt,
     notesLastSavedAt,
-    metadataLastSavedAt
+    metadataLastSavedAt,
+    isNotesDialogOpen,
+    isNotesDialogDirty
   ]);
 
   if (!resource || !resourceTypeConfig) {
@@ -250,6 +255,15 @@ const ResourceDetail = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNotesDialogOpenChange = (open: boolean) => {
+    if (open) {
+      setNotesLastSavedAt(resource?.updatedAt ?? null);
+    } else {
+      setIsNotesDialogDirty(false);
+    }
+    setIsNotesDialogOpen(open);
   };
 
   const handleSaveTranscript = async () => {
@@ -796,7 +810,7 @@ const ResourceDetail = () => {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setIsNotesDialogOpen(true)}
+                onClick={() => handleNotesDialogOpenChange(true)}
               >
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
@@ -820,10 +834,11 @@ const ResourceDetail = () => {
         {/* Notes Editor Dialog */}
         <NotesEditorDialog
           open={isNotesDialogOpen}
-          onOpenChange={setIsNotesDialogOpen}
+          onOpenChange={handleNotesDialogOpenChange}
           initialValue={notes}
           onSave={handleSaveNotes}
           isLoading={loading}
+          onDirtyChange={setIsNotesDialogDirty}
         />
 
         {/* Transcript Section (for videos/podcasts/short-videos) */}
