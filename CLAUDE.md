@@ -6,19 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 1. **READ THIS FILE FIRST**: Before making ANY assumptions, read this document. It contains lessons learned from past mistakes.
 
-2. **DOCUMENTATION-FIRST**: Always check official documentation for Supabase, Vercel, and complex libraries before coding. Use the **Context7 MCP** tools for library docs.
+2. **CLARIFY REQUIREMENTS WITH EXAMPLES** (NEW - Prevents Wasted Work): When user describes desired behavior with terms like "Notion-style", "Obsidian-like", "WYSIWYG", etc., IMMEDIATELY ask 3-4 specific scenario questions with visual examples BEFORE choosing libraries or writing code. Ambiguous terms mean different things - clarifying first prevents implementing the wrong solution entirely.
 
-3. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**: Before creating ANY utility function, search for existing ones first: `rg "normalize" --type ts` or `rg "function.*Url" --type ts`. Reuse existing functions (especially `normalizeUrl`, `detectPlatform`) to ensure consistency. Update ALL occurrences in both `src/` and `supabase/functions/` simultaneously.
+3. **DOCUMENTATION-FIRST**: Always check official documentation for Supabase, Vercel, and complex libraries before coding. Use the **Context7 MCP** tools for library docs. For external libraries: check version/changelog for breaking changes, then test minimal example in isolation BEFORE full integration.
 
-4. **Use Storage Adapter Only**: Always `import { useStorageAdapter } from '@/data/storageAdapter'`. Never import `storage.ts` or `supabaseStorage.ts` directly.
+4. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**: Before creating ANY utility function, search for existing ones first: `rg "normalize" --type ts` or `rg "function.*Url" --type ts`. Reuse existing functions (especially `normalizeUrl`, `detectPlatform`) to ensure consistency. Update ALL occurrences in both `src/` and `supabase/functions/` simultaneously.
 
-5. **Security at Query Level**: Add `.eq('user_id', user.id)` to Supabase queries BEFORE `.single()`. Never fetch first then check permission (timing attack vulnerability).
+5. **Use Storage Adapter Only**: Always `import { useStorageAdapter } from '@/data/storageAdapter'`. Never import `storage.ts` or `supabaseStorage.ts` directly.
 
-6. **No Placeholders**: Before claiming "complete", ensure: real endpoints, passes `npm run lint` + `npm run build`, end-to-end test works.
+6. **Security at Query Level**: Add `.eq('user_id', user.id)` to Supabase queries BEFORE `.single()`. Never fetch first then check permission (timing attack vulnerability).
 
-7. **Cross-Reference Before Complete** (CRITICAL - Prevents Missing Requirements): Before marking ANY task complete, explicitly check ALL relevant patterns in this file. Create checklist: Search-First ✓, Cascading Fallbacks ✓, Security ✓, etc. Missing this step causes bugs that code review finds later.
+7. **No Placeholders**: Before claiming "complete", ensure: real endpoints, passes `npm run lint` + `npm run build`, end-to-end test works.
 
-8. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
+8. **Cross-Reference Before Complete** (CRITICAL - Prevents Missing Requirements): Before marking ANY task complete, explicitly check ALL relevant patterns in this file. Create checklist: Search-First ✓, Cascading Fallbacks ✓, Security ✓, etc. Missing this step causes bugs that code review finds later.
+
+9. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
+
+10. **Incremental Testing** (NEW): After EACH significant change (new component, integration, refactor), run `npm run build` and test in browser. Don't batch multiple changes before testing. Errors are easier to isolate when you test after each step.
+
+11. **Systematic Refactoring** (NEW): When removing state variables, functions, or props: use IDE "Find All References" + search string literals (`rg "isEditingNotes"`), update ALL references, then test immediately to catch "undefined" errors.
 
 ### Supabase CLI-Only Workflow
 
@@ -82,25 +88,16 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 ## Testing Checklist (MANDATORY After Changes)
 
-### Build & Quality
-- [ ] `npm run build` passes
-- [ ] `npm run lint` passes
-- [ ] `npm run dev` starts without errors
+**Build & Quality**: `npm run build` + `npm run lint` pass, `npm run dev` starts
 
-### End-to-End Workflow
-- [ ] Navigate to all routes: `/`, `/resources`, `/resources/new`, `/resource/:id`, `/settings`
-- [ ] Create resource → verify navigation to detail page
-- [ ] Test authenticated mode with Supabase (all users must be authenticated)
-- [ ] Verify loading states and error handling
+**End-to-End**: Navigate all routes → create resource → verify navigation/auth/loading/errors
 
-### Full-Stack Features (Frontend + Backend)
-- [ ] Search for shared logic in BOTH `src/` and `supabase/functions/`
-- [ ] Update ALL occurrences before testing
-- [ ] **Check type-based conditional rendering**: If feature applies to specific resource types, verify UI conditionals include ALL relevant types (e.g., `type === 'video' || type === 'short-video'`)
-- [ ] **Test complete data flow**: Backend → Database → API Response → Frontend State → UI Display
-- [ ] Deploy frontend (auto on save) AND backend (`npx supabase functions deploy <name>`)
-- [ ] Test COMPLETE user flow end-to-end
-- [ ] Verify console logs AND database values on BOTH sides
+**Full-Stack**:
+- Search shared logic in BOTH `src/` + `supabase/functions/` → update ALL occurrences
+- Check type conditionals include ALL relevant types (`type === 'video' || type === 'short-video'`)
+- Test flow: Backend → DB → API → Frontend → UI
+- Deploy both: frontend (auto) + backend (`npx supabase functions deploy <name>`)
+- Verify logs + DB values on both sides
 
 ## Critical Code Patterns
 
@@ -108,7 +105,7 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 **Hook Execution Order** (CRITICAL - violating causes "Cannot access before initialization"):
 1. All `useState` declarations
 2. All `useQuery`/`useMutation` calls
-3. **Derived state** (computed from hooks above)
+3. **Derived state** (computed from above)
 4. All `useEffect`/`useCallback`/`useMemo` hooks
 
 Avoid referencing derived state (e.g., flags from queries/mutations) before it is declared. Define derived state first, then reference it in effects.
@@ -119,24 +116,19 @@ Avoid referencing derived state (e.g., flags from queries/mutations) before it i
 Prefer returning values from hooks and reacting in components. If a callback is unavoidable, stabilize it with `useCallback`.
 
 ### React Query: Pure queryFn & Reliable State
-Keep `queryFn` pure - **never** call `setLoading(false)` or `setState()` inside it. Use `onSuccess`, `onError`, or `onSettled` callbacks for side effects. Putting state updates in `queryFn` breaks retry/refetch logic.
-
-**Critical State Flags** (CRITICAL - callbacks don't always fire):
-- **DON'T rely on `onSettled`/`onSuccess` for critical state** (caching/strict mode breaks them)
-- **DO set state in effects that handle query data** (always run when data changes)
-Use an effect that watches reliable flags (e.g., `query.isFetched`) to set critical state; do not depend solely on callbacks.
+Keep `queryFn` pure - **never** call `setLoading(false)` or `setState()` inside it (breaks retry/refetch). Use `onSuccess`/`onError`/`onSettled` for side effects. For critical state flags, use effects that watch `query.isFetched` instead of relying on callbacks (caching/strict mode can prevent callbacks from firing).
 
 ### Data Hierarchy: Cascading Ternary
-Display exactly one creator field. Prefer `channelName`; otherwise fall back to `handle`, then `author`, then `creator`. This prevents duplicate names from multiple metadata sources.
+Display exactly one creator field: `channelName` → `handle` → `author` → `creator` (prevents duplicate names).
 
 ### Type Safety: Discriminated Unions
-For mutually exclusive params, use `| { jobId: string; normalizedUrl?: never } | { normalizedUrl: string; jobId?: never }`. Compiler catches invalid combinations at build-time instead of runtime.
+For mutually exclusive params: `| { jobId: string; normalizedUrl?: never } | { normalizedUrl: string; jobId?: never }` (catches invalid combinations at build-time).
 
 ### Async State Management
-All data operations need `loading`/`error` state: wrap in `try/catch/finally`, call `setLoading(true)` before, `setError(null)` to clear, `setLoading(false)` in `finally` block.
+All data operations need `loading`/`error` state: `setLoading(true)` → `try/catch/finally` → `setLoading(false)` in `finally`.
 
 ### Switch Statement Block Scope
-Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { const metadata = ...; }`. Prevents variable name conflicts between cases.
+Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const metadata = ...; }` (prevents conflicts).
 
 ## Common Issues
 
@@ -152,75 +144,67 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 | **Background Polling Noise** | Hard refresh: `Ctrl+Shift+R` (Win) / `Cmd+Shift+R` (Mac) |
 | **React Query Side Effects** | Never set state in `queryFn`; use effects with query.isFetched |
 
-## Lessons Learned (Quick Reference)
+## Lessons Learned
 
-**URL Processing Refactor (2025-09-30) - Critical Mistakes**:
-1. **Hooks Order Violation**: Defined `isProcessing` AFTER useEffect that used it → "Cannot access before initialization" crash
-2. **Infinite Loop**: Passed inline callback to `useUrlDetection` → unstable reference cascade → infinite re-renders
-3. **Unreliable Callback**: Relied on `query.onSettled` for critical flag → never fired due to caching
-4. **Duplicate Detection Bug**: Created new `new URL().toString()` instead of reusing `normalizeUrl()` → comparison failed
+### Most Recent: Markdown Editor Refactor (2025-10-10)
+1. **Requirements Misunderstanding** (MOST CRITICAL): User said "Obsidian-style" → I jumped to implementing Novel (live WYSIWYG) without clarifying
+   - **What I should have done**: Ask 4 specific scenario questions BEFORE researching libraries
+   - **Cost**: Wasted time installing/uninstalling 160+ dependencies, creating wrong component
+   - **Fix**: New mandatory rule #2 - ALWAYS clarify ambiguous UX terms with examples FIRST
 
-**Phase 5 Mistakes & Fixes**:
-1. **URL Normalization Mismatch**: Fixed frontend, forgot backend → Always search-first with `rg`
-2. **Hook Order Violation**: Added `useEffect` in middle → Only add at END of all hooks
-3. **Security Gap**: Checked `user_id` after fetch → Always filter at query level
-4. **Duplicate Display**: Showed same creator 3x → Cascading ternary for hierarchy
-5. **React Query Side Effects**: Set state in `queryFn` → Use `onSettled` callback
+2. **Library API Misuse**: Used Novel's low-level API (`EditorRoot` + `EditorContent`) with empty `extensions={[]}`
+   - **Error**: "Schema is missing its top node type ('doc')" → white screen
+   - **Why**: Didn't read documentation carefully enough, didn't test minimal example first
+   - **Fix**: Updated rule #3 - verify API examples, test in isolation before integration
 
-**Short-Video Type Refactor (2025-10-02) - Critical Mistake**:
-1. **Broken Fallback Chain**: Flattened metadata but forgot to populate `creator` field → Display fallback failed
-   - **Why**: Focused on new flat fields (channelName, handle) without mapping ALL fields from old structure
-   - **Fix**: Always populate every level of cascading fallback, even if redundant
-   - **Pattern Violated**: "Data Hierarchy: Cascading Fallbacks" was in CLAUDE.md but not explicitly checked
-2. **No Post-Migration Validation**: Trusted NOTICE logs without querying actual data structure
-   - **Why**: Assumed migrations worked correctly based on execution logs
-   - **Fix**: Always run validation queries from migration comments
-   - **New Rule**: NOTICE logs show execution, not correctness
-3. **Missing Cross-Reference**: Didn't explicitly check all CLAUDE.md patterns before marking "complete"
-   - **Why**: Assumed dynamic config would handle everything automatically
-   - **Fix**: Create explicit checklist of patterns and check each one
-   - **New Rule**: Cross-reference BEFORE complete (now mandatory item #7)
+3. **No Incremental Testing**: Made multiple changes, then tested → couldn't isolate which change broke things
+   - **Fix**: New mandatory rule #10 - test after EACH significant change
 
-**What Worked**:
-- Systematic use of TodoWrite tool for tracking (20 tasks)
-- Deep thinking before coding (architecture analysis for each phase)
-- Comprehensive code review caught creator field bug before deployment
-- Database migrations followed best practices (transactions, validation logging, idempotent)
-- Type safety maintained (build passed, 0 TypeScript errors)
+4. **react-markdown API Change**: Used `className` prop (removed in v10+)
+   - **Error**: "Unexpected className prop, remove it"
+   - **Why**: Didn't check package version or changelog
+   - **Fix**: Updated rule #3 - check version + changelog for external libraries
 
-**Key Takeaway**: THE GUIDANCE WAS ALREADY IN CLAUDE.md. The "Data Hierarchy: Cascading Fallbacks" pattern directly applied but wasn't explicitly checked. New mandatory rule #7 requires cross-referencing ALL patterns before claiming complete.
+5. **Leftover Code After Refactor**: Removed `isEditingNotes` state but forgot `setIsEditingNotes(false)` call
+   - **Error**: "setIsEditingNotes is not defined"
+   - **Why**: Didn't systematically find all references before deleting
+   - **Fix**: New mandatory rule #11 - use "Find All References", search string literals, test after removal
 
-## Project Status (Updated 2025-10-02)
+6. **Missing Tailwind Typography Plugin**: Used `prose` classes without `@tailwindcss/typography` installed
+   - **Result**: Headings, lists didn't format properly
+   - **Fix**: Verify CSS framework plugins/dependencies are configured
 
-**Completed**:
-- ✅ Phases 1-6: Core frontend, authentication, Supabase-only storage (localStorage removed)
-- ✅ Short-Form Video Phase 5: YouTube integration, metadata extraction, dashboard UI, job recovery
-- ✅ URL Processing Refactor: Dashboard input, auto-processing, duplicate detection, front/back parity
-- ✅ Short-Video Type Refactor: First-class type, flat metadata, purple theme, platform filtering
-- ✅ YouTube Transcript Extraction: Auto-extract captions with English → auto-language fallback
+**Key Takeaway**: **Clarification BEFORE coding prevents wasted work**. One minute asking questions saves hours implementing the wrong solution. The correct solution (MarkdownField with react-markdown) was simpler, smaller, and exactly what the user wanted.
 
-**Recent Enhancements (2025-10-09)**:
-- **Cache Removal**: Dropped unique index on (user_id, normalized_url) - users can now reprocess same URL multiple times
-- Multiple jobs per URL fully supported (status endpoint returns most recent)
-- Removed forceRefresh API flag and force_refresh DB column
-- Simplified handler: always creates new job (85+ lines of dead code removed)
+### Historical Key Patterns (Condensed)
+- **Hooks Order**: Always define derived state BEFORE useEffect that uses it
+- **Callback Stability**: Never pass inline callbacks to custom hooks → wrap in useCallback
+- **Search-First**: Update ALL occurrences (frontend + backend) when changing shared logic
+- **Security**: Filter at query level (`.eq('user_id', user.id)`) BEFORE `.single()`
+- **Post-Migration Validation**: Query actual data, don't trust NOTICE logs alone
+- **Cross-Reference Patterns**: Check ALL CLAUDE.md patterns before marking complete
 
-**Previous Enhancements (2025-10-05)**:
-- YouTube transcript extraction implemented (youtube-caption-extractor library)
-- Language fallback: English → auto-selected → none (graceful degradation)
-- Transcript section now shows for `type='short-video'` in UI
-- Feature flag controlled (default enabled, can disable via env var)
+## Project Status (Updated 2025-10-10)
 
-**Earlier Enhancements (2025-10-02)**:
-- Short-videos are now `type='short-video'` (not nested under `type='video'`)
-- Flat metadata structure (channelName, handle, viewCount at top level)
-- Platform filtering (YouTube Shorts, TikTok, Instagram Reels)
-- Purple theme styling with light/dark mode support
-- Partial index on platform for performance
+**Latest Update (2025-10-10)**:
+- **Markdown Editor Upgrade**: Replaced split-view editor with Obsidian-style toggle (raw markdown ↔ formatted preview)
+  - Uses react-markdown + remark-gfm + rehype-sanitize
+  - 60% smaller bundle size (976 KB → 389 KB vendor.js)
+  - Single field, click to edit → raw markdown visible, blur/save → formatted output
+  - GitHub Flavored Markdown support (tables, task lists, strikethrough)
+  - Tailwind Typography plugin for proper heading/list/blockquote styling
 
-**Limitations**:
+**Core Features**:
+- ✅ React 18 + Vite + TypeScript + Tailwind + shadcn/ui
+- ✅ Supabase authentication & storage (no localStorage)
+- ✅ YouTube Shorts/Videos: Metadata extraction, transcript extraction (English → auto-language fallback)
+- ✅ Short-Video type: First-class type with flat metadata, purple theme, platform filtering
+- ✅ URL Processing: Dashboard input, auto-processing, duplicate detection
+- ✅ Multiple jobs per URL supported (cache removed)
+
+**Known Limitations**:
 - ⏳ TikTok/Instagram transcript extraction not yet implemented
-- ⏳ No automatic cleanup of old processing jobs (manual cleanup function exists)
+- ⏳ No automatic cleanup of old processing jobs
 
 ## Vercel Deployment
 
