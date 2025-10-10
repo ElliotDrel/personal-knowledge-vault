@@ -21,7 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MarkdownEditor } from '@/components/ui/markdown-editor';
+import { MarkdownField } from '@/components/ui/markdown-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { ArrowLeft, Plus, Loader2, RotateCcw } from 'lucide-react';
@@ -523,11 +523,12 @@ const NewResource = () => {
                 <Label htmlFor="notes" className="text-sm font-medium">
                   Notes
                 </Label>
-                <MarkdownEditor
+                <MarkdownField
                   value={formData.notes}
                   onChange={(value) => handleInputChange('notes', value)}
-                  placeholder="Add your notes, key insights, and takeaways here..."
-                  height={300}
+                  placeholder="Write your notes here... Markdown formatting supported."
+                  minHeight={300}
+                  isEditing={true}
                 />
               </div>
 
