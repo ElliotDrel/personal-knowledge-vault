@@ -89,7 +89,6 @@ const safeUuid = () => {
       return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`
     }
   } catch (error) {
-    console.debug('randomUUID/getRandomValues unavailable, falling back', error)
   }
   // Last resort fallback (non-UUID, but unique enough for dev)
   return `resource-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -159,7 +158,6 @@ export default function ProcessVideo() {
 
     // If there's no initial URL, redirect to dashboard
     if (!initialUrl || initialUrl.trim() === '') {
-      console.log('⚠️ [Validation] No URL provided, redirecting to dashboard')
       toast({
         title: 'No URL Provided',
         description: 'Please provide a video URL to process.',
@@ -195,7 +193,6 @@ export default function ProcessVideo() {
     // Don't re-trigger if error is already shown
     if (failureInfo) return
 
-    console.log('❌ [Validation] Invalid URL detected:', urlResult.errorMessage)
 
     // Show toast notification
     toast({
@@ -227,7 +224,6 @@ export default function ProcessVideo() {
     // Don't re-trigger if error is already shown
     if (failureInfo) return
 
-    console.log('❌ [Validation] URL is not a supported short-form video:', urlResult.normalizedUrl)
 
     // Show toast notification
     toast({
@@ -254,10 +250,6 @@ export default function ProcessVideo() {
     queryFn: async () => {
       if (!urlResult?.normalizedUrl) return null
 
-      console.log('🔍 [Job Recovery] Checking for existing job:', {
-        normalizedUrl: urlResult.normalizedUrl,
-        platform: urlResult.platform
-      })
 
       const baseUrl = ensureFunctionsUrl()
       const headers = getAuthorizedHeaders()
@@ -268,7 +260,6 @@ export default function ProcessVideo() {
 
       // If 404 or no job found, return null (no existing job)
       if (response.status === 404) {
-        console.log('✅ [Job Recovery] No existing job found - can proceed with new processing')
         return null
       }
 
@@ -276,17 +267,9 @@ export default function ProcessVideo() {
 
       // Type guard: narrow to success response
       if (!isJobStatusSuccess(payload)) {
-        console.log('⚠️ [Job Recovery] API returned error:', payload.error)
         return null
       }
 
-      console.log('📋 [Job Recovery] Found existing job:', {
-        jobId: payload.jobId,
-        status: payload.status,
-        currentStep: payload.currentStep,
-        progress: payload.progress,
-        createdAt: payload.createdAt
-      })
 
       // Now TypeScript knows this is JobStatusResponse
       return payload
@@ -299,7 +282,6 @@ export default function ProcessVideo() {
   useEffect(() => {
     if (checkExistingJobQuery.isFetched) {
       setExistingJobChecked(true)
-      console.log('✓ [Job Recovery] Check complete')
     }
   }, [checkExistingJobQuery.isFetched])
 
@@ -312,7 +294,6 @@ export default function ProcessVideo() {
 
     // Mark as checked even if no data (404 case)
     if (!checkExistingJobQuery.data) {
-      console.log('✅ [Job Recovery] No existing job found - ready to process')
       if (!existingJobChecked) {
         setExistingJobChecked(true)
       }
@@ -323,11 +304,6 @@ export default function ProcessVideo() {
 
     // Completed job: Allow reprocessing but inform user
     if (existingJob.status === 'completed' && existingJob.metadata) {
-      console.log('✓ [Job Recovery] Job already completed:', {
-        jobId: existingJob.jobId,
-        completedAt: existingJob.completedAt,
-        metadata: existingJob.metadata
-      })
       toast({
         title: 'Video Previously Processed',
         description: 'This video has been processed before. You can process it again or search for the existing resource.',
@@ -340,12 +316,6 @@ export default function ProcessVideo() {
 
     // In-progress job: Resume polling
     if (IN_PROGRESS_STATUSES.includes(existingJob.status)) {
-      console.log('🔄 [Job Recovery] Resuming in-progress job:', {
-        jobId: existingJob.jobId,
-        status: existingJob.status,
-        currentStep: existingJob.currentStep,
-        progress: existingJob.progress
-      })
       setJobId(existingJob.jobId)
       setIsPolling(true)
       toast({
@@ -360,11 +330,6 @@ export default function ProcessVideo() {
 
     // Failed job: Inform user they can retry
     if (existingJob.status === 'failed' || existingJob.status === 'unsupported') {
-      console.log('❌ [Job Recovery] Previous job failed:', {
-        jobId: existingJob.jobId,
-        status: existingJob.status,
-        error: existingJob.error
-      })
       toast({
         title: 'Previous Processing Failed',
         description: existingJob.error?.message || 'The previous attempt failed. You can try processing again.',
@@ -378,7 +343,6 @@ export default function ProcessVideo() {
 
   const processMutation = useMutation<ProcessVideoResponse, Error, string>({
     mutationFn: async (videoUrl: string) => {
-      console.log('🚀 [Processing] Starting new processing job:', { videoUrl })
 
       const baseUrl = ensureFunctionsUrl()
       const headers = {
@@ -405,19 +369,12 @@ export default function ProcessVideo() {
         throw new Error(message)
       }
 
-      console.log('✓ [Processing] Job created successfully:', {
-        jobId: payload.jobId,
-        status: payload.status,
-        estimatedTimeMs: payload.estimatedTimeMs,
-        pollIntervalMs: payload.pollIntervalMs
-      })
 
       return payload
     },
     onSuccess: (data) => {
       setJobId(data.jobId)
       setIsPolling(true)
-      console.log('📊 [Processing] Starting to poll job:', data.jobId)
       toast({
         title: 'Processing Started',
         description: 'Your video is being processed. This may take a few moments.',
@@ -448,7 +405,6 @@ export default function ProcessVideo() {
     queryFn: async () => {
       if (!jobId) return null
 
-      console.log('🔄 [Polling] Checking job status:', jobId)
 
       const baseUrl = ensureFunctionsUrl()
       const headers = getAuthorizedHeaders()
@@ -464,13 +420,6 @@ export default function ProcessVideo() {
         throw new Error(message)
       }
 
-      console.log('📈 [Polling] Job status update:', {
-        jobId: payload.jobId,
-        status: payload.status,
-        currentStep: payload.currentStep,
-        progress: payload.progress,
-        nextPollIn: payload.pollIntervalMs
-      })
 
       return payload
     },
@@ -481,23 +430,15 @@ export default function ProcessVideo() {
       }
 
       if (['completed', 'failed', 'unsupported'].includes(data.status)) {
-        console.log('⏹️ [Polling] Stopping poll - terminal status reached:', data.status)
         return false
       }
 
       const interval = data.pollIntervalMs ?? POLLING_CONFIG.DEFAULT_INTERVAL_MS
-      console.log(`⏱️ [Polling] Next poll in ${interval}ms`)
       return interval
     }
   })
 
   const handleJobCompletion = useCallback(async (job: JobStatusResponse) => {
-    console.log('✅ [Completion] Job completed successfully:', {
-      jobId: job.jobId,
-      status: job.status,
-      metadata: job.metadata,
-      transcript: job.transcript ? `${job.transcript.length} chars` : 'none'
-    })
 
     try {
       setIsPolling(false)
@@ -532,25 +473,15 @@ export default function ProcessVideo() {
         extractionMethod: metadata.extraction?.method
       }
 
-      console.log('💾 [Completion] Creating resource:', {
-        id: resource.id,
-        type: resource.type,
-        title: resource.title,
-        platform: resource.platform,
-        channelName: resource.channelName,
-        viewCount: resource.viewCount
-      })
 
       const savedResource = await storageAdapter.addResource(resource)
 
-      console.log('✓ [Completion] Resource saved successfully:', savedResource.id)
 
       toast({
         title: 'Video Added Successfully',
         description: 'Your short-form video has been added to your knowledge vault',
       })
 
-      console.log('🔀 [Completion] Navigating to resource:', savedResource.id)
       navigate(`/resource/${savedResource.id}`)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'The video was processed but could not be saved. Please try creating it manually.'
@@ -596,7 +527,6 @@ export default function ProcessVideo() {
 
   // Handlers for error state actions
   const handleTryAgain = useCallback(() => {
-    console.log('🔄 [Retry] User requested retry')
     
     // Reset state and retry (for both validation and processing errors)
     setFailureInfo(null)
@@ -608,7 +538,6 @@ export default function ProcessVideo() {
   }, [])
 
   const handleGoBackToDashboard = useCallback(() => {
-    console.log('🏠 [Navigation] User returning to dashboard')
     navigate('/')
   }, [navigate])
 
@@ -616,45 +545,37 @@ export default function ProcessVideo() {
   useEffect(() => {
     // Only attempt auto-processing once per session
     if (autoProcessAttempted) {
-      console.log('⏭️ [Auto-Process] Already attempted, skipping')
       return
     }
 
     // Abort auto-process if duplicate was found (redirect handled elsewhere)
     if (duplicateResource) {
-      console.log('⛔ [Auto-Process] Duplicate resource exists, skipping processing')
       setAutoProcessAttempted(true)
       return
     }
 
     if (!existingJobChecked) {
-      console.log('⏳ [Auto-Process] Waiting for existing job check to complete')
       return
     }
 
     if (!urlResult?.normalizedUrl) {
-      console.log('⏳ [Auto-Process] Waiting for URL detection')
       return
     }
 
     if (!shouldShowProcessButton) {
-      console.log('⚠️ [Auto-Process] URL not processable, skipping auto-process')
       setAutoProcessAttempted(true)
       return
     }
 
     if (jobId) {
-      console.log('ℹ️ [Auto-Process] Job already exists, skipping auto-process')
       setAutoProcessAttempted(true)
       return
     }
 
     if (processMutation.isPending || isPolling) {
-      console.log('ℹ️ [Auto-Process] Processing already in progress')
       return
     }
 
-    console.log('🚀 [Auto-Process] Starting automatic processing for:', urlResult.normalizedUrl)
     setAutoProcessAttempted(true)
     processMutation.mutate(urlResult.normalizedUrl)
   }, [

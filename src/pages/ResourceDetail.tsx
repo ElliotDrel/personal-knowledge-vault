@@ -117,23 +117,7 @@ const ResourceDetail = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   useEffect(() => {
-    console.log('[ResourceDetail] useEffect: Resource state sync triggered', {
-      resourceId: resource?.id,
-      hasResource: !!resource,
-      isEditingTranscript,
-      isEditingNotes,
-      isEditingMetadata,
-      resourceTranscriptLength: resource?.transcript?.length,
-      resourceTranscriptPreview: resource?.transcript?.substring(0, 100),
-      localTranscriptLength: transcript.length,
-      localTranscriptPreview: transcript.substring(0, 100),
-      lastSavedAt,
-      notesLastSavedAt,
-      metadataLastSavedAt
-    });
-
     if (!resource) {
-      console.log('[ResourceDetail] useEffect: No resource, clearing state');
       setNotes('');
       if (!isEditingTranscript) {
         setTranscript('');
@@ -169,22 +153,11 @@ const ResourceDetail = () => {
         Number.isNaN(resourceTimestamp) ||
         resourceTimestamp >= notesSavedTimestamp;
 
-      console.log('[ResourceDetail] useEffect: Evaluating notes sync', {
-        fromLength: notes.length,
-        toLength: resource.notes?.length || 0,
-        willUpdate: notes !== (resource.notes || ''),
-        resourceTimestamp,
-        notesSavedTimestamp,
-        shouldSyncNotes
-      });
-
       if (shouldSyncNotes) {
         setNotes(resource.notes || '');
       } else {
-        console.log('[ResourceDetail] useEffect: Skipping notes sync due to newer local value');
       }
     } else {
-      console.log('[ResourceDetail] useEffect: Skipping notes sync (currently editing)');
     }
 
     if (!isEditingTranscript) {
@@ -195,22 +168,11 @@ const ResourceDetail = () => {
         Number.isNaN(resourceTimestamp) ||
         resourceTimestamp >= lastSavedTimestamp;
 
-      console.log('[ResourceDetail] useEffect: Evaluating transcript sync', {
-        fromLength: transcript.length,
-        toLength: resource.transcript?.length || 0,
-        willUpdate: transcript !== (resource.transcript || ''),
-        resourceTimestamp,
-        lastSavedTimestamp,
-        shouldSyncTranscript
-      });
-
       if (shouldSyncTranscript) {
         setTranscript(resource.transcript || '');
       } else {
-        console.log('[ResourceDetail] useEffect: Skipping transcript sync due to newer local value');
       }
     } else {
-      console.log('[ResourceDetail] useEffect: Skipping transcript sync (currently editing)');
     }
 
     if (!isEditingMetadata) {
@@ -220,12 +182,6 @@ const ResourceDetail = () => {
         Number.isNaN(metadataSavedTimestamp) ||
         Number.isNaN(resourceTimestamp) ||
         resourceTimestamp >= metadataSavedTimestamp;
-
-      console.log('[ResourceDetail] useEffect: Evaluating metadata sync', {
-        resourceTimestamp,
-        metadataSavedTimestamp,
-        shouldSyncMetadata
-      });
 
       if (shouldSyncMetadata) {
         setMetadataForm({
@@ -244,10 +200,8 @@ const ResourceDetail = () => {
           hashtags: resource.hashtags?.join(', ') || ''
         });
       } else {
-        console.log('[ResourceDetail] useEffect: Skipping metadata sync due to newer local value');
       }
     } else {
-      console.log('[ResourceDetail] useEffect: Skipping metadata sync (currently editing)');
     }
   }, [
     resource,
@@ -285,71 +239,43 @@ const ResourceDetail = () => {
 
   const handleSaveNotes = async () => {
     if (!resource) {
-      console.log('[ResourceDetail] handleSaveNotes: No resource found');
       return;
     }
-
-    console.log('[ResourceDetail] handleSaveNotes: Starting save process', {
-      resourceId: resource.id,
-      notesLength: notes.length,
-      notesPreview: notes.substring(0, 100)
-    });
 
     setLoading(true);
     setError(null);
     try {
-      console.log('[ResourceDetail] handleSaveNotes: Calling storageAdapter.updateResource');
       const result = await storageAdapter.updateResource(resource.id, { notes });
-      console.log('[ResourceDetail] handleSaveNotes: Update successful', { result });
       setNotes(result.notes || '');
       setNotesLastSavedAt(result.updatedAt ?? new Date().toISOString());
       upsertResource(result);
       setIsEditingNotes(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveNotes: Error saving notes:', err);
-      console.error('[ResourceDetail] handleSaveNotes: Error details:', {
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
-      });
       setError('Failed to save notes');
     } finally {
       setLoading(false);
-      console.log('[ResourceDetail] handleSaveNotes: Finished (loading=false)');
     }
   };
 
   const handleSaveTranscript = async () => {
     if (!resource) {
-      console.log('[ResourceDetail] handleSaveTranscript: No resource found');
       return;
     }
-
-    console.log('[ResourceDetail] handleSaveTranscript: Starting save process', {
-      resourceId: resource.id,
-      transcriptLength: transcript.length,
-      transcriptPreview: transcript.substring(0, 100)
-    });
 
     setLoading(true);
     setError(null);
     try {
-      console.log('[ResourceDetail] handleSaveTranscript: Calling storageAdapter.updateResource');
       const result = await storageAdapter.updateResource(resource.id, { transcript });
-      console.log('[ResourceDetail] handleSaveTranscript: Update successful', { result });
       setTranscript(result.transcript || '');
       setLastSavedAt(result.updatedAt ?? new Date().toISOString());
       upsertResource(result);
       setIsEditingTranscript(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveTranscript: Error saving transcript:', err);
-      console.error('[ResourceDetail] handleSaveTranscript: Error details:', {
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
-      });
       setError('Failed to save transcript');
     } finally {
       setLoading(false);
-      console.log('[ResourceDetail] handleSaveTranscript: Finished (loading=false)');
     }
   };
 
@@ -359,19 +285,11 @@ const ResourceDetail = () => {
 
   const handleSaveMetadata = async () => {
     if (!resource) {
-      console.log('[ResourceDetail] handleSaveMetadata: No resource found');
       return;
     }
 
-    console.log('[ResourceDetail] handleSaveMetadata: Starting save process', {
-      resourceId: resource.id,
-      resourceType: resource.type,
-      formData: metadataForm
-    });
-
     // Validation
     if (!metadataForm.title.trim()) {
-      console.warn('[ResourceDetail] handleSaveMetadata: Validation failed - title is empty');
       setError('Title is required');
       return;
     }
@@ -402,13 +320,7 @@ const ResourceDetail = () => {
         updatedData.hashtags = metadataForm.hashtags.split(',').map(tag => tag.trim()).filter(Boolean);
       }
 
-      console.log('[ResourceDetail] handleSaveMetadata: Processed update data', updatedData);
-      console.log('[ResourceDetail] handleSaveMetadata: Calling storageAdapter.updateResource');
-
       const result = await storageAdapter.updateResource(resource.id, updatedData);
-
-      console.log('[ResourceDetail] handleSaveMetadata: Update successful', { result });
-
       const nextMetadataForm = {
         title: result.title || '',
         description: result.description || '',
@@ -431,14 +343,9 @@ const ResourceDetail = () => {
       setIsEditingMetadata(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveMetadata: Error saving metadata:', err);
-      console.error('[ResourceDetail] handleSaveMetadata: Error details:', {
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
-      });
       setError('Failed to save metadata');
     } finally {
       setLoading(false);
-      console.log('[ResourceDetail] handleSaveMetadata: Finished (loading=false)');
     }
   };
 
@@ -983,15 +890,6 @@ const ResourceDetail = () => {
                 <Textarea
                   value={transcript}
                   onChange={(e) => {
-                    console.log('[ResourceDetail] Transcript onChange', {
-                      oldLength: transcript.length,
-                      newLength: e.target.value.length,
-                      lengthDiff: e.target.value.length - transcript.length,
-                      oldPreview: transcript.substring(0, 100),
-                      newPreview: e.target.value.substring(0, 100),
-                      oldEnd: transcript.substring(transcript.length - 50),
-                      newEnd: e.target.value.substring(e.target.value.length - 50)
-                    });
                     setTranscript(e.target.value);
                   }}
                   placeholder="Paste transcript or key quotes here..."
@@ -1001,13 +899,6 @@ const ResourceDetail = () => {
                 <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
                   <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
                     {(() => {
-                      console.log('[ResourceDetail] Rendering transcript display mode', {
-                        transcriptLength: transcript.length,
-                        transcriptPreview: transcript.substring(0, 100),
-                        transcriptEnd: transcript.substring(transcript.length - 100),
-                        resourceTranscriptLength: resource.transcript?.length || 0,
-                        areEqual: transcript === (resource.transcript || '')
-                      });
                       return transcript || (
                         <div className="text-muted-foreground italic text-center py-8">
                           No transcript available. Click Edit to add one.

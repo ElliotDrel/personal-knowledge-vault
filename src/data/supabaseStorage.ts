@@ -105,7 +105,6 @@ export const getResources = async (): Promise<Resource[]> => {
     const transformed = (data || []).map(transformDatabaseResource);
 
     if (import.meta.env.DEV) {
-      console.log('[supabaseStorage] getResources: Fetched', transformed.length, 'resources');
     }
 
     return transformed;
@@ -170,48 +169,21 @@ export const addResource = async (resource: Resource): Promise<Resource> => {
 
 export const updateResource = async (resourceId: string, updates: Partial<Resource>): Promise<Resource> => {
   try {
-    console.log('[supabaseStorage] updateResource: Starting update', {
-      resourceId,
-      updateFields: Object.keys(updates),
-      updates
-    });
 
     const user = await getCurrentUser();
-    console.log('[supabaseStorage] updateResource: User authenticated', { userId: user.id });
 
     // Get current resource first to merge updates
-    console.log('[supabaseStorage] updateResource: Fetching current resource');
     const currentResource = await getResourceById(resourceId);
     if (!currentResource) {
       console.error('[supabaseStorage] updateResource: Resource not found', { resourceId });
       throw new Error('Resource not found');
     }
-    console.log('[supabaseStorage] updateResource: Current resource fetched', {
-      resourceId: currentResource.id,
-      type: currentResource.type
-    });
 
     // Merge updates with current resource
     const mergedResource = { ...currentResource, ...updates };
-    console.log('[supabaseStorage] updateResource: Merged resource', {
-      mergedTranscriptLength: mergedResource.transcript?.length,
-      mergedTranscriptPreview: mergedResource.transcript?.substring(0, 100),
-      mergedTranscriptEnd: mergedResource.transcript?.substring(mergedResource.transcript.length - 100),
-      updateKeys: Object.keys(updates)
-    });
 
     const dbUpdates = transformToDatabase(mergedResource);
-    console.log('[supabaseStorage] updateResource: Transformed to database format', {
-      dbTranscriptLength: dbUpdates.transcript?.length,
-      dbTranscriptPreview: dbUpdates.transcript?.substring(0, 100),
-      dbTranscriptEnd: dbUpdates.transcript?.substring(dbUpdates.transcript.length - 100),
-      dbTitle: dbUpdates.title,
-      dbType: dbUpdates.type,
-      hasMetadata: !!dbUpdates.metadata,
-      metadataKeys: dbUpdates.metadata ? Object.keys(dbUpdates.metadata) : []
-    });
 
-    console.log('[supabaseStorage] updateResource: Executing Supabase UPDATE query');
     const { data, error } = await supabase
       .from('resources')
       .update(dbUpdates)
@@ -231,13 +203,6 @@ export const updateResource = async (resourceId: string, updates: Partial<Resour
       throw new Error(`Failed to update resource: ${error.message}`);
     }
 
-    console.log('[supabaseStorage] updateResource: Update successful', {
-      updatedResourceId: data.id,
-      updated_at: data.updated_at,
-      returnedTranscriptLength: data.transcript?.length,
-      returnedTranscriptPreview: data.transcript?.substring(0, 100),
-      returnedTranscriptEnd: data.transcript?.substring(data.transcript?.length - 100)
-    });
 
     const transformedResult = transformDatabaseResource(data);
 
@@ -257,24 +222,12 @@ export const updateResource = async (resourceId: string, updates: Partial<Resour
           const verificationTranscript = verification?.transcript ?? '';
           const verificationLength = verificationTranscript.length;
 
-          console.log('[supabaseStorage] updateResource: Verification result', {
-            verificationTranscriptPreview: verification?.transcript?.substring(0, 100),
-            verificationTranscriptEnd: verificationTranscript.substring(
-              Math.max(verificationLength - 100, 0)
-            ),
-            verificationUpdatedAt: verification?.updated_at
-          });
         }
       } catch (verificationException) {
         console.warn('[supabaseStorage] updateResource: Verification query threw exception', verificationException);
       }
     }
 
-    console.log('[supabaseStorage] updateResource: Returning transformed resource', {
-      resultTranscriptLength: transformedResult.transcript?.length,
-      resultTranscriptPreview: transformedResult.transcript?.substring(0, 100),
-      resultTranscriptEnd: transformedResult.transcript?.substring(transformedResult.transcript?.length - 100)
-    });
     return transformedResult;
   } catch (error) {
     console.error('[supabaseStorage] updateResource: Error caught in outer try/catch:', error);
