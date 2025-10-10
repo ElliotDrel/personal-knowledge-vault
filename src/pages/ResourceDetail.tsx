@@ -33,7 +33,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
+import { MarkdownField } from '@/components/ui/markdown-field';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import {
@@ -68,6 +68,7 @@ const ResourceDetail = () => {
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [notes, setNotes] = useState('');
   const [transcript, setTranscript] = useState('');
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -816,8 +817,14 @@ const ResourceDetail = () => {
               </div>
               <Button
                 size="sm"
-                variant="default"
-                onClick={handleSaveNotes}
+                variant={isEditingNotes ? "default" : "outline"}
+                onClick={() => {
+                  if (isEditingNotes) {
+                    handleSaveNotes();
+                  } else {
+                    setIsEditingNotes(true);
+                  }
+                }}
                 disabled={loading}
               >
                 {loading ? (
@@ -825,10 +832,15 @@ const ResourceDetail = () => {
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Saving...
                   </>
-                ) : (
+                ) : isEditingNotes ? (
                   <>
                     <Save className="w-4 h-4 mr-2" />
                     Save
+                  </>
+                ) : (
+                  <>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
                   </>
                 )}
               </Button>
@@ -838,12 +850,14 @@ const ResourceDetail = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <WYSIWYGEditor
+            <MarkdownField
               value={notes}
               onChange={(value) => setNotes(value)}
-              placeholder="Start writing your notes... Markdown formatting works automatically as you type."
+              placeholder="Click Edit to start writing... Use markdown formatting."
               minHeight={400}
               className="font-reading text-base leading-relaxed"
+              isEditing={isEditingNotes}
+              readOnly={true}
             />
           </CardContent>
         </Card>
