@@ -33,7 +33,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MarkdownEditor } from '@/components/ui/markdown-editor';
+import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import {
@@ -56,7 +56,7 @@ import { cn } from '@/lib/utils';
 
 const ResourceDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const { resources } = useResources();
+  const { resources, upsertResource } = useResources();
   const storageAdapter = useStorageAdapter();
   const navigate = useNavigate();
 
@@ -68,10 +68,10 @@ const ResourceDetail = () => {
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [notes, setNotes] = useState('');
   const [transcript, setTranscript] = useState('');
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
 
   // Delete functionality state
   const [isDeleting, setIsDeleting] = useState(false);
@@ -114,10 +114,21 @@ const ResourceDetail = () => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   useEffect(() => {
+    console.log('[ResourceDetail] useEffect: Resource state sync triggered', {
+      resourceId: resource?.id,
+      hasResource: !!resource,
+      isEditingTranscript,
+      isEditingMetadata,
+      resourceTranscriptLength: resource?.transcript?.length,
+      resourceTranscriptPreview: resource?.transcript?.substring(0, 100),
+      localTranscriptLength: transcript.length,
+      localTranscriptPreview: transcript.substring(0, 100),
+      lastSavedAt
+    });
+
     if (!resource) {
-      if (!isEditingNotes) {
-        setNotes('');
-      }
+      console.log('[ResourceDetail] useEffect: No resource, clearing state');
+      setNotes('');
       if (!isEditingTranscript) {
         setTranscript('');
       }
@@ -138,18 +149,44 @@ const ResourceDetail = () => {
           hashtags: ''
         });
       }
+      setLastSavedAt(null);
       return;
     }
 
-    if (!isEditingNotes) {
-      setNotes(resource.notes || '');
-    }
+    // Always sync notes since WYSIWYG editor handles its own state
+    console.log('[ResourceDetail] useEffect: Syncing notes from resource', {
+      resourceNotesLength: resource.notes?.length || 0
+    });
+    setNotes(resource.notes || '');
 
     if (!isEditingTranscript) {
-      setTranscript(resource.transcript || '');
+      const resourceTimestamp = resource.updatedAt ? Date.parse(resource.updatedAt) : NaN;
+      const lastSavedTimestamp = lastSavedAt ? Date.parse(lastSavedAt) : NaN;
+      const shouldSyncTranscript =
+        Number.isNaN(lastSavedTimestamp) ||
+        Number.isNaN(resourceTimestamp) ||
+        resourceTimestamp >= lastSavedTimestamp;
+
+      console.log('[ResourceDetail] useEffect: Evaluating transcript sync', {
+        fromLength: transcript.length,
+        toLength: resource.transcript?.length || 0,
+        willUpdate: transcript !== (resource.transcript || ''),
+        resourceTimestamp,
+        lastSavedTimestamp,
+        shouldSyncTranscript
+      });
+
+      if (shouldSyncTranscript) {
+        setTranscript(resource.transcript || '');
+      } else {
+        console.log('[ResourceDetail] useEffect: Skipping transcript sync due to newer local value');
+      }
+    } else {
+      console.log('[ResourceDetail] useEffect: Skipping transcript sync (currently editing)');
     }
 
     if (!isEditingMetadata) {
+      console.log('[ResourceDetail] useEffect: Syncing metadata from resource');
       setMetadataForm({
         title: resource.title || '',
         description: resource.description || '',
@@ -165,8 +202,10 @@ const ResourceDetail = () => {
         viewCount: resource.viewCount?.toString() || '',
         hashtags: resource.hashtags?.join(', ') || ''
       });
+    } else {
+      console.log('[ResourceDetail] useEffect: Skipping metadata sync (currently editing)');
     }
-  }, [resource, isEditingNotes, isEditingTranscript, isEditingMetadata]);
+  }, [resource, isEditingTranscript, isEditingMetadata, transcript, lastSavedAt]);
 
   if (!resource || !resourceTypeConfig) {
     return (
@@ -191,32 +230,69 @@ const ResourceDetail = () => {
   const config = resourceTypeConfig[resource.type];
 
   const handleSaveNotes = async () => {
-    if (!resource) return;
+    if (!resource) {
+      console.log('[ResourceDetail] handleSaveNotes: No resource found');
+      return;
+    }
+
+    console.log('[ResourceDetail] handleSaveNotes: Starting save process', {
+      resourceId: resource.id,
+      notesLength: notes.length,
+      notesPreview: notes.substring(0, 100)
+    });
+
     setLoading(true);
     setError(null);
     try {
-      await storageAdapter.updateResource(resource.id, { notes });
+      console.log('[ResourceDetail] handleSaveNotes: Calling storageAdapter.updateResource');
+      const result = await storageAdapter.updateResource(resource.id, { notes });
+      console.log('[ResourceDetail] handleSaveNotes: Update successful', { result });
       setIsEditingNotes(false);
     } catch (err) {
-      console.error('Error saving notes:', err);
+      console.error('[ResourceDetail] handleSaveNotes: Error saving notes:', err);
+      console.error('[ResourceDetail] handleSaveNotes: Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      });
       setError('Failed to save notes');
     } finally {
       setLoading(false);
+      console.log('[ResourceDetail] handleSaveNotes: Finished (loading=false)');
     }
   };
 
   const handleSaveTranscript = async () => {
-    if (!resource) return;
+    if (!resource) {
+      console.log('[ResourceDetail] handleSaveTranscript: No resource found');
+      return;
+    }
+
+    console.log('[ResourceDetail] handleSaveTranscript: Starting save process', {
+      resourceId: resource.id,
+      transcriptLength: transcript.length,
+      transcriptPreview: transcript.substring(0, 100)
+    });
+
     setLoading(true);
     setError(null);
     try {
-      await storageAdapter.updateResource(resource.id, { transcript });
+      console.log('[ResourceDetail] handleSaveTranscript: Calling storageAdapter.updateResource');
+      const result = await storageAdapter.updateResource(resource.id, { transcript });
+      console.log('[ResourceDetail] handleSaveTranscript: Update successful', { result });
+      setTranscript(result.transcript || '');
+      setLastSavedAt(result.updatedAt ?? new Date().toISOString());
+      upsertResource(result);
       setIsEditingTranscript(false);
     } catch (err) {
-      console.error('Error saving transcript:', err);
+      console.error('[ResourceDetail] handleSaveTranscript: Error saving transcript:', err);
+      console.error('[ResourceDetail] handleSaveTranscript: Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      });
       setError('Failed to save transcript');
     } finally {
       setLoading(false);
+      console.log('[ResourceDetail] handleSaveTranscript: Finished (loading=false)');
     }
   };
 
@@ -225,10 +301,20 @@ const ResourceDetail = () => {
   };
 
   const handleSaveMetadata = async () => {
-    if (!resource) return;
+    if (!resource) {
+      console.log('[ResourceDetail] handleSaveMetadata: No resource found');
+      return;
+    }
+
+    console.log('[ResourceDetail] handleSaveMetadata: Starting save process', {
+      resourceId: resource.id,
+      resourceType: resource.type,
+      formData: metadataForm
+    });
 
     // Validation
     if (!metadataForm.title.trim()) {
+      console.warn('[ResourceDetail] handleSaveMetadata: Validation failed - title is empty');
       setError('Title is required');
       return;
     }
@@ -259,13 +345,23 @@ const ResourceDetail = () => {
         updatedData.hashtags = metadataForm.hashtags.split(',').map(tag => tag.trim()).filter(Boolean);
       }
 
-      await storageAdapter.updateResource(resource.id, updatedData);
+      console.log('[ResourceDetail] handleSaveMetadata: Processed update data', updatedData);
+      console.log('[ResourceDetail] handleSaveMetadata: Calling storageAdapter.updateResource');
+
+      const result = await storageAdapter.updateResource(resource.id, updatedData);
+
+      console.log('[ResourceDetail] handleSaveMetadata: Update successful', { result });
       setIsEditingMetadata(false);
     } catch (err) {
-      console.error('Error saving metadata:', err);
+      console.error('[ResourceDetail] handleSaveMetadata: Error saving metadata:', err);
+      console.error('[ResourceDetail] handleSaveMetadata: Error details:', {
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      });
       setError('Failed to save metadata');
     } finally {
       setLoading(false);
+      console.log('[ResourceDetail] handleSaveMetadata: Finished (loading=false)');
     }
   };
 
@@ -720,52 +816,35 @@ const ResourceDetail = () => {
               </div>
               <Button
                 size="sm"
-                variant={isEditingNotes ? "default" : "outline"}
-                onClick={() => {
-                  if (isEditingNotes) {
-                    handleSaveNotes();
-                  } else {
-                    setIsEditingNotes(true);
-                  }
-                }}
+                variant="default"
+                onClick={handleSaveNotes}
+                disabled={loading}
               >
-                {isEditingNotes ? (
+                {loading ? (
                   <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
                   </>
                 ) : (
                   <>
-                    <Edit className="w-4 h-4 mr-2" />
-                    Edit
+                    <Save className="w-4 h-4 mr-2" />
+                    Save
                   </>
                 )}
               </Button>
             </div>
             <CardDescription>
-              Capture your insights, key takeaways, and thoughts
+              Capture your insights, key takeaways, and thoughts - markdown supported
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isEditingNotes ? (
-              <MarkdownEditor
-                value={notes}
-                onChange={(value) => setNotes(value)}
-                placeholder="Write your notes here... You can use markdown formatting."
-                height={400}
-                className="font-reading text-base leading-relaxed"
-              />
-            ) : (
-              <div className="prose prose-slate max-w-none font-reading">
-                <div className="whitespace-pre-wrap text-base leading-relaxed">
-                  {notes || (
-                    <div className="text-muted-foreground italic text-center py-8">
-                      No notes yet. Click Edit to add your insights.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            <WYSIWYGEditor
+              value={notes}
+              onChange={(value) => setNotes(value)}
+              placeholder="Start writing your notes... Markdown formatting works automatically as you type."
+              minHeight={400}
+              className="font-reading text-base leading-relaxed"
+            />
           </CardContent>
         </Card>
 
@@ -785,6 +864,7 @@ const ResourceDetail = () => {
                     if (isEditingTranscript) {
                       handleSaveTranscript();
                     } else {
+                      setLastSavedAt(resource?.updatedAt ?? null);
                       setIsEditingTranscript(true);
                     }
                   }}
@@ -810,18 +890,38 @@ const ResourceDetail = () => {
               {isEditingTranscript ? (
                 <Textarea
                   value={transcript}
-                  onChange={(e) => setTranscript(e.target.value)}
+                  onChange={(e) => {
+                    console.log('[ResourceDetail] Transcript onChange', {
+                      oldLength: transcript.length,
+                      newLength: e.target.value.length,
+                      lengthDiff: e.target.value.length - transcript.length,
+                      oldPreview: transcript.substring(0, 100),
+                      newPreview: e.target.value.substring(0, 100),
+                      oldEnd: transcript.substring(transcript.length - 50),
+                      newEnd: e.target.value.substring(e.target.value.length - 50)
+                    });
+                    setTranscript(e.target.value);
+                  }}
                   placeholder="Paste transcript or key quotes here..."
                   className="min-h-[300px] font-reading text-sm leading-relaxed resize-none"
                 />
               ) : (
                 <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
                   <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
-                    {transcript || (
-                      <div className="text-muted-foreground italic text-center py-8">
-                        No transcript available. Click Edit to add one.
-                      </div>
-                    )}
+                    {(() => {
+                      console.log('[ResourceDetail] Rendering transcript display mode', {
+                        transcriptLength: transcript.length,
+                        transcriptPreview: transcript.substring(0, 100),
+                        transcriptEnd: transcript.substring(transcript.length - 100),
+                        resourceTranscriptLength: resource.transcript?.length || 0,
+                        areEqual: transcript === (resource.transcript || '')
+                      });
+                      return transcript || (
+                        <div className="text-muted-foreground italic text-center py-8">
+                          No transcript available. Click Edit to add one.
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
