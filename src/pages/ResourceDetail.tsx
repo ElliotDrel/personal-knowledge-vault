@@ -110,6 +110,9 @@ const ResourceDetail = () => {
     hashtags: ''
   });
 
+  // Description truncation state
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
   useEffect(() => {
     if (!resource) {
       if (!isEditingNotes) {
@@ -315,10 +318,6 @@ const ResourceDetail = () => {
               <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4 font-reading">
                 {resource.title}
               </h1>
-              
-              <p className="text-lg text-muted-foreground font-reading leading-relaxed">
-                {resource.description}
-              </p>
             </div>
 
             <div className="flex items-center space-x-2 ml-4">
@@ -382,6 +381,7 @@ const ResourceDetail = () => {
               {isEditingMetadata ? (
                 // Edit mode - Form fields
                 <div className="space-y-4">
+                  {/* First row: Title & Platform */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Title - always shown */}
                     <div className="space-y-2">
@@ -397,20 +397,37 @@ const ResourceDetail = () => {
                       />
                     </div>
 
-                    {/* Description - always shown */}
-                    <div className="space-y-2">
-                      <Label htmlFor="description" className="text-sm font-medium">
-                        Description
-                      </Label>
-                      <Textarea
-                        id="description"
-                        value={metadataForm.description}
-                        onChange={(e) => handleMetadataChange('description', e.target.value)}
-                        placeholder="Brief description"
-                        rows={3}
-                      />
-                    </div>
+                    {config.fields.includes('platform') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="platform" className="text-sm font-medium">
+                          Platform
+                        </Label>
+                        <Input
+                          id="platform"
+                          value={metadataForm.platform}
+                          onChange={(e) => handleMetadataChange('platform', e.target.value)}
+                          placeholder="Platform or source"
+                        />
+                      </div>
+                    )}
+                  </div>
 
+                  {/* Second row: Description - full width */}
+                  <div className="space-y-2">
+                    <Label htmlFor="description" className="text-sm font-medium">
+                      Description
+                    </Label>
+                    <Textarea
+                      id="description"
+                      value={metadataForm.description}
+                      onChange={(e) => handleMetadataChange('description', e.target.value)}
+                      placeholder="Brief description"
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* Remaining fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Dynamic fields based on resource type */}
                     {config.fields.includes('author') && (
                       <div className="space-y-2">
@@ -436,20 +453,6 @@ const ResourceDetail = () => {
                           value={metadataForm.creator}
                           onChange={(e) => handleMetadataChange('creator', e.target.value)}
                           placeholder="Creator name"
-                        />
-                      </div>
-                    )}
-
-                    {config.fields.includes('platform') && (
-                      <div className="space-y-2">
-                        <Label htmlFor="platform" className="text-sm font-medium">
-                          Platform
-                        </Label>
-                        <Input
-                          id="platform"
-                          value={metadataForm.platform}
-                          onChange={(e) => handleMetadataChange('platform', e.target.value)}
-                          placeholder="Platform or source"
                         />
                       </div>
                     )}
@@ -574,6 +577,31 @@ const ResourceDetail = () => {
               ) : (
                 // Display mode - Current format
                 <>
+                  {/* Description Section - Truncated with expand/collapse */}
+                  {resource.description && (
+                    <>
+                      <div
+                        className="mb-4 cursor-pointer group"
+                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                      >
+                        <p className="text-sm text-muted-foreground mb-1">Description</p>
+                        <p
+                          className={cn(
+                            "text-base font-reading leading-relaxed transition-all",
+                            !isDescriptionExpanded && "line-clamp-1",
+                            "group-hover:text-foreground/80"
+                          )}
+                        >
+                          {resource.description}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1 group-hover:text-primary transition-colors">
+                          Click to {isDescriptionExpanded ? 'collapse' : 'expand'}
+                        </p>
+                      </div>
+                      <Separator className="mb-4" />
+                    </>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {resource.author && (
                       <div className="flex items-center space-x-2">
