@@ -1,6 +1,8 @@
+import type { ResourceTypeColor, ResourceTypeId } from '@/types/resource';
+
 export interface Resource {
   id: string;
-  type: 'book' | 'video' | 'podcast' | 'article' | 'short-video';
+  type: ResourceTypeId;
   title: string;
   author?: string;
   creator?: string;
@@ -222,7 +224,7 @@ export const shortFormFieldMap: Record<string, string[]> = {
   'instagram-reel': ['handle', 'hashtags']
 };
 
-export const resourceTypeConfig = {
+export const resourceTypeConfig: Record<ResourceTypeId, { label: string; icon: string; color: ResourceTypeColor; fields: string[] }> = {
   book: {
     label: 'Books',
     icon: '📚',

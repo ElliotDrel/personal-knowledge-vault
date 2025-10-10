@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Resource, resourceTypeConfig } from '@/data/mockData';
 import { Calendar, ExternalLink, User, Clock, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getResourceBadgeClasses } from '@/utils/resourceTypeStyles';
 
 const formatViewCount = (count: number): string => {
   if (count >= 1_000_000) {
@@ -51,7 +52,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
                 variant="secondary"
                 className={cn(
                   "text-xs font-medium",
-                  `bg-${config.color}/10 text-${config.color} border-${config.color}/20`
+                  getResourceBadgeClasses(config.color)
                 )}
               >
                 {config.label.slice(0, -1)}
@@ -67,17 +68,20 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
             )}
           </div>
           {resource.url && (
-            <Button 
-              size="sm" 
-              variant="ghost" 
+            <Button
+              size="sm"
+              variant="ghost"
               className="opacity-0 group-hover:opacity-100 transition-smooth"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.open(resource.url, '_blank', 'noopener,noreferrer');
-              }}
+              asChild
             >
-              <ExternalLink className="w-3 h-3" />
+              <a
+                href={resource.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="w-3 h-3" />
+              </a>
             </Button>
           )}
         </div>
