@@ -118,7 +118,7 @@ export function updateCommentOffsets(
     // Case 2: Change is completely before this comment
     // Example: Comment at [50-60], change at position 10, length +5
     // Result: Shift both offsets right by 5 -> [55-65]
-    if (changeStart <= startOffset) {
+    if (changeStart < startOffset) {
       return {
         ...comment,
         startOffset: Math.max(0, startOffset + changeLength),
