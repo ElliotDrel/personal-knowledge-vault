@@ -7,7 +7,7 @@
  * - Permanently delete
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -51,17 +51,10 @@ export function ResolvedCommentsModal({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const storageAdapter = useStorageAdapter();
 
-  // Load resolved comments when modal opens
-  useEffect(() => {
-    if (open && resourceId) {
-      loadResolvedComments();
-    }
-  }, [open, resourceId]);
-
   /**
    * Load resolved comments from database
    */
-  const loadResolvedComments = async () => {
+  const loadResolvedComments = useCallback(async () => {
     setLoading(true);
 
     try {
@@ -73,7 +66,14 @@ export function ResolvedCommentsModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [resourceId, storageAdapter]);
+
+  // Load resolved comments when modal opens
+  useEffect(() => {
+    if (open && resourceId) {
+      loadResolvedComments();
+    }
+  }, [open, resourceId, loadResolvedComments]);
 
   /**
    * Unresolve a comment (restore to active)

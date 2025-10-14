@@ -223,14 +223,19 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
     - Shows count of unresolved comments (e.g., "Edit [3]")
     - Updates dynamically via onCommentCountChange callback
     - Only displays when count > 0 (no clutter)
-  - **Phase 8** (Visual Highlighting - IN PROGRESS):
+  - **Phase 8** (Visual Highlighting - COMPLETE):
     - In-editor visual highlights that sync with comment selection
     - Highlight regions based on character offsets (startOffset/endOffset)
-    - Active state: Highlight selected comment's text region
-    - Hover state: Preview highlight when hovering comment card
-    - Multiple highlights: Show all comment regions simultaneously (different colors/opacity)
-    - Handle edge cases: Stale comments (faded/strikethrough), overlapping regions
+    - Active state: Highlight selected comment's text region (blue)
+    - Hover state: Preview highlight when hovering comment card (lighter blue)
+    - Multiple highlights: Show all comment regions simultaneously (darker when overlapping)
+    - Handle edge cases: Stale comments filtered out (no visual highlight)
     - Support both raw markdown and preview modes
+    - Implementation:
+      - TextHighlight component: Segment-based highlighting for raw markdown mode
+      - MarkdownHighlight component: Integrated highlighting for preview mode
+      - Hover events wired through CommentSidebar to trigger highlight previews
+      - Layered opacity system for overlapping comment regions
   - **Remaining**: Phase 9-10 (Testing & validation, Polish)
 
 - **Markdown Editor Upgrade**: Replaced split-view editor with Obsidian-style toggle (raw markdown ↔ formatted preview)

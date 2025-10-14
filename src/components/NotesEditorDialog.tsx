@@ -74,6 +74,7 @@ export function NotesEditorDialog({
   // Comment system state
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [showResolvedComments, setShowResolvedComments] = useState(false);
   const [isCreatingComment, setIsCreatingComment] = useState(false);
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
@@ -285,6 +286,13 @@ export function NotesEditorDialog({
   };
 
   /**
+   * Handle hovering over comment card (preview highlight)
+   */
+  const handleCommentHover = (commentId: string | null) => {
+    setHoveredCommentId(commentId);
+  };
+
+  /**
    * Handle unresolving a comment from resolved modal
    */
   const handleUnresolveComment = () => {
@@ -388,6 +396,9 @@ export function NotesEditorDialog({
                 className="font-reading text-base leading-relaxed"
                 isEditing={isMarkdownEditing}
                 onEditingChange={setIsMarkdownEditing}
+                comments={comments}
+                activeCommentId={activeCommentId}
+                hoveredCommentId={hoveredCommentId}
               />
             </div>
 
@@ -397,6 +408,7 @@ export function NotesEditorDialog({
                 comments={comments}
                 activeCommentId={activeCommentId}
                 onCommentClick={handleCommentClick}
+                onCommentHover={handleCommentHover}
                 onResolve={handleResolveComment}
                 onAddReply={handleAddReply}
                 onDeleteReply={handleDeleteReply}

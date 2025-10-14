@@ -67,6 +67,7 @@ const ResourceDetail = () => {
     () => (id ? resources.find((item) => item.id === id) ?? null : null),
     [resources, id]
   );
+  const resourceId = resource?.id ?? null;
 
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [notes, setNotes] = useState('');
@@ -214,6 +215,35 @@ const ResourceDetail = () => {
     isNotesDialogOpen,
     isNotesDialogDirty
   ]);
+
+  useEffect(() => {
+    if (!resourceId) {
+      setCommentCount(0);
+      return;
+    }
+
+    let isActive = true;
+
+    const loadCommentCount = async () => {
+      try {
+        const activeComments = await storageAdapter.getComments(resourceId, 'active');
+        if (isActive) {
+          setCommentCount(activeComments.length);
+        }
+      } catch (err) {
+        console.error('[ResourceDetail] Error loading comment count:', err);
+        if (isActive) {
+          setCommentCount(0);
+        }
+      }
+    };
+
+    loadCommentCount();
+
+    return () => {
+      isActive = false;
+    };
+  }, [resourceId, storageAdapter]);
 
   if (!resource || !resourceTypeConfig) {
     return (
