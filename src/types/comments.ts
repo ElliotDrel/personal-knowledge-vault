@@ -68,7 +68,7 @@ export interface UpdateCommentInput {
   isStale?: boolean;
   originalQuotedText?: string;
   status?: CommentStatus;
-  resolvedAt?: string;
+  resolvedAt?: string | null; // null to clear resolved timestamp
 }
 
 /**

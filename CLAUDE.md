@@ -191,16 +191,47 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - **Search-First**: Update ALL occurrences (frontend + backend) when changing shared logic
 - **Security**: Filter at query level BEFORE `.single()`
 
-## Project Status (Updated 2025-10-10)
+## Project Status (Updated 2025-10-11)
 
-**Latest Update (2025-10-10)**:
-- **Notes Commenting System** (Phases 0-3 Complete):
-  - Database: Self-referential comments table with threading support (thread_root_id, thread_prev_comment_id)
-  - Text anchoring: Character offset tracking with automatic stale detection (>50% text change)
-  - Storage adapter: Full CRUD operations with RLS security
-  - Text tracking: Debounced persistence (2s), real-time offset recalculation
-  - UI components: CommentToolbar, CommentCard (with threaded replies), CommentSidebar
-  - **Remaining**: Phase 4 (NotesEditorDialog integration), Phase 5 (highlight rendering)
+**Latest Update (2025-10-11)**:
+- **Notes Commenting System** (Phases 0-5 Complete):
+  - **Phase 0-3** (Infrastructure):
+    - Database: Self-referential comments table with threading support
+    - Text anchoring: Character offset tracking with automatic stale detection (>50% text change)
+    - Storage adapter: Full CRUD operations with RLS security
+    - Text tracking: Debounced persistence (2s), real-time offset recalculation
+    - UI components: CommentToolbar, CommentCard (with threaded replies), CommentSidebar
+  - **Phase 4** (NotesEditorDialog Integration - COMPLETE):
+    - Dialog layout updated with toolbar and sidebar (1800px width)
+    - Comment state management with loading, creation, and activation
+    - Handler functions for create, reply, resolve, and delete operations
+    - Text tracking hook integrated for automatic offset updates
+    - ResourceDetail passes resourceId prop for comment loading
+  - **Phase 5** (Text Selection - COMPLETE):
+    - Text selection capture in MarkdownField (onSelect event)
+    - Character offset tracking (selectionStart/selectionEnd)
+    - "Add Comment" button enables when text selected
+    - Comment cards display quoted text as visual reference
+    - **Note**: In-editor visual highlighting deferred (architectural complexity)
+  - **Phase 6** (Resolution Modal - COMPLETE):
+    - ResolvedCommentsModal component for viewing archived comments
+    - Unresolve action to restore comments to active status
+    - Permanent delete with confirmation dialog
+    - Wired to "View Resolved" button in CommentToolbar
+  - **Phase 7** (ResourceDetail Badges - COMPLETE):
+    - Comment count badge on "Edit Notes" button
+    - Shows count of unresolved comments (e.g., "Edit [3]")
+    - Updates dynamically via onCommentCountChange callback
+    - Only displays when count > 0 (no clutter)
+  - **Phase 8** (Visual Highlighting - IN PROGRESS):
+    - In-editor visual highlights that sync with comment selection
+    - Highlight regions based on character offsets (startOffset/endOffset)
+    - Active state: Highlight selected comment's text region
+    - Hover state: Preview highlight when hovering comment card
+    - Multiple highlights: Show all comment regions simultaneously (different colors/opacity)
+    - Handle edge cases: Stale comments (faded/strikethrough), overlapping regions
+    - Support both raw markdown and preview modes
+  - **Remaining**: Phase 9-10 (Testing & validation, Polish)
 
 - **Markdown Editor Upgrade**: Replaced split-view editor with Obsidian-style toggle (raw markdown ↔ formatted preview)
   - Uses react-markdown + remark-gfm + rehype-sanitize
@@ -216,12 +247,15 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - ✅ Short-Video type: First-class type with flat metadata, purple theme, platform filtering
 - ✅ URL Processing: Dashboard input, auto-processing, duplicate detection
 - ✅ Multiple jobs per URL supported (cache removed)
-- ✅ Comments System: Database tables, storage adapter, text tracking, UI components (Phases 0-3)
+- ✅ Comments System: Full end-to-end commenting (Phases 0-5 complete)
+  - Create text-anchored comments with selection
+  - Thread replies within comments
+  - Automatic offset tracking and stale detection
+  - Comment resolution workflow
 
 **Known Limitations**:
 - ⏳ TikTok/Instagram transcript extraction not yet implemented
 - ⏳ No automatic cleanup of old processing jobs
-- ⏳ Comments system not yet integrated into NotesEditorDialog (Phase 4-5 pending)
 
 ## Vercel Deployment
 
