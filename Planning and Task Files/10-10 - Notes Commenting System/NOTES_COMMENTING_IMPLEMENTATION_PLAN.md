@@ -6,9 +6,9 @@
 - **Approach**: Execute database migrations, create component architecture, implement text tracking utilities, and integrate with existing NotesEditorDialog in coordinated phases.
 - **Guiding principles**: Non-blocking operations, graceful degradation, future-ready schema, type-safe contracts, and incremental testing after each phase.
 
-## Current Status (2025-10-10)
+## Current Status (2025-10-15)
 
-**STARTING FRESH**: No commenting functionality currently exists. This is a greenfield feature addition.
+**IN PROGRESS**: Core commenting functionality is implemented across DB, types, storage adapter, utilities/hooks, and UI. Highlights and resolved modal exist. Remaining work focuses on polish, edge cases, and final QA.
 
 ### Project Context
 - **Base Feature**: NotesEditorDialog already exists with markdown editing
@@ -27,13 +27,13 @@
 
 | Phase | Focus | Duration | Status | Priority |
 |-------|-------|----------|--------|----------|
-| 0 | Database schema & migrations | 2-3 hours | ❌ PENDING | CRITICAL |
-| 1 | TypeScript types & storage adapter | 2-3 hours | ❌ PENDING | CRITICAL |
-| 2 | Text tracking utilities | 3-4 hours | ❌ PENDING | HIGH |
-| 3 | Core components (Toolbar, Sidebar, Card) | 4-5 hours | ❌ PENDING | HIGH |
-| 4 | NotesEditorDialog integration | 3-4 hours | ❌ PENDING | HIGH |
-| 5 | Highlight rendering & interaction | 3-4 hours | ❌ PENDING | HIGH |
-| 6 | Resolution modal & workflow | 2-3 hours | ❌ PENDING | MEDIUM |
+| 0 | Database schema & migrations | 2-3 hours | ✅ COMPLETE | CRITICAL |
+| 1 | TypeScript types & storage adapter | 2-3 hours | ✅ COMPLETE | CRITICAL |
+| 2 | Text tracking utilities | 3-4 hours | ✅ COMPLETE | HIGH |
+| 3 | Core components (Toolbar, Sidebar, Card) | 4-5 hours | ✅ COMPLETE | HIGH |
+| 4 | NotesEditorDialog integration | 3-4 hours | ✅ COMPLETE | HIGH |
+| 5 | Highlight rendering & interaction | 3-4 hours | ◐ PARTIAL | HIGH |
+| 6 | Resolution modal & workflow | 2-3 hours | ◐ PARTIAL | MEDIUM |
 | 7 | ResourceDetail badge integration | 1-2 hours | ❌ PENDING | MEDIUM |
 | 8 | Testing & validation | 4-6 hours | ❌ PENDING | CRITICAL |
 | 9 | Polish & edge case handling | 2-3 hours | ❌ PENDING | LOW |
@@ -53,13 +53,9 @@ Create Supabase tables for `comments` and `comment_replies` with proper RLS poli
 
 ### Step 0.1 – Create Comments Table Migration (30 minutes)
 
-**File**: `supabase/migrations/YYYYMMDDHHMMSS_create_comments_table.sql`
+**Files (applied)**: `supabase/migrations/20251010171056_create_comments_table.sql`
 
-**Create migration file**:
-```bash
-# Let Supabase generate timestamp
-npx supabase migration new create_comments_table
-```
+Implemented: Comments table with offsets, quoted text, staleness fields, indexes, and updated_at trigger.
 
 **Migration content**:
 ```sql
@@ -155,79 +151,22 @@ WHERE tablename = 'comments';
 - 4 indexes (resource_user, status, type, created_at)
 - 1 trigger (updated_at)
 
-### Step 0.2 – Create Comment Replies Table Migration (20 minutes)
+### Step 0.2 – Initial Replies Table then Migration to Threaded Comments (applied)
 
-**File**: `supabase/migrations/YYYYMMDDHHMMSS_create_comment_replies_table.sql`
+An initial `comment_replies` table was created and then migrated to a threaded comments model; replies table has been removed.
 
-**Create migration file**:
-```bash
-npx supabase migration new create_comment_replies_table
-```
+**Files (applied)**:
+- `supabase/migrations/20251010171327_create_comment_replies_table.sql`
+- `supabase/migrations/20251010180000_convert_replies_to_threaded_comments.sql`
 
-**Migration content**:
-```sql
--- Create comment_replies table
-CREATE TABLE comment_replies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  comment_id UUID NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  text TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-  -- Ensure reply text is not empty
-  CONSTRAINT text_not_empty CHECK (LENGTH(TRIM(text)) > 0)
-);
-
--- Create indexes for performance
-CREATE INDEX idx_comment_replies_comment ON comment_replies(comment_id, created_at ASC);
-CREATE INDEX idx_comment_replies_user ON comment_replies(user_id);
-
--- Add updated_at trigger
-CREATE TRIGGER set_comment_replies_updated_at
-  BEFORE UPDATE ON comment_replies
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
-
--- Comments for documentation
-COMMENT ON TABLE comment_replies IS 'Threaded replies within comments (future: collaboration support)';
-COMMENT ON COLUMN comment_replies.text IS 'Reply content (markdown supported in future)';
-```
-
-**Validation query** (run after migration):
-```sql
--- Verify table structure
-SELECT
-  column_name,
-  data_type,
-  is_nullable
-FROM information_schema.columns
-WHERE table_name = 'comment_replies'
-ORDER BY ordinal_position;
-
--- Verify foreign key CASCADE works
-SELECT
-  conname,
-  pg_get_constraintdef(oid)
-FROM pg_constraint
-WHERE conrelid = 'comment_replies'::regclass
-  AND contype = 'f'; -- foreign keys only
-```
-
-**Expected results**:
-- 5 columns (id, comment_id, user_id, text, timestamps)
-- 2 foreign keys with CASCADE delete
-- 1 CHECK constraint (text_not_empty)
-- 2 indexes (comment+created_at, user)
+Key changes:
+- Added inline `body` column to `comments` and enforced `NOT NULL` with `comment_body_not_empty` check.
+- Introduced `thread_root_id` and `thread_prev_comment_id` to model replies as comments in a thread.
+- Migrated existing replies into threaded `comments` rows and dropped `comment_replies` and its policies/triggers.
 
 ### Step 0.3 – Create RLS Policies Migration (30 minutes)
 
-**File**: `supabase/migrations/YYYYMMDDHHMMSS_add_comments_rls_policies.sql`
-
-**Create migration file**:
-```bash
-npx supabase migration new add_comments_rls_policies
-```
+**Files (applied)**: `supabase/migrations/20251010171411_add_comments_rls_policies.sql`
 
 **Migration content**:
 ```sql
@@ -365,11 +304,11 @@ npx supabase migration list
 npx supabase gen types typescript --linked > src/types/supabase-generated.ts
 ```
 
-**Success checks**:
-- [ ] All 3 migrations show as applied
-- [ ] `supabase-generated.ts` contains `comments` and `comment_replies` types
-- [ ] No errors in Supabase dashboard logs
-- [ ] Tables visible in Supabase Table Editor
+**Success checks (achieved)**:
+- [x] Migrations applied, including threaded conversion
+- [x] `supabase-generated.ts` contains updated `comments` types (no `comment_replies`)
+- [x] No errors in Supabase dashboard logs
+- [x] Tables visible in Supabase Table Editor
 
 **Validation** (run in Supabase SQL Editor):
 ```sql
@@ -436,7 +375,7 @@ Define TypeScript interfaces for comments and implement storage adapter methods 
 
 ### Step 1.1 – Create Comment Type Definitions (20 minutes)
 
-**File**: `src/types/comments.ts` (NEW)
+**File (implemented)**: `src/types/comments.ts`
 
 **Implementation**:
 ```typescript
@@ -550,7 +489,7 @@ export function isActiveComment(comment: Comment): boolean {
 
 ### Step 1.2 – Extend Storage Adapter Interface (30 minutes)
 
-**File**: `src/data/storageAdapter.ts`
+**File (implemented)**: `src/data/storageAdapter.ts`
 
 **Location**: Add `CommentAdapter` interface after `ResourceAdapter`
 
@@ -601,7 +540,7 @@ export interface StorageAdapter extends ResourceAdapter, CommentAdapter {
 
 ### Step 1.3 – Implement Supabase Comment Adapter (60 minutes)
 
-**File**: `src/data/supabaseStorage.ts`
+**File (implemented)**: `src/data/supabaseStorage.ts`
 
 **Location**: Add methods to `SupabaseStorage` class
 
@@ -2388,7 +2327,14 @@ git checkout HEAD -- src/components/NotesEditorDialog.tsx
 
 ## Phase 5 – Highlight Rendering & Interaction (3-4 hours) ✅ HIGH
 
-*(Continued in next section due to length)*
+Status: ◐ PARTIAL
+
+Implemented:
+- `src/components/comments/TextHighlight.tsx` exists to render anchored highlight segments and manage active/hover states.
+
+Remaining:
+- Ensure click on highlight activates the corresponding comment and scrolls it into view reliably across large documents.
+- Overlap rendering polish and accessibility labels.
 
 ---
 
@@ -2399,11 +2345,11 @@ git checkout HEAD -- src/components/NotesEditorDialog.tsx
 -- Verify comment creation
 SELECT * FROM comments WHERE resource_id = '<test-resource-id>' ORDER BY created_at DESC LIMIT 5;
 
--- Verify reply creation
-SELECT cr.*, c.quoted_text
-FROM comment_replies cr
-JOIN comments c ON c.id = cr.comment_id
-WHERE c.resource_id = '<test-resource-id>';
+-- Verify threaded replies (replies are comments with thread_root_id)
+SELECT id, thread_root_id, thread_prev_comment_id, body
+FROM comments
+WHERE resource_id = '<test-resource-id>' AND thread_root_id IS NOT NULL
+ORDER BY created_at;
 
 -- Verify RLS policies
 SET ROLE authenticated;
@@ -2468,8 +2414,7 @@ git push origin main --force # DANGER: Only if necessary
 
 **Option 3 – Database Rollback** (Preserve user data):
 ```sql
--- Drop comment tables (preserves resources)
-DROP TABLE IF EXISTS comment_replies CASCADE;
+-- Drop threaded metadata (if needed) or entire comments table (preserves resources)
 DROP TABLE IF EXISTS comments CASCADE;
 
 -- Frontend will gracefully handle missing tables (try/catch in storage adapter)
@@ -2481,36 +2426,26 @@ DROP TABLE IF EXISTS comments CASCADE;
 
 ## Summary
 
-**Implementation Duration**: 5-7 days full-time (30-40 hours)
-
-**Current Status**: Planning complete, ready to begin Phase 0
+**Current Status**: Phases 0–4 complete; 5–6 partially complete (highlights, resolved modal exist). Remaining: integration polish, resource badges, full QA.
 
 **Next Steps**:
-1. Start Phase 0: Database migrations
-2. Test each phase incrementally
-3. Use rollback if any phase blocks progress
-
-**Key Milestones**:
-- End of Day 1: Database schema complete ✅
-- End of Day 2: Storage adapter working ✅
-- End of Day 3: Text tracking implemented ✅
-- End of Day 4: Core components built ✅
-- End of Day 5: Dialog integration complete ✅
-- End of Day 6: Highlights + resolution working ✅
-- End of Day 7: Testing complete + deployed ✅
+1. Finish Phase 5 interactions and accessibility
+2. Complete Phase 6 resolution workflows end-to-end
+3. Implement Phase 7 badge integration
+4. Execute Phase 8 testing & fix issues
+5. Phase 9 polish & edge cases
 
 **Risk Level**: Medium
-- Database migrations: Low risk (reversible)
-- Text tracking: Medium risk (complex logic, but isolated)
-- UI integration: Low risk (incremental, can feature-flag)
+- Text tracking correctness under rapid edits
+- Highlight overlap and performance in large documents
 
-**Dependencies**: Zero blocking dependencies, all infrastructure exists
+**Dependencies**: None blocking; Supabase and UI libraries in place
 
-**User Value**: Very High (unlocks new annotation workflows, AI-ready)
+**User Value**: Very High (enables inline discussion and review on notes)
 
 ---
 
-*Document Version: 1.0*
-*Created: 2025-10-10*
-*Status: Ready to Execute - Phase 0*
+*Document Version: 1.1*
+*Updated: 2025-10-15*
+*Status: Phases 0–4 complete; 5–6 partial*
 *Estimated Completion: 2025-10-17*
