@@ -862,7 +862,7 @@ const ResourceDetail = () => {
               value={notes}
               placeholder="Click Edit to start writing... Use markdown formatting."
               minHeight={400}
-              className="font-reading text-base leading-relaxed"
+              textareaClassName="font-reading text-base leading-relaxed"
               readOnly={true}
             />
           </CardContent>

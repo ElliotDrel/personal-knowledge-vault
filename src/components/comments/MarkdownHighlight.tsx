@@ -2,20 +2,20 @@
  * MarkdownHighlight Component
  *
  * Renders markdown with visual highlights for comments.
- * Similar to TextHighlight but works with rendered markdown output.
+ * Similar logic to TextHighlight but applies highlights within formatted markdown output.
  *
  * Strategy:
- * - Split source markdown into segments based on comment offsets
- * - Wrap highlighted segments in spans with background colors
- * - Render each segment through ReactMarkdown
- *
- * Note: This is a simplified approach that may break some markdown syntax
- * across segment boundaries. For production, consider a rehype plugin approach.
+ * - Build text segments based on comment offsets
+ * - Convert highlight segments into a rehype plugin that wraps rendered text nodes
+ * - Render markdown once (preserves correct formatting like lists/headings)
  *
  * @component
  */
 
 import { useMemo } from 'react';
+import type { Plugin } from 'unified';
+import type { Root } from 'hast';
+import { visit } from 'unist-util-visit';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
@@ -24,9 +24,17 @@ import { isSelectedTextComment } from '@/types/comments';
 
 interface HighlightSegment {
   text: string;
+  start: number;
+  end: number;
   commentIds: string[];
   isActive: boolean;
   isHovered: boolean;
+}
+
+interface HighlightRange {
+  start: number;
+  end: number;
+  color: string;
 }
 
 interface MarkdownHighlightProps {
@@ -53,9 +61,8 @@ export function MarkdownHighlight({
   hoveredCommentId,
   className = '',
 }: MarkdownHighlightProps) {
-  // Build segments with highlight information
-  const segments = useMemo(() => {
-    // Filter valid comments
+  // Build segments with highlight information (non-overlapping by construction)
+  const segments = useMemo<HighlightSegment[]>(() => {
     const validComments = comments.filter(
       (c) =>
         isSelectedTextComment(c) &&
@@ -66,10 +73,18 @@ export function MarkdownHighlight({
     );
 
     if (validComments.length === 0) {
-      return [{ text, commentIds: [], isActive: false, isHovered: false }];
+      return [
+        {
+          text,
+          start: 0,
+          end: text.length,
+          commentIds: [],
+          isActive: false,
+          isHovered: false,
+        },
+      ];
     }
 
-    // Create split points
     const splitPoints = new Set<number>([0, text.length]);
     validComments.forEach((c) => {
       splitPoints.add(c.startOffset!);
@@ -77,9 +92,8 @@ export function MarkdownHighlight({
     });
 
     const sortedSplits = Array.from(splitPoints).sort((a, b) => a - b);
-
-    // Build segments
     const result: HighlightSegment[] = [];
+
     for (let i = 0; i < sortedSplits.length - 1; i++) {
       const start = sortedSplits[i];
       const end = sortedSplits[i + 1];
@@ -94,6 +108,8 @@ export function MarkdownHighlight({
 
       result.push({
         text: text.substring(start, end),
+        start,
+        end,
         commentIds,
         isActive,
         isHovered,
@@ -103,7 +119,7 @@ export function MarkdownHighlight({
     return result;
   }, [text, comments, activeCommentId, hoveredCommentId]);
 
-  // Determine background color
+  // Determine background color for a segment
   const getHighlightColor = (segment: HighlightSegment): string => {
     if (segment.commentIds.length === 0) return 'transparent';
 
@@ -124,49 +140,120 @@ export function MarkdownHighlight({
       : 'rgba(250, 204, 21, 0.25)';
   };
 
+  const highlightRanges = useMemo<HighlightRange[]>(() => {
+    return segments
+      .filter((segment) => segment.commentIds.length > 0)
+      .map((segment) => ({
+        start: segment.start,
+        end: segment.end,
+        color: getHighlightColor(segment),
+      }));
+  }, [segments]);
+
+  const highlightPlugin = useMemo(() => {
+    if (highlightRanges.length === 0) {
+      return null;
+    }
+    return createRehypeHighlightPlugin(highlightRanges);
+  }, [highlightRanges]);
+
+  const rehypePlugins = useMemo(() => {
+    const plugins: Plugin[] = [rehypeSanitize];
+    if (highlightPlugin) {
+      plugins.push(highlightPlugin);
+    }
+    return plugins;
+  }, [highlightPlugin]);
+
   return (
     <div className={`prose prose-slate dark:prose-invert max-w-none ${className}`}>
-      {segments.map((segment, i) => {
-        const bgColor = getHighlightColor(segment);
-
-        // If no highlight, render normally
-        if (bgColor === 'transparent') {
-          return (
-            <ReactMarkdown
-              key={i}
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeSanitize]}
-            >
-              {segment.text}
-            </ReactMarkdown>
-          );
-        }
-
-        // Render with highlight background
-        return (
-          <span
-            key={i}
-            style={{
-              backgroundColor: bgColor,
-              borderRadius: '2px',
-              transition: 'background-color 0.15s ease',
-              display: 'inline',
-            }}
-          >
-            <ReactMarkdown
-              key={i}
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeSanitize]}
-              components={{
-                // Override default components to render inline
-                p: ({ children }) => <span>{children}</span>,
-              }}
-            >
-              {segment.text}
-            </ReactMarkdown>
-          </span>
-        );
-      })}
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins}>
+        {text}
+      </ReactMarkdown>
     </div>
   );
+}
+
+function createRehypeHighlightPlugin(ranges: HighlightRange[]): Plugin<[], Root> {
+  return () => (tree: Root) => {
+    if (!ranges.length) return;
+
+    interface TextNodeInfo {
+      node: any;
+      parent: any;
+      index: number;
+      start: number;
+      length: number;
+    }
+
+    const textNodes: TextNodeInfo[] = [];
+    let offset = 0;
+
+    visit(tree, 'text', (node, index, parent) => {
+      if (parent && typeof index === 'number') {
+        const length = node.value.length;
+        textNodes.push({ node, parent, index, start: offset, length });
+        offset += length;
+      }
+    });
+
+    if (textNodes.length === 0) return;
+
+    const rangeMap = new Map<string, HighlightRange>();
+    ranges.forEach((range) => {
+      rangeMap.set(`${range.start}:${range.end}`, range);
+    });
+
+    for (let i = textNodes.length - 1; i >= 0; i--) {
+      const { node, parent, index, start, length } = textNodes[i];
+      const end = start + length;
+
+      const overlapping = ranges.filter(
+        (range) => range.start < end && range.end > start
+      );
+
+      if (overlapping.length === 0) {
+        continue;
+      }
+
+      const breakpoints = new Set<number>([start, end]);
+      overlapping.forEach((range) => {
+        breakpoints.add(Math.max(start, range.start));
+        breakpoints.add(Math.min(end, range.end));
+      });
+
+      const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => a - b);
+      const replacement: any[] = [];
+
+      for (let j = 0; j < sortedBreakpoints.length - 1; j++) {
+        const segStart = sortedBreakpoints[j];
+        const segEnd = sortedBreakpoints[j + 1];
+        if (segEnd <= segStart) continue;
+
+        const sliceStart = segStart - start;
+        const sliceEnd = segEnd - start;
+        const value = node.value.slice(sliceStart, sliceEnd);
+
+        if (!value) continue;
+
+        const rangeKey = `${segStart}:${segEnd}`;
+        const matchedRange = rangeMap.get(rangeKey);
+
+        if (matchedRange) {
+          replacement.push({
+            type: 'element',
+            tagName: 'span',
+            properties: {
+              style: `background-color: ${matchedRange.color}; border-radius: 2px; transition: background-color 0.15s ease;`,
+            },
+            children: [{ type: 'text', value }],
+          });
+        } else {
+          replacement.push({ type: 'text', value });
+        }
+      }
+
+      parent.children.splice(index, 1, ...replacement);
+    }
+  };
 }
