@@ -393,7 +393,7 @@ export function NotesEditorDialog({
                 onSelectionChange={handleSelectionChange}
                 placeholder="Start writing your notes... Use markdown formatting."
                 minHeight={400}
-                className="font-reading text-base leading-relaxed"
+                textareaClassName="font-reading text-base leading-relaxed"
                 isEditing={isMarkdownEditing}
                 onEditingChange={setIsMarkdownEditing}
                 comments={comments}

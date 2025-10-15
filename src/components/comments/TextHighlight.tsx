@@ -15,6 +15,8 @@
  */
 
 import { useMemo } from 'react';
+import type { CSSProperties } from 'react';
+import { cn } from '@/lib/utils';
 import type { CommentWithReplies } from '@/types/comments';
 import { isSelectedTextComment } from '@/types/comments';
 
@@ -40,6 +42,9 @@ interface TextHighlightProps {
 
   /** Additional CSS class for the container */
   className?: string;
+
+  /** Inline styles applied to the container (used to mirror textarea styles) */
+  style?: CSSProperties;
 }
 
 export function TextHighlight({
@@ -48,6 +53,7 @@ export function TextHighlight({
   activeCommentId,
   hoveredCommentId,
   className = '',
+  style,
 }: TextHighlightProps) {
   // Build segments with highlight information
   const segments = useMemo(() => {
@@ -127,10 +133,15 @@ export function TextHighlight({
 
   return (
     <div
-      className={`pointer-events-none whitespace-pre-wrap break-words font-mono text-sm leading-relaxed ${className}`}
+      className={cn(
+        'pointer-events-none whitespace-pre-wrap break-words',
+        className
+      )}
       style={{
         wordWrap: 'break-word',
         overflowWrap: 'break-word',
+        color: 'transparent',
+        ...style,
       }}
     >
       {segments.map((segment, i) => (
