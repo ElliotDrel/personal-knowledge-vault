@@ -96,6 +96,16 @@ export function updateCommentOffsets(
   changeStart: number,
   changeLength: number
 ): Comment[] {
+  // Guard against invalid inputs
+  if (!Array.isArray(comments) || comments.length === 0) {
+    return comments;
+  }
+
+  if (changeStart < 0) {
+    console.warn('[commentTextTracking] Invalid changeStart:', changeStart);
+    return comments;
+  }
+
   return comments.map((comment) => {
     // General comments don't have offsets
     if (comment.commentType !== 'selected-text') {
@@ -105,6 +115,12 @@ export function updateCommentOffsets(
     const { startOffset, endOffset } = comment;
 
     if (startOffset === undefined || endOffset === undefined) {
+      return comment;
+    }
+
+    // Guard against invalid offsets
+    if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) {
+      console.warn('[commentTextTracking] Invalid comment offsets:', { startOffset, endOffset });
       return comment;
     }
 
@@ -126,10 +142,11 @@ export function updateCommentOffsets(
       };
     }
 
-    // Case 3: Change is inside this comment
+    // Case 3: Change is inside this comment OR at start boundary
     // Example: Comment at [10-30], user types at position 15, length +3
     // Result: Extend end offset by 3 -> [10-33]
-    if (changeStart > startOffset && changeStart < endOffset) {
+    // Boundary case: User types at position 10 -> comment expands to include new text
+    if (changeStart >= startOffset && changeStart < endOffset) {
       return {
         ...comment,
         endOffset: Math.max(startOffset + 1, endOffset + changeLength),

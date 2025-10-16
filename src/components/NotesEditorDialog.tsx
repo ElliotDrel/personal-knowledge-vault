@@ -156,6 +156,19 @@ export function NotesEditorDialog({
       return;
     }
 
+    // Validate selection range
+    if (selectionRange.start < 0 || selectionRange.end <= selectionRange.start) {
+      console.warn('[NotesEditorDialog] Invalid selection range:', selectionRange);
+      return;
+    }
+
+    // Check if selection is not just whitespace
+    const selectedText = currentValue.slice(selectionRange.start, selectionRange.end);
+    if (!selectedText.trim()) {
+      console.warn('[NotesEditorDialog] Cannot create comment on empty text selection');
+      return;
+    }
+
     setIsCreatingComment(true);
   };
 
@@ -168,11 +181,26 @@ export function NotesEditorDialog({
       return;
     }
 
+    // Validate offsets are within bounds
+    if (selectionRange.start < 0 || selectionRange.end > currentValue.length) {
+      console.error('[NotesEditorDialog] Selection range out of bounds:', {
+        range: selectionRange,
+        textLength: currentValue.length,
+      });
+      return;
+    }
+
     try {
       const quotedText = currentValue.slice(
         selectionRange.start,
         selectionRange.end
       );
+
+      // Final validation before creating comment
+      if (!quotedText.trim()) {
+        console.error('[NotesEditorDialog] Cannot create comment with empty quoted text');
+        return;
+      }
 
       const newComment = await storageAdapter.createComment({
         resourceId,
@@ -199,7 +227,8 @@ export function NotesEditorDialog({
       setActiveCommentId(newComment.id);
     } catch (error) {
       console.error('[NotesEditorDialog] Error creating comment:', error);
-      // Keep creation UI open for retry
+      // Keep creation UI open for retry - user will see error in console
+      // In production, this should show a toast notification
       throw error;
     }
   };
