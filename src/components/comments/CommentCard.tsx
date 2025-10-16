@@ -5,7 +5,7 @@
  * and inline reply composer.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,7 @@ interface CommentCardProps {
 const formatRelativeTime = (isoDate: string) =>
   formatDistanceToNow(new Date(isoDate), { addSuffix: true });
 
-export function CommentCard({
+export const CommentCard = memo(function CommentCard({
   comment,
   isNew = false,
   isActive = false,
@@ -91,6 +91,10 @@ export function CommentCard({
       event.preventDefault();
       handleSubmit();
     }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      handleCancel();
+    }
   };
 
   return (
@@ -102,6 +106,15 @@ export function CommentCard({
         !isNew && 'hover:scale-[1.02]'
       )}
       onClick={onClick}
+      role="article"
+      aria-label={isNew ? 'New comment' : `Comment${isActive ? ' (active)' : ''}${comment?.isStale ? ' (stale)' : ''}`}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && onClick) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
     >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
@@ -197,15 +210,18 @@ export function CommentCard({
               value={replyText}
               onChange={(event) => setReplyText(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your comment... (Ctrl+Enter to submit)"
+              placeholder="Type your comment... (Ctrl+Enter to submit, Esc to cancel)"
               rows={3}
               className="resize-none"
+              aria-label="New comment text"
+              aria-describedby="comment-help-text"
             />
             <div className="flex gap-2">
               <Button
                 size="sm"
                 onClick={handleSubmit}
                 disabled={!replyText.trim() || isSubmitting}
+                aria-label="Submit comment"
               >
                 {isSubmitting ? (
                   <>
@@ -221,6 +237,7 @@ export function CommentCard({
                 variant="ghost"
                 onClick={handleCancel}
                 disabled={isSubmitting}
+                aria-label="Cancel comment"
               >
                 Cancel
               </Button>
@@ -235,15 +252,17 @@ export function CommentCard({
               value={replyText}
               onChange={(event) => setReplyText(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Add a reply..."
+              placeholder="Add a reply... (Ctrl+Enter to submit, Esc to cancel)"
               rows={2}
               className="resize-none"
+              aria-label="Reply text"
             />
             <div className="flex gap-2">
               <Button
                 size="sm"
                 onClick={handleSubmit}
                 disabled={!replyText.trim() || isSubmitting}
+                aria-label="Submit reply"
               >
                 {isSubmitting ? (
                   <>
@@ -259,6 +278,7 @@ export function CommentCard({
                 variant="ghost"
                 onClick={handleCancel}
                 disabled={isSubmitting}
+                aria-label="Cancel reply"
               >
                 Cancel
               </Button>
@@ -276,6 +296,7 @@ export function CommentCard({
               setTimeout(() => textareaRef.current?.focus(), 0);
             }}
             className="gap-1"
+            aria-label="Add a reply to this comment"
           >
             <MessageCircle className="w-3 h-3" />
             Reply
@@ -284,4 +305,4 @@ export function CommentCard({
       </CardContent>
     </Card>
   );
-}
+});
