@@ -11,7 +11,7 @@
  * @component
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -85,11 +85,16 @@ export function NotesEditorDialog({
   const storageAdapter = useStorageAdapter();
 
   // Text tracking for comment offsets
-  const { handleTextChange } = useCommentTextTracking({
-    resourceId,
+  const { handleTextChange, flushPendingUpdates } = useCommentTextTracking({
     enabled: true,
     debounceMs: 2000, // Update DB every 2 seconds
   });
+
+  const commentCountChangeRef = useRef(onCommentCountChange);
+
+  useEffect(() => {
+    commentCountChangeRef.current = onCommentCountChange;
+  }, [onCommentCountChange]);
 
   // Sync internal state when dialog opens or initialValue changes
   useEffect(() => {
@@ -128,8 +133,9 @@ export function NotesEditorDialog({
       setComments(loadedComments);
 
       // Notify parent of unresolved count
-      if (onCommentCountChange) {
-        onCommentCountChange(loadedComments.length);
+      const notifyCountChange = commentCountChangeRef.current;
+      if (notifyCountChange) {
+        notifyCountChange(loadedComments.length);
       }
     } catch (error) {
       console.error('[NotesEditorDialog] Error loading comments:', error);
@@ -138,7 +144,7 @@ export function NotesEditorDialog({
     } finally {
       setCommentsLoading(false);
     }
-  }, [resourceId, storageAdapter, onCommentCountChange]);
+  }, [resourceId, storageAdapter]);
 
   // Load comments when dialog opens
   useEffect(() => {
@@ -215,8 +221,9 @@ export function NotesEditorDialog({
       setComments((prev) => [...prev, newComment]);
 
       // Notify parent of count change
-      if (onCommentCountChange) {
-        onCommentCountChange(comments.length + 1);
+      const notifyCountChange = commentCountChangeRef.current;
+      if (notifyCountChange) {
+        notifyCountChange(comments.length + 1);
       }
 
       // Clear creation state
@@ -273,8 +280,9 @@ export function NotesEditorDialog({
       setComments((prev) => prev.filter((c) => c.id !== commentId));
 
       // Notify parent of count change
-      if (onCommentCountChange) {
-        onCommentCountChange(comments.length - 1);
+      const notifyCountChange = commentCountChangeRef.current;
+      if (notifyCountChange) {
+        notifyCountChange(comments.length - 1);
       }
 
       // Clear active state if this was active
@@ -352,6 +360,7 @@ export function NotesEditorDialog({
   // Handle save action
   const handleSave = async () => {
     try {
+      await flushPendingUpdates();
       await onSave(currentValue);
       // Close dialog on successful save
       onOpenChange(false);
@@ -364,6 +373,7 @@ export function NotesEditorDialog({
 
   // Handle close attempts (X button, ESC, backdrop click)
   const handleClose = () => {
+    void flushPendingUpdates();
     if (isDirty) {
       // Show confirmation if there are unsaved changes
       setShowConfirmation(true);
