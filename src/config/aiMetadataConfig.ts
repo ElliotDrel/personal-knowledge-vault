@@ -22,20 +22,77 @@ import type { ResourceTypeId } from '../types/resource';
  * - Easy to extend: just add new resource type mapping
  */
 export const AI_METADATA_CONFIG: Record<ResourceTypeId, string[]> = {
-  // Short-form videos: Focus on creator and content
-  'short-video': ['author', 'creator', 'channelName', 'handle', 'description', 'transcript', 'platform'],
+  // Short-form videos: Include everything available
+  'short-video': [
+    'title',
+    'author',
+    'creator',
+    'channelName',
+    'handle',
+    'description',
+    'transcript',
+    'platform',
+    'url',
+    'normalizedUrl',
+    'duration',
+    'viewCount',
+    'likeCount',
+    'publishedAt',
+  ],
 
-  // Long-form videos: Comprehensive context
-  video: ['title', 'description', 'transcript', 'author', 'creator', 'platform', 'duration'],
+  // Long-form videos: Include everything available
+  video: [
+    'title',
+    'description',
+    'transcript',
+    'author',
+    'creator',
+    'channelName',
+    'platform',
+    'duration',
+    'url',
+    'normalizedUrl',
+    'viewCount',
+    'likeCount',
+    'publishedAt',
+  ],
 
-  // Books: Author and description context
-  book: ['title', 'description', 'author', 'year'],
+  // Books: Include everything available
+  book: [
+    'title',
+    'description',
+    'author',
+    'year',
+    'publisher',
+    'isbn',
+    'pageCount',
+    'url',
+  ],
 
-  // Articles: Minimal context (notes-focused)
-  article: ['title', 'url', 'author', 'platform'],
+  // Articles: Include everything available
+  article: [
+    'title',
+    'url',
+    'author',
+    'platform',
+    'description',
+    'publishedAt',
+    'siteName',
+  ],
 
-  // Podcasts: Similar to videos
-  podcast: ['title', 'description', 'transcript', 'creator', 'platform', 'duration'],
+  // Podcasts: Include everything available
+  podcast: [
+    'title',
+    'description',
+    'transcript',
+    'creator',
+    'platform',
+    'duration',
+    'url',
+    'publishedAt',
+    'episodeNumber',
+    'showName',
+  ],
 } as const;
 
 // ============================================================================
