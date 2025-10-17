@@ -201,13 +201,26 @@ function buildPrompt(
     existingCommentsCount: existingComments.length,
   });
 
+  // Log full prompt for debugging (can be disabled in production)
+  console.log('[ai-notes-check] Full prompt:\n', prompt);
+
   return prompt;
 }
 
 /**
  * Call Anthropic API
+ * Returns both the parsed response and metadata for logging
  */
-async function callAnthropicAPI(prompt: string): Promise<AICommentsResponse> {
+async function callAnthropicAPI(prompt: string): Promise<{
+  response: AICommentsResponse;
+  metadata: {
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    stopReason: string;
+    rawResponse: string;
+  };
+}> {
   try {
     console.log('[ai-notes-check] Calling Anthropic API...');
 
@@ -258,6 +271,9 @@ async function callAnthropicAPI(prompt: string): Promise<AICommentsResponse> {
     let responseText = data.content[0].text;
     console.log('[ai-notes-check] Response text length:', responseText.length);
 
+    // Log full response for debugging (can be disabled in production)
+    console.log('[ai-notes-check] Full AI response:\n', responseText);
+
     // Strip markdown code fences if present (e.g., ```json ... ```)
     responseText = responseText.trim();
     if (responseText.startsWith('```')) {
@@ -267,6 +283,9 @@ async function callAnthropicAPI(prompt: string): Promise<AICommentsResponse> {
       responseText = responseText.replace(/\n?```\s*$/, '');
       console.log('[ai-notes-check] Stripped markdown code fences from response');
     }
+
+    // Log cleaned response
+    console.log('[ai-notes-check] Cleaned response for parsing:\n', responseText);
 
     // Parse JSON response
     let parsedResponse: AICommentsResponse;
@@ -334,7 +353,17 @@ async function callAnthropicAPI(prompt: string): Promise<AICommentsResponse> {
       console.log('[ai-notes-check] Limited comments from', validComments.length, 'to', AI_CONFIG.MAX_COMMENTS_PER_RUN);
     }
 
-    return { comments: limitedComments };
+    // Return both response and metadata for logging
+    return {
+      response: { comments: limitedComments },
+      metadata: {
+        model: data.model,
+        inputTokens: data.usage.input_tokens,
+        outputTokens: data.usage.output_tokens,
+        stopReason: data.stop_reason,
+        rawResponse: data.content[0].text,
+      },
+    };
   } catch (error) {
     console.error('[ai-notes-check] Exception calling Anthropic API:', error);
     throw error;
@@ -697,14 +726,28 @@ Deno.serve(async (req: Request) => {
       // 8. Build prompt and call Anthropic API
       const prompt = buildPrompt(resource.notes, metadata, existingComments);
 
-      let aiResponse: AICommentsResponse;
+      let aiResult: {
+        response: AICommentsResponse;
+        metadata: {
+          model: string;
+          inputTokens: number;
+          outputTokens: number;
+          stopReason: string;
+          rawResponse: string;
+        };
+      };
       try {
-        aiResponse = await callAnthropicAPI(prompt);
+        aiResult = await callAnthropicAPI(prompt);
       } catch (apiError) {
         console.error('[ai-notes-check] Anthropic API call failed:', apiError);
 
         await updateProcessingLog(processingLogId, {
           status: 'failed',
+          input_data: {
+            prompt,
+            notesLength: resource.notes.length,
+            metadataFields: Object.keys(metadata),
+          },
           error_details: {
             message: apiError instanceof Error ? apiError.message : String(apiError),
             stage: 'anthropic_api',
@@ -727,6 +770,7 @@ Deno.serve(async (req: Request) => {
         );
       }
 
+      const aiResponse = aiResult.response;
       console.log('[ai-notes-check] Received', aiResponse.comments.length, 'suggestions from AI');
 
       // 9. Process each suggestion and create comments
@@ -770,11 +814,23 @@ Deno.serve(async (req: Request) => {
 
       await updateProcessingLog(processingLogId, {
         status: finalStatus,
+        input_data: {
+          prompt,
+          notesLength: resource.notes.length,
+          transcriptLength: resource.transcript?.length || 0,
+          metadataFields: Object.keys(metadata),
+          existingAIComments: existingComments.length,
+        },
         output_data: {
           commentsCreated,
           commentsFailed,
           totalSuggestions: aiResponse.comments.length,
           failedReasons: failedComments.map((fc) => fc.error),
+          model: aiResult.metadata.model,
+          inputTokens: aiResult.metadata.inputTokens,
+          outputTokens: aiResult.metadata.outputTokens,
+          stopReason: aiResult.metadata.stopReason,
+          rawResponse: aiResult.metadata.rawResponse,
         },
         processing_time_ms: processingTimeMs,
       });
