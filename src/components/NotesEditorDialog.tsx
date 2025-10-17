@@ -41,6 +41,7 @@ import { useCommentTextTracking } from '@/hooks/use-comment-text-tracking';
 import { CommentToolbar } from '@/components/comments/CommentToolbar';
 import { CommentSidebar } from '@/components/comments/CommentSidebar';
 import { ResolvedCommentsModal } from '@/components/comments/ResolvedCommentsModal';
+import { AINotesCheckTool } from '@/components/AINotesCheckTool';
 
 interface NotesEditorDialogProps {
   open: boolean;
@@ -441,21 +442,34 @@ export function NotesEditorDialog({
               />
             </div>
 
-            {/* Comment sidebar (appears when comments exist) */}
-            {(comments.length > 0 || isCreatingComment) && (
-              <CommentSidebar
-                comments={comments}
-                activeCommentId={activeCommentId}
-                onCommentClick={handleCommentClick}
-                onCommentHover={handleCommentHover}
-                onResolve={handleResolveComment}
-                onAddReply={handleAddReply}
-                onDeleteReply={handleDeleteReply}
-                isCreatingComment={isCreatingComment}
-                onCreateCommentSubmit={handleCreateCommentSubmit}
-                onCreateCommentCancel={handleCreateCommentCancel}
-              />
-            )}
+            {/* Sidebar: AI Tool and Comments */}
+            <div className="w-[380px] flex flex-col gap-4 min-h-0">
+              {/* AI Notes Check Tool */}
+              <div className="border rounded-lg p-4 bg-card">
+                <AINotesCheckTool
+                  resourceId={resourceId}
+                  onComplete={loadComments}
+                />
+              </div>
+
+              {/* Comment sidebar (appears when comments exist) */}
+              {(comments.length > 0 || isCreatingComment) && (
+                <div className="flex-1 min-h-0">
+                  <CommentSidebar
+                    comments={comments}
+                    activeCommentId={activeCommentId}
+                    onCommentClick={handleCommentClick}
+                    onCommentHover={handleCommentHover}
+                    onResolve={handleResolveComment}
+                    onAddReply={handleAddReply}
+                    onDeleteReply={handleDeleteReply}
+                    isCreatingComment={isCreatingComment}
+                    onCreateCommentSubmit={handleCreateCommentSubmit}
+                    onCreateCommentCancel={handleCreateCommentCancel}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           <DialogFooter className="border-t pt-4 mt-4">

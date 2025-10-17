@@ -14,6 +14,7 @@ import { Check, MessageCircle, Loader2, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import type { CommentWithReplies } from '@/types/comments';
+import { isAIComment } from '@/types/comments';
 
 interface CommentCardProps {
   comment: CommentWithReplies | null; // null when creating the very first comment
@@ -97,13 +98,18 @@ export const CommentCard = memo(function CommentCard({
     }
   };
 
+  // Check if this is an AI comment
+  const isAI = comment && isAIComment(comment);
+
   return (
     <Card
       className={cn(
-        'transition-all cursor-pointer hover:shadow-md',
+        'transition-all cursor-pointer hover:shadow-md relative',
         isActive && 'ring-2 ring-primary shadow-lg',
         comment?.isStale && 'border-orange-400',
-        !isNew && 'hover:scale-[1.02]'
+        !isNew && 'hover:scale-[1.02]',
+        // AI comment rainbow gradient border (simple left border + glow)
+        isAI && 'border-l-4 border-l-purple-500 bg-gradient-to-r from-purple-50/50 to-transparent dark:from-purple-950/30 shadow-purple-200/50'
       )}
       onClick={onClick}
       role="article"
@@ -131,7 +137,13 @@ export const CommentCard = memo(function CommentCard({
               </Badge>
             )}
 
-            {comment?.commentType === 'general' && (
+            {isAI && (
+              <Badge className="text-xs w-fit bg-gradient-to-r from-purple-500 to-pink-500 text-white border-none">
+                AI Suggestion
+              </Badge>
+            )}
+
+            {comment?.commentType === 'general' && !isAI && (
               <Badge variant="secondary" className="text-xs w-fit">
                 General
               </Badge>
