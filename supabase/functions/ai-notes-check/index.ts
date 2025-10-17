@@ -168,11 +168,8 @@ function buildPrompt(
     sections.push('# Resource Metadata\n');
     for (const [key, value] of Object.entries(metadata)) {
       if (value !== null && value !== undefined && value !== '') {
-        // Format the value appropriately
-        const formattedValue = typeof value === 'string' && value.length > 500
-          ? value.substring(0, 500) + '...'
-          : String(value);
-        sections.push(`**${key}**: ${formattedValue}\n`);
+        // Include full metadata (especially transcripts - AI needs complete source material)
+        sections.push(`**${key}**: ${String(value)}\n`);
       }
     }
     sections.push('\n');
