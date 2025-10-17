@@ -126,6 +126,33 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 ## Critical Code Patterns
 
+### Configuration File Synchronization (MANDATORY)
+
+**SYNC WARNING**: The following configuration files are DUPLICATED between frontend and Edge Function and MUST be manually synchronized:
+
+| Source of Truth (Edit This) | Must Sync To (Don't Edit Directly) | Deployment Command |
+|------------------------------|-------------------------------------|-------------------|
+| `src/config/aiConfig.ts` | `supabase/functions/ai-notes-check/config.ts` | `npm run deploy:edge` |
+
+**WHY**: Edge Functions run in Deno and cannot import from the `src/` directory. The config must be duplicated.
+
+**WORKFLOW**:
+1. Edit `src/config/aiConfig.ts` (frontend source of truth)
+2. Manually copy `AI_CONFIG` changes to Edge Function config
+3. Run `npm run deploy:edge` - automated sync check will verify before deploying
+4. If sync check fails, deployment is blocked until configs match
+
+**AUTOMATED PROTECTION**: The `check-sync` script compares both files and blocks deployment if they differ. You'll see:
+```
+❌ SYNC ERROR: Config files are out of sync!
+   Source of truth: src/config/aiConfig.ts
+   Out of sync:     supabase/functions/ai-notes-check/config.ts
+```
+
+**FUTURE IMPROVEMENT**: Consider implementing database-backed config (see Options discussion in git history) or build-time sync script for zero-duplication solution.
+
+---
+
 ### React Hooks Order & Dependencies
 **Hook Execution Order** (CRITICAL - violating causes "Cannot access before initialization"):
 1. All `useState` declarations
@@ -192,6 +219,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 | Issue | Solution |
 |-------|----------|
+| **Config out of sync / Edge Function outdated** | Copy changes from `src/config/aiConfig.ts` to Edge config, run `npm run deploy:edge` |
 | **"Cannot access before initialization"** | Define useCallback BEFORE useEffect that uses it (see Hook Ordering) |
 | **Infinite re-render loop** | Wrap async functions in useCallback if used in useEffect dependencies |
 | **State flag never sets (query.onSettled)** | Set state in useEffect with query.isFetched dependency instead |
