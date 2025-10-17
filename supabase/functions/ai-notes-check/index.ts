@@ -745,6 +745,11 @@ Deno.serve(async (req: Request) => {
             prompt,
             notesLength: resource.notes.length,
             metadataFields: Object.keys(metadata),
+            // Resource metadata for analytics
+            resourceType: resource.type,
+            resourceTitle: resource.title || null,
+            resourceAuthor: resource.author || resource.creator || resource.channelName || null,
+            resourcePlatform: resource.platform || null,
           },
           error_details: {
             message: apiError instanceof Error ? apiError.message : String(apiError),
@@ -818,6 +823,13 @@ Deno.serve(async (req: Request) => {
           transcriptLength: resource.transcript?.length || 0,
           metadataFields: Object.keys(metadata),
           existingAIComments: existingComments.length,
+          // Resource metadata for analytics
+          resourceType: resource.type,
+          resourceTitle: resource.title || null,
+          resourceAuthor: resource.author || resource.creator || resource.channelName || null,
+          resourcePlatform: resource.platform || null,
+          resourceUrl: resource.url || resource.normalizedUrl || null,
+          resourceDescription: resource.description ? resource.description.substring(0, 200) : null,
         },
         output_data: {
           commentsCreated,
