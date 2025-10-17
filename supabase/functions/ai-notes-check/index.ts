@@ -542,6 +542,7 @@ async function updateProcessingLog(logId: string, updates: Partial<AIProcessingL
       .from('ai_processing_logs')
       .update({
         status: updates.status,
+        input_data: updates.input_data,
         output_data: updates.output_data,
         error_details: updates.error_details,
         processing_time_ms: updates.processing_time_ms,
