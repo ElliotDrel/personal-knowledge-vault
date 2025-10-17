@@ -3,8 +3,8 @@
 ## Overview & Strategy
 
 - **Goal**: Implement AI-powered note review system that analyzes user notes and creates improvement suggestions as comments, with intelligent text anchoring, retry logic, and distinctive visual styling.
-- **Approach**: Backend-first Edge Function processing with OpenRouter API integration, followed by frontend overlay UI and visual enhancements; leverage existing comment system infrastructure with AI-specific extensions.
-- **Guiding principles**: User agency (suggestions not rewrites), transparency (visible progress), cost efficiency (Claude 3.5 Haiku), reliability (retry mechanisms), extensibility (config-driven design), debugging support (detailed logging).
+- **Approach**: Backend-first Edge Function processing with Anthropic API integration, followed by frontend overlay UI and visual enhancements; leverage existing comment system infrastructure with AI-specific extensions.
+- **Guiding principles**: User agency (suggestions not rewrites), transparency (visible progress), cost efficiency (Claude 4.5 Haiku), reliability (retry mechanisms), extensibility (config-driven design), debugging support (detailed logging).
 
 ## Current Status (2025-10-16)
 
@@ -18,11 +18,11 @@
 
 ### Prerequisites Verified
 - [x] Notes commenting system operational
-- [x] OpenRouter account created (API key ready for configuration)
+- [x] Anthropic API account created (API key ready for configuration)
 - [x] Supabase Edge Functions working (tested with existing functions)
 - [x] Comment system supports additional fields (extensible schema)
 - [x] TypeScript strict mode enabled
-- [ ] OpenRouter API key configured in Supabase secrets (Phase 2)
+- [ ] Anthropic API key configured in Supabase secrets (Phase 2)
 
 ## Phases & Timeline
 
@@ -330,7 +330,7 @@ mkdir -p src/config
 
 export const AI_CONFIG = {
   // Model settings
-  MODEL: 'anthropic/claude-3-5-haiku-20241022' as const,
+  MODEL: 'anthropic/claude-4-5-haiku-20241022' as const,
 
   // Comment constraints
   MAX_COMMENT_LENGTH: 200,
@@ -419,18 +419,18 @@ rmdir src/config # if empty
 ## Phase 2 – Edge Function Implementation (4-6 hours) ❌ CRITICAL
 
 ### Objective
-Implement `ai-notes-check` Edge Function with OpenRouter integration, retry logic, and comprehensive logging.
+Implement `ai-notes-check` Edge Function with Anthropic API integration, retry logic, and comprehensive logging.
 
 ### Prerequisites
-- [ ] OpenRouter account created with API key
-- [ ] OpenRouter API key ready for configuration
+- [ ] Anthropic API account created with API key
+- [ ] Anthropic API key ready for configuration
 
-### Step 2.1 – Configure OpenRouter API Key (10 minutes)
+### Step 2.1 – Configure Anthropic API Key (10 minutes)
 
 **Commands**:
 ```bash
 # Set API key in Supabase secrets
-npx supabase secrets set OPENROUTER_API_KEY=<your-key>
+npx supabase secrets set ANTHROPIC_API_KEY=<your-key>
 
 # Verify secret set
 npx supabase secrets list
@@ -528,33 +528,36 @@ Analyze and provide suggestions.
 }
 ```
 
-3. **Call OpenRouter API**:
+3. **Call Anthropic API**:
 ```typescript
-async function callOpenRouter(prompt: string) {
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+async function callAnthropic(prompt: string) {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
+      'x-api-key': Deno.env.get('ANTHROPIC_API_KEY') || '',
+      'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://personal-knowledge-vault.vercel.app',
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-3-5-haiku-20241022',
+      model: 'claude-4-5-haiku-20241022',
+      max_tokens: 4096,
+      system: AI_CONFIG.SYSTEM_PROMPT,
       messages: [
-        { role: 'system', content: AI_CONFIG.SYSTEM_PROMPT },
-        { role: 'user', content: prompt }
+        {
+          role: 'user',
+          content: prompt + '\n\n' + AI_CONFIG.JSON_SCHEMA_INSTRUCTIONS
+        }
       ],
-      response_format: { type: 'json_object' },
       temperature: 0.7,
     })
   });
 
   if (!response.ok) {
-    throw new Error(`OpenRouter API error: ${response.status}`);
+    throw new Error(`Anthropic API error: ${response.status}`);
   }
 
   const data = await response.json();
-  return JSON.parse(data.choices[0].message.content);
+  return JSON.parse(data.content[0].text);
 }
 ```
 
@@ -1269,7 +1272,7 @@ WHERE parent_log_id IS NOT NULL;
 - [ ] Text matching: <100ms per comment
 
 **If performance degrades**:
-1. Check OpenRouter API latency in logs
+1. Check Anthropic API latency in logs
 2. Check text matching performance
 3. Check database query performance
 
@@ -1313,7 +1316,7 @@ Deploy AI Notes Check feature to production and establish monitoring.
 - [ ] All migrations applied: `npx supabase db push`
 - [ ] Types regenerated: `npx supabase gen types typescript --linked`
 - [ ] Edge function deployed: `npx supabase functions deploy ai-notes-check`
-- [ ] OpenRouter API key set: `npx supabase secrets set OPENROUTER_API_KEY=...`
+- [ ] Anthropic API key set: `npx supabase secrets set ANTHROPIC_API_KEY=...`
 - [ ] Build passes: `npm run build`
 - [ ] Lint passes: `npm run lint`
 
@@ -1339,7 +1342,7 @@ Deploy AI Notes Check feature to production and establish monitoring.
 **Check**:
 1. Supabase Functions logs (dashboard)
 2. Processing log table for errors
-3. OpenRouter API usage/costs
+3. Anthropic API usage/costs
 4. User reports (if any)
 
 **Metrics to track**:
@@ -1347,7 +1350,7 @@ Deploy AI Notes Check feature to production and establish monitoring.
 - Success rate (completed vs. failed)
 - Average processing time
 - Average comments per run
-- Cost per run (OpenRouter)
+- Cost per run (Anthropic API)
 
 **If issues arise**:
 - Check function logs for errors
@@ -1395,7 +1398,7 @@ UPDATE comments SET status = 'resolved' WHERE created_by_ai = true;
 
 ### Edge Function Testing
 - [ ] Function deploys without errors
-- [ ] OpenRouter API key configured correctly
+- [ ] Anthropic API key configured correctly
 - [ ] Function authenticates requests properly
 - [ ] Function creates comments in database
 - [ ] Function logs to processing logs table
@@ -1495,7 +1498,7 @@ ALTER TABLE comments
 
 ### Edge Function
 - [ ] `supabase/functions/ai-notes-check/index.ts` implemented
-- [ ] OpenRouter API integration complete
+- [ ] Anthropic API integration complete
 - [ ] Retry logic with AI feedback implemented
 - [ ] Text matching algorithm implemented
 - [ ] Detailed logging added
@@ -1540,7 +1543,7 @@ ALTER TABLE comments
 ### Deployment
 - [ ] Database migrations applied to production
 - [ ] Edge function deployed to production
-- [ ] OpenRouter API key configured in production
+- [ ] Anthropic API key configured in production
 - [ ] Frontend deployed (Vercel auto-deploy)
 - [ ] Smoke test passed in production
 - [ ] Monitoring in place
@@ -1549,7 +1552,7 @@ ALTER TABLE comments
 
 ## Summary
 
-**Feature**: AI-powered note review system with Claude 3.5 Haiku via OpenRouter, creating improvement suggestions as comments with intelligent text anchoring and retry logic.
+**Feature**: AI-powered note review system with Claude 4.5 Haiku via Anthropic API, creating improvement suggestions as comments with intelligent text anchoring and retry logic.
 
 **Current State**: Ready for implementation. All decisions finalized, implementation path validated against existing codebase patterns.
 
@@ -1561,7 +1564,7 @@ ALTER TABLE comments
 **Impact**:
 - **User Experience**: Intelligent feedback loop for solitary note-taking; encourages active engagement
 - **Technical Debt**: Minimal (reuses comment system, clean separation of concerns, future-proof logging)
-- **Performance**: Fast (Claude 3.5 Haiku optimized for speed; <10s typical processing)
+- **Performance**: Fast (Claude 4.5 Haiku optimized for speed; <10s typical processing)
 - **Reliability**: High (retry logic, detailed logging, graceful degradation)
 - **Cost**: Low (Haiku cost-effective; ~$0.01-0.05 per check)
 
@@ -1570,7 +1573,7 @@ ALTER TABLE comments
 **Risk Level**: Medium (new AI integration, prompt engineering, text matching complexity, API dependency)
 
 **Dependencies**:
-- OpenRouter API account with Claude 3.5 Haiku access
+- Anthropic API account with Claude 4.5 Haiku access
 - Supabase Edge Functions operational
 - Existing comment system functional (verified)
 - NotesEditorDialog with markdown editing (verified)
