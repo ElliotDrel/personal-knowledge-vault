@@ -39,11 +39,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_processing_logs: {
+        Row: {
+          action_type: string
+          attempt_number: number
+          created_at: string
+          error_details: Json | null
+          id: string
+          input_data: Json | null
+          model_used: string
+          output_data: Json | null
+          parent_log_id: string | null
+          processing_time_ms: number | null
+          resource_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          attempt_number?: number
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          input_data?: Json | null
+          model_used: string
+          output_data?: Json | null
+          parent_log_id?: string | null
+          processing_time_ms?: number | null
+          resource_id?: string | null
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          attempt_number?: number
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          input_data?: Json | null
+          model_used?: string
+          output_data?: Json | null
+          parent_log_id?: string | null
+          processing_time_ms?: number | null
+          resource_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_processing_logs_parent_log_id_fkey"
+            columns: ["parent_log_id"]
+            isOneToOne: false
+            referencedRelation: "ai_processing_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_processing_logs_resource_id_fkey"
+            columns: ["resource_id"]
+            isOneToOne: false
+            referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comments: {
         Row: {
+          ai_comment_category: string | null
+          ai_processing_log_id: string | null
+          ai_suggestion_type: string | null
           body: string
           comment_type: string
           created_at: string
+          created_by_ai: boolean | null
           end_offset: number | null
           id: string
           is_stale: boolean | null
@@ -51,6 +121,7 @@ export type Database = {
           quoted_text: string | null
           resolved_at: string | null
           resource_id: string
+          retry_count: number | null
           start_offset: number | null
           status: string
           thread_prev_comment_id: string | null
@@ -59,9 +130,13 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_comment_category?: string | null
+          ai_processing_log_id?: string | null
+          ai_suggestion_type?: string | null
           body: string
           comment_type: string
           created_at?: string
+          created_by_ai?: boolean | null
           end_offset?: number | null
           id?: string
           is_stale?: boolean | null
@@ -69,6 +144,7 @@ export type Database = {
           quoted_text?: string | null
           resolved_at?: string | null
           resource_id: string
+          retry_count?: number | null
           start_offset?: number | null
           status?: string
           thread_prev_comment_id?: string | null
@@ -77,9 +153,13 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_comment_category?: string | null
+          ai_processing_log_id?: string | null
+          ai_suggestion_type?: string | null
           body?: string
           comment_type?: string
           created_at?: string
+          created_by_ai?: boolean | null
           end_offset?: number | null
           id?: string
           is_stale?: boolean | null
@@ -87,6 +167,7 @@ export type Database = {
           quoted_text?: string | null
           resolved_at?: string | null
           resource_id?: string
+          retry_count?: number | null
           start_offset?: number | null
           status?: string
           thread_prev_comment_id?: string | null
@@ -96,10 +177,31 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "comments_ai_processing_log_id_fkey"
+            columns: ["ai_processing_log_id"]
+            isOneToOne: false
+            referencedRelation: "ai_processing_logs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "comments_resource_id_fkey"
             columns: ["resource_id"]
             isOneToOne: false
             referencedRelation: "resources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_thread_prev_comment_id_fkey"
+            columns: ["thread_prev_comment_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comments_thread_root_id_fkey"
+            columns: ["thread_root_id"]
+            isOneToOne: false
+            referencedRelation: "comments"
             referencedColumns: ["id"]
           },
         ]
