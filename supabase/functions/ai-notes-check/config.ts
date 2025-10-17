@@ -23,9 +23,9 @@
 export const AI_CONFIG = {
   /**
    * AI Model to use for notes analysis
-   * Claude 4.5 Haiku: Fast, cost-effective, suitable for frequent use
+   * Claude Haiku 4.5: Fast, cost-effective, suitable for frequent use
    */
-  MODEL: 'claude-4-5-haiku-20241022' as const,
+  MODEL: 'claude-haiku-4-5-20251001' as const,
 
   /**
    * Comment constraints
