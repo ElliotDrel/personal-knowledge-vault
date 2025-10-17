@@ -10,7 +10,7 @@
 
 ### In Scope
 - AI-powered note analysis triggered by user action (on-demand, not automatic).
-- Claude 3.5 Haiku integration via OpenRouter API for cost-effective, fast processing.
+- Claude 4.5 Haiku integration via Anthropic API for cost-effective, fast processing.
 - Multiple suggestion types: missing concepts, rewording improvements, factual corrections, and structural recommendations.
 - Comment creation in two categories: general comments (broad observations) and selected-text comments (anchored to specific passages).
 - Context-aware processing that includes resource metadata (title, description, transcript, etc.) tailored per resource type.
@@ -46,7 +46,7 @@
 
 - **User Agency** – AI augments, never replaces; every suggestion requires explicit user action to apply.
 - **Transparency** – Users know when AI is working, what it's analyzing, and when processing completes or fails.
-- **Cost Efficiency** – Claude 3.5 Haiku provides fast, affordable processing suitable for frequent use.
+- **Cost Efficiency** – Claude 4.5 Haiku provides fast, affordable processing suitable for frequent use.
 - **Reliability** – Robust retry mechanisms handle edge cases (ambiguous text, API failures) gracefully.
 - **Extensibility** – Configuration-driven design allows easy addition of new resource types, models, or suggestion types.
 - **Debugging Support** – Detailed logging (function logs + database) enables troubleshooting and improvement iteration.
@@ -86,7 +86,7 @@ export interface AIProcessingLog {
   actionType: string; // 'notes_check', 'summary_generation', etc.
   attemptNumber: number; // 1 = initial, 2+ = retries
   status: 'processing' | 'completed' | 'failed' | 'partial_success';
-  modelUsed: string; // e.g., 'anthropic/claude-3-5-haiku'
+  modelUsed: string; // e.g., 'anthropic/claude-4-5-haiku'
   inputData?: Record<string, any>; // Flexible JSONB
   outputData?: Record<string, any>; // Flexible JSONB
   errorDetails?: Record<string, any>; // Flexible JSONB
@@ -255,7 +255,7 @@ export const AI_METADATA_CONFIG: Record<ResourceType, string[]> = {
 **Stage 4: Generating (2-5 seconds)**
 - Progress message: "Generating improvement suggestions..."
 - Visual: Progress bar continues (still indeterminate)
-- Backend: OpenRouter API call to Claude 3.5 Haiku
+- Backend: Anthropic API call to Claude 4.5 Haiku
 - Backend: Parsing JSON response, validating schema
 
 **Stage 5: Creating (5-7 seconds)**
@@ -459,7 +459,7 @@ export const AI_METADATA_CONFIG: Record<ResourceType, string[]> = {
 **Responsibilities**:
 1. Authenticate user and fetch resource
 2. Gather context (notes, metadata, existing AI comments)
-3. Call OpenRouter API with constructed prompt
+3. Call Anthropic API with constructed prompt
 4. Parse and validate JSON response
 5. Process each suggestion (text matching + retry logic)
 6. Create comment records in database
@@ -487,7 +487,7 @@ export const AI_METADATA_CONFIG: Record<ResourceType, string[]> = {
 
 **Performance Targets**:
 - Total processing time: <10 seconds for typical notes (500-2000 words)
-- API call latency: <3 seconds (Claude 3.5 Haiku is fast)
+- API call latency: <3 seconds (Claude 4.5 Haiku is fast)
 - Text matching: <100ms per comment (simple string search)
 - Database operations: <1 second total (batched inserts where possible)
 
@@ -595,14 +595,14 @@ export const AI_METADATA_CONFIG: Record<ResourceType, string[]> = {
 
 ### API Key Management
 
-**OpenRouter API Key**:
+**Anthropic API Key**:
 - Stored in Supabase Secrets (never in code or environment variables exposed to client)
 - Accessed only by Edge Function (server-side)
 - Rotatable without code changes
 
 **Command**:
 ```bash
-npx supabase secrets set OPENROUTER_API_KEY=<your-key>
+npx supabase secrets set ANTHROPIC_API_KEY=<your-key>
 ```
 
 ### Data Privacy
@@ -613,13 +613,13 @@ npx supabase secrets set OPENROUTER_API_KEY=<your-key>
 - Existing AI comment text (to avoid duplicates)
 
 **What AI Doesn't See**:
-- User identity (no names, emails, user IDs sent to OpenRouter)
+- User identity (no names, emails, user IDs sent to Anthropic)
 - Other user comments (only AI comments for context)
 - Other resources' notes (isolated per resource)
 - Any PII beyond what user explicitly wrote in notes
 
-**OpenRouter Policy**:
-- Check OpenRouter data retention policy
+**Anthropic API Policy**:
+- Check Anthropic data retention policy
 - Ensure compliance with privacy policy
 - Consider adding user consent notice
 
@@ -677,7 +677,7 @@ npx supabase secrets set OPENROUTER_API_KEY=<your-key>
 4. Verify comment created after successful retry
 
 **Error Handling**:
-1. Temporarily revoke OpenRouter API key
+1. Temporarily revoke Anthropic API key
 2. Run AI check → verify friendly error message shown
 3. Verify processing log marked as 'failed'
 4. Restore API key, try again → verify works
@@ -739,7 +739,7 @@ ORDER BY created_at DESC;
 - Empty notes: <5 seconds (AI creates 1-2 general comments)
 
 **If Performance Degrades**:
-1. Check OpenRouter API latency (log shows per-call timing)
+1. Check Anthropic API latency (log shows per-call timing)
 2. Check text matching performance (should be <100ms total)
 3. Check database query performance (indexes on comments, logs tables)
 
@@ -752,7 +752,7 @@ ORDER BY created_at DESC;
 - [ ] Database migrations applied: `npx supabase db push`
 - [ ] Types regenerated: `npx supabase gen types typescript --linked`
 - [ ] Edge function deployed: `npx supabase functions deploy ai-notes-check`
-- [ ] OpenRouter API key set: `npx supabase secrets set OPENROUTER_API_KEY=...`
+- [ ] Anthropic API key set: `npx supabase secrets set ANTHROPIC_API_KEY=...`
 
 ## Future Enhancements
 
@@ -792,7 +792,7 @@ ORDER BY created_at DESC;
 - Requires vector embeddings or semantic search
 
 ### Priority 8: Cost Tracking & Budgets
-- Track OpenRouter costs per user
+- Track Anthropic API costs per user
 - Set monthly budgets, notify if approaching limit
 - Display cost estimate before running AI check
 
@@ -816,7 +816,7 @@ ORDER BY created_at DESC;
 - **Duplicate Rate**: % of runs where AI creates duplicate suggestions (target: <5%)
 
 ### Cost Efficiency
-- **Cost Per Check**: Average OpenRouter API cost per AI check
+- **Cost Per Check**: Average Anthropic API cost per AI check
 - **Tokens Per Check**: Average tokens sent/received (optimize prompt if high)
 - **Failed Token Spend**: Tokens wasted on failed runs (minimize retries)
 
@@ -837,7 +837,7 @@ ORDER BY created_at DESC;
 
 ### Edge Function
 - [ ] `supabase/functions/ai-notes-check/index.ts` implemented
-- [ ] OpenRouter API integration tested
+- [ ] Anthropic API integration tested
 - [ ] Retry logic with AI feedback implemented
 - [ ] Text matching algorithm implemented
 - [ ] Detailed logging added (function + database)
@@ -882,7 +882,7 @@ ORDER BY created_at DESC;
 ### Deployment
 - [ ] Database migrations applied to production
 - [ ] Edge function deployed to production
-- [ ] OpenRouter API key configured in production
+- [ ] Anthropic API key configured in production
 - [ ] Frontend deployed (Vercel auto-deploy)
 - [ ] Smoke test passed in production
 
@@ -894,12 +894,12 @@ ORDER BY created_at DESC;
 
 **Purpose**: Transform note-taking from passive documentation to active learning by providing thoughtful, actionable feedback that helps users improve coverage, clarity, and structure.
 
-**Approach**: On-demand AI processing (user-initiated) via Claude 3.5 Haiku through OpenRouter, with context-aware prompts including resource-specific metadata, exact character-matching for selected-text suggestions, and robust retry mechanisms for reliability.
+**Approach**: On-demand AI processing (user-initiated) via Claude 4.5 Haiku through Anthropic API, with context-aware prompts including resource-specific metadata, exact character-matching for selected-text suggestions, and robust retry mechanisms for reliability.
 
 **Impact**:
 - **User Experience**: Adds intelligent feedback loop to solitary note-taking; encourages reflection and revision without intrusive automation.
 - **Technical Debt**: Minimal (clean separation of concerns, reuses existing comment system, future-proof logging infrastructure).
-- **Performance**: Fast (Claude 3.5 Haiku is optimized for speed; <10 seconds typical processing time).
+- **Performance**: Fast (Claude 4.5 Haiku is optimized for speed; <10 seconds typical processing time).
 - **Reliability**: High (graceful degradation with retry logic, detailed logging for debugging, partial success handling).
 - **Cost**: Low (Haiku is cost-effective; ~$0.01-0.05 per check depending on note length).
 
@@ -907,7 +907,7 @@ ORDER BY created_at DESC;
 
 **Risk Level**: Medium (new AI integration, prompt engineering required, text matching complexity, API dependency).
 
-**Dependencies**: OpenRouter API account, Claude 3.5 Haiku model access, Supabase Edge Functions, existing comment system.
+**Dependencies**: Anthropic API account, Claude 4.5 Haiku model access, Supabase Edge Functions, existing comment system.
 
 **Estimated Effort**: 16-20 hours across 4 focused implementation sprints.
 
