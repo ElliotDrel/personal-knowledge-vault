@@ -56,7 +56,7 @@ export const CommentSidebar = memo(function CommentSidebar({
   return (
     <div
       className={cn(
-        'w-[320px] border-l pl-4 space-y-4 overflow-y-auto',
+        'w-[320px] h-full border-l pl-4 space-y-4 overflow-y-auto',
         'flex-shrink-0' // Prevent sidebar from shrinking
       )}
     >

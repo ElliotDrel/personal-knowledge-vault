@@ -498,10 +498,10 @@ export function NotesEditorDialog({
             </div>
 
             {/* Sidebar: Comments */}
-            <div className="w-[380px] flex flex-col gap-4 min-h-0">
+            <div className="w-[380px] flex flex-col gap-4 min-h-0 max-h-[600px]">
               {/* Comment sidebar (appears when comments exist) */}
               {(comments.length > 0 || isCreatingComment) && (
-                <div className="flex-1 min-h-0">
+                <div className="flex-1 min-h-0 overflow-hidden">
                   <CommentSidebar
                     comments={comments}
                     activeCommentId={activeCommentId}
