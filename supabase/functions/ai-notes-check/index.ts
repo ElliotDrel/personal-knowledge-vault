@@ -245,6 +245,10 @@ async function callAnthropicAPI(prompt: string): Promise<{
           role: 'user',
           content: prompt,
         },
+        {
+          role: 'assistant',
+          content: '{',
+        },
       ],
       temperature: 0.7,
     };
@@ -297,6 +301,16 @@ async function callAnthropicAPI(prompt: string): Promise<{
     }
 
     responseText = responseText.trim();
+
+    if (responseText.length === 0) {
+      console.error('[ai-notes-check] AI response empty after removing markdown fences');
+      throw new Error('AI response empty after cleaning');
+    }
+
+    if (!responseText.startsWith('{')) {
+      responseText = '{' + responseText;
+      console.log('[ai-notes-check] Applied JSON prefill prefix to AI response');
+    }
 
     // Log cleaned response
     console.log('[ai-notes-check] Cleaned response for parsing:\n', responseText);
