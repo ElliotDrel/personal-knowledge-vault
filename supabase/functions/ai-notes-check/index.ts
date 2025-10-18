@@ -296,16 +296,46 @@ async function callAnthropicAPI(prompt: string): Promise<{
       console.log('[ai-notes-check] Stripped markdown code fences from response');
     }
 
+    responseText = responseText.trim();
+
     // Log cleaned response
     console.log('[ai-notes-check] Cleaned response for parsing:\n', responseText);
+
+    const firstBraceIndex = responseText.indexOf('{');
+    const lastBraceIndex = responseText.lastIndexOf('}');
+
+    if (firstBraceIndex === -1 || lastBraceIndex === -1 || firstBraceIndex > lastBraceIndex) {
+      console.error('[ai-notes-check] Could not locate JSON object in AI response');
+      throw new Error('AI response missing JSON object');
+    }
+
+    const prefixText = responseText.slice(0, firstBraceIndex).trim();
+    const suffixText = responseText.slice(lastBraceIndex + 1).trim();
+
+    if (prefixText.length > 0 || suffixText.length > 0) {
+      const issues: string[] = [];
+      if (prefixText.length > 0) {
+        issues.push('text before the JSON object');
+      }
+      if (suffixText.length > 0) {
+        issues.push('text after the JSON object');
+      }
+      console.error('[ai-notes-check] AI response contains extra text around JSON:', {
+        prefixSnippet: prefixText.slice(0, 100),
+        suffixSnippet: suffixText.slice(0, 100),
+      });
+      throw new Error(`AI response contains ${issues.join(' and ')}`);
+    }
+
+    const jsonPayload = responseText.slice(firstBraceIndex, lastBraceIndex + 1);
 
     // Parse JSON response
     let parsedResponse: AICommentsResponse;
     try {
-      parsedResponse = JSON.parse(responseText);
+      parsedResponse = JSON.parse(jsonPayload);
     } catch (parseError) {
       console.error('[ai-notes-check] Failed to parse AI response as JSON:', parseError);
-      console.error('[ai-notes-check] Response text:', responseText.substring(0, 200));
+      console.error('[ai-notes-check] Response text:', jsonPayload.substring(0, 200));
       throw new Error('AI returned invalid JSON');
     }
 
