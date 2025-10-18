@@ -349,7 +349,7 @@ async function callAnthropicAPI(prompt: string): Promise<{
       parsedResponse = JSON.parse(jsonPayload);
     } catch (parseError) {
       console.error('[ai-notes-check] Failed to parse AI response as JSON:', parseError);
-      console.error('[ai-notes-check] Response text:', jsonPayload.substring(0, 200));
+      console.error('[ai-notes-check] Response text:', jsonPayload);
       throw new Error('AI returned invalid JSON');
     }
 
