@@ -177,7 +177,8 @@ function buildPrompt(
 
   // Section 3: Existing AI Comments (to prevent duplicates)
   if (existingComments.length > 0) {
-    sections.push('# Existing AI Suggestions (Do NOT Duplicate)\n');
+    sections.push('# Existing AI Suggestions\n');
+    sections.push('IMPORTANT: Review these carefully. Do NOT create suggestions with similar intent or about similar topics, even if worded differently.\n\n');
     existingComments.forEach((comment, index) => {
       const commentData = {
         category: comment.ai_comment_category,
