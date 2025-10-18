@@ -179,7 +179,15 @@ function buildPrompt(
   if (existingComments.length > 0) {
     sections.push('# Existing AI Suggestions (Do NOT Duplicate)\n');
     existingComments.forEach((comment, index) => {
-      sections.push(`${index + 1}. ${comment.body}\n`);
+      const commentData = {
+        category: comment.ai_comment_category,
+        suggestionType: comment.ai_suggestion_type,
+        commentType: comment.comment_type,
+        body: comment.body,
+        quotedText: comment.quoted_text || null,
+        isStale: comment.is_stale || false,
+      };
+      sections.push(`${index + 1}. ${JSON.stringify(commentData, null, 2)}\n`);
     });
     sections.push('\n');
   }
