@@ -100,12 +100,11 @@ RULES:
 
 export const AI_METADATA_CONFIG: Record<string, string[]> = {
   'short-video': [
-    'title',
+    'description',
     'author',
     'creator',
     'channelName',
     'handle',
-    'description',
     'transcript',
     'platform',
     'url',
@@ -116,7 +115,6 @@ export const AI_METADATA_CONFIG: Record<string, string[]> = {
     'publishedAt',
   ],
   video: [
-    'title',
     'description',
     'transcript',
     'author',
@@ -131,7 +129,6 @@ export const AI_METADATA_CONFIG: Record<string, string[]> = {
     'publishedAt',
   ],
   book: [
-    'title',
     'description',
     'author',
     'year',
@@ -141,7 +138,6 @@ export const AI_METADATA_CONFIG: Record<string, string[]> = {
     'url',
   ],
   article: [
-    'title',
     'url',
     'author',
     'platform',
@@ -150,7 +146,6 @@ export const AI_METADATA_CONFIG: Record<string, string[]> = {
     'siteName',
   ],
   podcast: [
-    'title',
     'description',
     'transcript',
     'creator',
