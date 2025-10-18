@@ -156,35 +156,40 @@ function buildPrompt(
 
   // Section 1: User Notes
   sections.push('# User Notes\n');
+  sections.push(
+    "- Reminder: The user's notes text is provided to you as a source of truth for the content of the resource, and what you are basing your suggestions on.\n"
+  );
+  sections.push('<user_notes>');
   if (notes && notes.trim().length > 0) {
     sections.push(notes);
   } else {
-    sections.push('(No notes provided yet)');
+    sections.push('(No notes provided yet, return some general comments about potential notes to add)');
   }
-  sections.push('\n');
+  sections.push('</user_notes>\n\n');
 
   // Section 2: Resource Metadata
   if (Object.keys(metadata).length > 0) {
     sections.push('# Resource Metadata\n');
+    sections.push(
+      '- Reminder: The resource metadata is provided to you as a source of truth for the content of the resource, and what you are basing your suggestions on.\n'
+    );
+    sections.push('<resource_metadata>\n');
     for (const [key, value] of Object.entries(metadata)) {
       if (value !== null && value !== undefined && value !== '') {
         // Include full metadata (especially transcripts - AI needs complete source material)
         sections.push(`**${key}**: ${String(value)}\n`);
       }
     }
-    sections.push('\n');
+    sections.push('</resource_metadata>\n\n');
   }
 
-  // Section 3: Existing AI Comments (to prevent duplicates)
+  // Section 3: Existing AI Comments (conditional)
   if (existingComments.length > 0) {
-    sections.push('# ⚠️ EXISTING AI SUGGESTIONS - DO NOT DUPLICATE ⚠️\n');
+    sections.push('# Existing AI Suggestions\n');
     sections.push(
-      'The following topics/text segments are ALREADY addressed. Do NOT create new suggestions about:\n'
+      '- Reminder: The existing AI suggestions are provided to you to help you avoid creating duplicate and repetitive suggestions.\n'
     );
-    sections.push('- The same text (even with different wording)\n');
-    sections.push('- The same topic (even with different phrasing)\n');
-    sections.push('- The same correction or addition\n');
-    sections.push('If a suggestion below covers something, SKIP IT in your output.\n\n');
+    sections.push('<existing_ai_suggestions>\n');
     existingComments.forEach((comment, index) => {
       const commentData = {
         category: comment.ai_comment_category,
@@ -196,13 +201,8 @@ function buildPrompt(
       };
       sections.push(`${index + 1}. ${JSON.stringify(commentData, null, 2)}\n`);
     });
-    sections.push('\n');
+    sections.push('</existing_ai_suggestions>\n\n');
   }
-
-  // Section 4: Instructions
-  sections.push('# Task\n');
-  sections.push('Analyze the user notes and provide improvement suggestions as JSON comments.\n');
-  sections.push(`${AI_CONFIG.JSON_SCHEMA_INSTRUCTIONS}\n`);
 
   const prompt = sections.join('');
 
