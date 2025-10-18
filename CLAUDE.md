@@ -150,30 +150,24 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 ## Critical Code Patterns
 
-### Configuration File Synchronization (MANDATORY)
+### AI Configuration (Single Source of Truth)
 
-**SYNC WARNING**: The following configuration files are DUPLICATED between frontend and Edge Function and MUST be manually synchronized:
+**AI configuration lives ONLY in the Edge Function**: `supabase/functions/ai-notes-check/config.ts`
 
-| Source of Truth (Edit This) | Must Sync To (Don't Edit Directly) | Deployment Command |
-|------------------------------|-------------------------------------|-------------------|
-| `src/config/aiConfig.ts` | `supabase/functions/ai-notes-check/config.ts` | `npm run deploy:edge` |
+This file contains:
+- `SYSTEM_PROMPT`: Complete system prompt with goals, guidelines, comment rules, and JSON schema
+- `AI_METADATA_CONFIG`: Which metadata fields to send to Claude per resource type
+- `MAX_COMMENTS_PER_RUN`: Limit to prevent excessive API costs
 
-**WHY**: Edge Functions run in Deno and cannot import from the `src/` directory. The config must be duplicated.
+**WHY NO FRONTEND CONFIG?**
+- Frontend just calls the Edge Function with `resourceId` - it doesn't need prompts or config
+- Edge Functions can't import from `src/`, so config must live in the function
+- TypeScript types for AI responses live in `src/types/comments.ts` (shared between frontend and storage adapter)
 
 **WORKFLOW**:
-1. Edit `src/config/aiConfig.ts` (frontend source of truth)
-2. Manually copy `AI_CONFIG` changes to Edge Function config
-3. Run `npm run deploy:edge` - automated sync check will verify before deploying
-4. If sync check fails, deployment is blocked until configs match
-
-**AUTOMATED PROTECTION**: The `check-sync` script compares both files and blocks deployment if they differ. You'll see:
-```
-❌ SYNC ERROR: Config files are out of sync!
-   Source of truth: src/config/aiConfig.ts
-   Out of sync:     supabase/functions/ai-notes-check/config.ts
-```
-
-**FUTURE IMPROVEMENT**: Consider implementing database-backed config (see Options discussion in git history) or build-time sync script for zero-duplication solution.
+1. Edit `supabase/functions/ai-notes-check/config.ts` directly
+2. Run `npm run deploy:edge` to deploy changes
+3. No sync needed - there's only ONE config file!
 
 ---
 
@@ -243,7 +237,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 | Issue | Fix |
 |-------|-----|
-| Config drift between app and Edge Function | Mirror changes from `src/config/aiConfig.ts` into the Edge config and redeploy with `npm run deploy:edge`. |
+| AI prompt/config changes not working | Edit `supabase/functions/ai-notes-check/config.ts` and redeploy with `npm run deploy:edge`. |
 | "Cannot access before initialization" | Declare `useCallback` before the `useEffect` that depends on it and keep the documented hook order. |
 | Infinite re-render loops | Wrap async effect logic in `useCallback`, reference it inside `useEffect`, and audit dependency arrays. |
 | Loading flags never flip | Read React Query state via `useEffect` watching `query.isFetched` or `query.status` instead of relying on `onSettled`. |
