@@ -177,8 +177,14 @@ function buildPrompt(
 
   // Section 3: Existing AI Comments (to prevent duplicates)
   if (existingComments.length > 0) {
-    sections.push('# Existing AI Suggestions\n');
-    sections.push('IMPORTANT: Review these carefully. Do NOT create suggestions with similar intent or about similar topics, even if worded differently.\n\n');
+    sections.push('# ⚠️ EXISTING AI SUGGESTIONS - DO NOT DUPLICATE ⚠️\n');
+    sections.push(
+      'The following topics/text segments are ALREADY addressed. Do NOT create new suggestions about:\n'
+    );
+    sections.push('- The same text (even with different wording)\n');
+    sections.push('- The same topic (even with different phrasing)\n');
+    sections.push('- The same correction or addition\n');
+    sections.push('If a suggestion below covers something, SKIP IT in your output.\n\n');
     existingComments.forEach((comment, index) => {
       const commentData = {
         category: comment.ai_comment_category,
