@@ -84,8 +84,6 @@ async function getUserFromJWT(authHeader: string): Promise<User | null> {
  */
 async function fetchResourceData(resourceId: string, userId: string): Promise<Resource | null> {
   try {
-    console.log('[ai-notes-check] Fetching resource:', resourceId, 'for user:', userId);
-
     const { data, error } = await supabase
       .from('resources')
       .select('*')
@@ -103,12 +101,6 @@ async function fetchResourceData(resourceId: string, userId: string): Promise<Re
       return null;
     }
 
-    console.log('[ai-notes-check] Resource fetched successfully:', {
-      type: data.type,
-      notesLength: data.notes?.length || 0,
-      transcriptLength: data.transcript?.length || 0,
-    });
-
     return data as Resource;
   } catch (error) {
     console.error('[ai-notes-check] Exception fetching resource:', error);
@@ -121,8 +113,6 @@ async function fetchResourceData(resourceId: string, userId: string): Promise<Re
  */
 async function fetchExistingAIComments(resourceId: string, userId: string): Promise<Comment[]> {
   try {
-    console.log('[ai-notes-check] Fetching existing AI comments for resource:', resourceId);
-
     const { data, error } = await supabase
       .from('comments')
       .select('*')
@@ -136,8 +126,6 @@ async function fetchExistingAIComments(resourceId: string, userId: string): Prom
       console.error('[ai-notes-check] Error fetching AI comments:', error.message);
       return [];
     }
-
-    console.log('[ai-notes-check] Found', data?.length || 0, 'existing AI comments');
 
     return (data as Comment[]) || [];
   } catch (error) {
@@ -209,16 +197,6 @@ function buildPrompt(
 
   const prompt = sections.join('');
 
-  console.log('[ai-notes-check] Built prompt:', {
-    totalLength: prompt.length,
-    notesLength: notes.length,
-    metadataFields: Object.keys(metadata).length,
-    existingCommentsCount: existingComments.length,
-  });
-
-  // Log full prompt for debugging (can be disabled in production)
-  console.log('[ai-notes-check] Full prompt:\n', prompt);
-
   return prompt;
 }
 
@@ -237,8 +215,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
   };
 }> {
   try {
-    console.log('[ai-notes-check] Calling Anthropic API...');
-
     const requestBody: AnthropicRequest = {
       model: AI_CONFIG.MODEL,
       max_tokens: 4096,
@@ -274,13 +250,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
 
     const data: AnthropicResponse = await response.json();
 
-    console.log('[ai-notes-check] Anthropic API response received:', {
-      model: data.model,
-      stopReason: data.stop_reason,
-      inputTokens: data.usage.input_tokens,
-      outputTokens: data.usage.output_tokens,
-    });
-
     // Extract text from response
     if (!data.content || data.content.length === 0) {
       console.error('[ai-notes-check] No content in Anthropic response');
@@ -288,10 +257,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
     }
 
     let responseText = data.content[0].text;
-    console.log('[ai-notes-check] Response text length:', responseText.length);
-
-    // Log full response for debugging (can be disabled in production)
-    console.log('[ai-notes-check] Full AI response:\n', responseText);
 
     // Strip markdown code fences if present (e.g., ```json ... ```)
     responseText = responseText.trim();
@@ -300,7 +265,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
       responseText = responseText.replace(/^```(?:json)?\s*\n?/, '');
       // Remove closing fence
       responseText = responseText.replace(/\n?```\s*$/, '');
-      console.log('[ai-notes-check] Stripped markdown code fences from response');
     }
 
     responseText = responseText.trim();
@@ -312,11 +276,7 @@ async function callAnthropicAPI(prompt: string): Promise<{
 
     if (!responseText.startsWith('{')) {
       responseText = '{' + responseText;
-      console.log('[ai-notes-check] Applied JSON prefill prefix to AI response');
     }
-
-    // Log cleaned response
-    console.log('[ai-notes-check] Cleaned response for parsing:\n', responseText);
 
     const firstBraceIndex = responseText.indexOf('{');
     const lastBraceIndex = responseText.lastIndexOf('}');
@@ -361,8 +321,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
       : (() => {
           if (parsedResponse.comments !== undefined && parsedResponse.comments !== null) {
             console.warn('[ai-notes-check] Comments field was not an array; coercing to empty array.');
-          } else {
-            console.log('[ai-notes-check] Comments field missing; defaulting to empty array.');
           }
           return [];
         })();
@@ -413,14 +371,8 @@ async function callAnthropicAPI(prompt: string): Promise<{
       return true;
     });
 
-    console.log('[ai-notes-check] Validated', validComments.length, 'of', responseComments.length, 'comments');
-
     // Limit to MAX_COMMENTS_PER_RUN
     const limitedComments = validComments.slice(0, AI_CONFIG.MAX_COMMENTS_PER_RUN);
-
-    if (limitedComments.length < validComments.length) {
-      console.log('[ai-notes-check] Limited comments from', validComments.length, 'to', AI_CONFIG.MAX_COMMENTS_PER_RUN);
-    }
 
     let normalizedNoCommentsMessage: string | undefined;
     if (limitedComments.length === 0) {
@@ -428,7 +380,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
         console.warn('[ai-notes-check] Unexpected no_comments_message value:', noCommentsMessage);
       }
       normalizedNoCommentsMessage = 'No new suggestions to add.';
-      console.log('[ai-notes-check] No comments returned; using standard no_comments_message.');
     } else {
       if (noCommentsMessage) {
         console.warn('[ai-notes-check] Ignoring no_comments_message because comments array is not empty:', noCommentsMessage);
@@ -469,7 +420,6 @@ function findExactTextMatch(
 
   if (index === -1) {
     // Text not found
-    console.log('[ai-notes-check] Text not found in notes');
     return {
       match: null,
       error: 'Text not found in current notes (may have been edited during AI processing)',
@@ -481,7 +431,6 @@ function findExactTextMatch(
 
   if (secondOccurrence !== -1) {
     // Text appears multiple times - ambiguous
-    console.log('[ai-notes-check] Text appears multiple times in notes (ambiguous)');
     return {
       match: null,
       error: 'Text appears multiple times in notes (ambiguous - need longer selection for unique match)',
@@ -507,12 +456,6 @@ async function processCommentWithRetry(
   attemptNumber: number
 ): Promise<{ success: boolean; commentId?: string; error?: string }> {
   try {
-    console.log('[ai-notes-check] Processing comment:', {
-      category: suggestion.category,
-      suggestionType: suggestion.suggestionType,
-      attemptNumber,
-    });
-
     let startOffset: number | null = null;
     let endOffset: number | null = null;
     let quotedText: string | null = null;
@@ -523,11 +466,8 @@ async function processCommentWithRetry(
 
       if (!result.match) {
         // Text matching failed
-        if (attemptNumber < AI_CONFIG.MAX_RETRY_ATTEMPTS) {
-          console.log('[ai-notes-check] Text match failed, would retry, but retry with AI feedback not yet implemented');
-          // TODO: In a future enhancement, we could call the AI again with feedback
-          // For now, we'll just fail this comment
-        }
+        // TODO: In a future enhancement, we could call the AI again with feedback
+        // For now, we'll just fail this comment
 
         return {
           success: false,
@@ -570,8 +510,6 @@ async function processCommentWithRetry(
       };
     }
 
-    console.log('[ai-notes-check] Comment created successfully:', data.id);
-
     return {
       success: true,
       commentId: data.id,
@@ -590,8 +528,6 @@ async function processCommentWithRetry(
  */
 async function createProcessingLog(log: Partial<AIProcessingLog>): Promise<string> {
   try {
-    console.log('[ai-notes-check] Creating processing log');
-
     const { data, error } = await supabase
       .from('ai_processing_logs')
       .insert({
@@ -616,7 +552,6 @@ async function createProcessingLog(log: Partial<AIProcessingLog>): Promise<strin
       return 'log-error-' + Date.now();
     }
 
-    console.log('[ai-notes-check] Processing log created:', data.id);
     return data.id;
   } catch (error) {
     console.error('[ai-notes-check] Exception creating processing log:', error);
@@ -631,11 +566,8 @@ async function updateProcessingLog(logId: string, updates: Partial<AIProcessingL
   try {
     // Skip if this is a placeholder ID from a failed log creation
     if (logId.startsWith('log-error-') || logId.startsWith('log-exception-')) {
-      console.log('[ai-notes-check] Skipping update for placeholder log ID');
       return;
     }
-
-    console.log('[ai-notes-check] Updating processing log:', logId);
 
     const { error } = await supabase
       .from('ai_processing_logs')
@@ -651,8 +583,6 @@ async function updateProcessingLog(logId: string, updates: Partial<AIProcessingL
     if (error) {
       console.error('[ai-notes-check] Error updating processing log:', error.message);
       // Don't throw - logging failures shouldn't fail the operation
-    } else {
-      console.log('[ai-notes-check] Processing log updated successfully');
     }
   } catch (error) {
     console.error('[ai-notes-check] Exception updating processing log:', error);
@@ -710,8 +640,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log('[ai-notes-check] Authenticated user:', user.id);
-
     // 2. Parse request
     let body: AINotesCheckRequest;
     try {
@@ -749,8 +677,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    console.log('[ai-notes-check] Processing resource:', body.resourceId);
 
     // 3. Create processing log
     const processingLogId = await createProcessingLog({
@@ -817,12 +743,6 @@ Deno.serve(async (req: Request) => {
       // 7. Extract relevant metadata
       const metadata = getAIMetadataForResource(resource);
 
-      console.log('[ai-notes-check] Context gathered:', {
-        notesLength: resource.notes.length,
-        metadataFields: Object.keys(metadata).length,
-        existingComments: existingComments.length,
-      });
-
       // 8. Build prompt and call Anthropic API
       const prompt = buildPrompt(resource.notes, metadata, existingComments);
 
@@ -871,10 +791,6 @@ Deno.serve(async (req: Request) => {
       }
 
       const aiResponse = aiResult.response;
-      console.log('[ai-notes-check] Received', aiResponse.comments.length, 'suggestions from AI');
-      if (aiResponse.no_comments_message) {
-        console.log('[ai-notes-check] no_comments_message:', aiResponse.no_comments_message);
-      }
 
       // 9. Process each suggestion and create comments
       let commentsCreated = 0;
@@ -900,11 +816,6 @@ Deno.serve(async (req: Request) => {
           failedComments.push({ suggestion, error: result.error || 'unknown' });
         }
       }
-
-      console.log('[ai-notes-check] Processing complete:', {
-        commentsCreated,
-        commentsFailed,
-      });
 
       // 10. Update processing log with results
       const processingTimeMs = Date.now() - startTime;
@@ -1008,5 +919,3 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
-
-console.log('[ai-notes-check] Edge Function initialized');
