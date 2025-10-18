@@ -1,3 +1,6 @@
+/// <reference types="https://deno.land/std@0.208.0/types.d.ts" />
+/// <reference types="https://esm.sh/v135/@supabase/supabase-js@2/index.d.ts" />
+
 /**
  * Supabase Edge Function: AI Notes Check
  *
@@ -353,14 +356,24 @@ async function callAnthropicAPI(prompt: string): Promise<{
       throw new Error('AI returned invalid JSON');
     }
 
-    // Validate response structure
-    if (!parsedResponse.comments || !Array.isArray(parsedResponse.comments)) {
-      console.error('[ai-notes-check] Invalid response structure - missing comments array');
-      throw new Error('Invalid AI response structure');
-    }
+    const responseComments = Array.isArray(parsedResponse.comments)
+      ? parsedResponse.comments
+      : (() => {
+          if (parsedResponse.comments !== undefined && parsedResponse.comments !== null) {
+            console.warn('[ai-notes-check] Comments field was not an array; coercing to empty array.');
+          } else {
+            console.log('[ai-notes-check] Comments field missing; defaulting to empty array.');
+          }
+          return [];
+        })();
+
+    const noCommentsMessage =
+      typeof parsedResponse.no_comments_message === 'string'
+        ? parsedResponse.no_comments_message
+        : undefined;
 
     // Validate and filter comments
-    const validComments = parsedResponse.comments.filter((comment) => {
+    const validComments = responseComments.filter((comment) => {
       // Check required fields
       if (!comment.category || !comment.suggestionType || !comment.body) {
         console.warn('[ai-notes-check] Skipping comment with missing fields:', comment);
@@ -400,7 +413,7 @@ async function callAnthropicAPI(prompt: string): Promise<{
       return true;
     });
 
-    console.log('[ai-notes-check] Validated', validComments.length, 'of', parsedResponse.comments.length, 'comments');
+    console.log('[ai-notes-check] Validated', validComments.length, 'of', responseComments.length, 'comments');
 
     // Limit to MAX_COMMENTS_PER_RUN
     const limitedComments = validComments.slice(0, AI_CONFIG.MAX_COMMENTS_PER_RUN);
@@ -409,9 +422,26 @@ async function callAnthropicAPI(prompt: string): Promise<{
       console.log('[ai-notes-check] Limited comments from', validComments.length, 'to', AI_CONFIG.MAX_COMMENTS_PER_RUN);
     }
 
+    let normalizedNoCommentsMessage: string | undefined;
+    if (limitedComments.length === 0) {
+      if (noCommentsMessage && noCommentsMessage !== 'No new suggestions to add.') {
+        console.warn('[ai-notes-check] Unexpected no_comments_message value:', noCommentsMessage);
+      }
+      normalizedNoCommentsMessage = 'No new suggestions to add.';
+      console.log('[ai-notes-check] No comments returned; using standard no_comments_message.');
+    } else {
+      if (noCommentsMessage) {
+        console.warn('[ai-notes-check] Ignoring no_comments_message because comments array is not empty:', noCommentsMessage);
+      }
+      normalizedNoCommentsMessage = undefined;
+    }
+
     // Return both response and metadata for logging
     return {
-      response: { comments: limitedComments },
+      response: {
+        comments: limitedComments,
+        no_comments_message: normalizedNoCommentsMessage,
+      },
       metadata: {
         model: data.model,
         inputTokens: data.usage.input_tokens,
@@ -842,6 +872,9 @@ Deno.serve(async (req: Request) => {
 
       const aiResponse = aiResult.response;
       console.log('[ai-notes-check] Received', aiResponse.comments.length, 'suggestions from AI');
+      if (aiResponse.no_comments_message) {
+        console.log('[ai-notes-check] no_comments_message:', aiResponse.no_comments_message);
+      }
 
       // 9. Process each suggestion and create comments
       let commentsCreated = 0;
@@ -896,6 +929,7 @@ Deno.serve(async (req: Request) => {
           commentsCreated,
           commentsFailed,
           totalSuggestions: aiResponse.comments.length,
+          noCommentsMessage: aiResponse.no_comments_message ?? null,
           failedComments: failedComments.map((fc) => ({
             category: fc.suggestion.category,
             suggestionType: fc.suggestion.suggestionType,
@@ -918,6 +952,7 @@ Deno.serve(async (req: Request) => {
           success: true,
           commentsCreated,
           commentsFailed,
+          noCommentsMessage: aiResponse.no_comments_message ?? null,
           processingLogId,
         } as AINotesCheckResponse,
         {
