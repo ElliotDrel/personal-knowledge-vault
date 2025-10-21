@@ -146,6 +146,7 @@ export interface AINotesCheckResponse {
   success: boolean;
   commentsCreated?: number;
   commentsFailed?: number;
+  noCommentsMessage?: string | null;
   processingLogId?: string;
   error?: {
     code: string;
