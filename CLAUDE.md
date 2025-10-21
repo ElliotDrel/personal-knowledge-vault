@@ -31,6 +31,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - [ ] Tested in browser after each integration point (not just at end)
    - [ ] `npm run build` passes
    - [ ] `npm run lint` passes
+   - [ ] For backend/Edge Function changes: Verified in production logs/database (not just build)
+   - [ ] For prompt changes: User tested with actual AI call and confirmed behavior in logs
+   - [ ] For duplication: Grepped for imports to verify both copies are actually used
 
 9. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
 
@@ -74,6 +77,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 20. **NEVER TRUNCATE SOURCE MATERIAL** (NEW - Preserves Analysis Quality): When sending data to AI for analysis, NEVER truncate the source material (transcripts, documents, descriptions). Truncate metadata summaries if needed, but preserve complete source content.
    - **Example**: Full transcript (1000+ chars) → keep all, Description summary → can truncate
    - **Why**: AI needs complete source material to identify missing concepts and give quality suggestions
+
+23. **BACKEND CHANGES NEED PRODUCTION VERIFICATION** (NEW - Build Passing ≠ Feature Working): For backend/Edge Function changes, verify behavior in production logs/database, not just build success:
+   - Prompt changes: Run actual AI call, check `ai_processing_logs` table for new structure
+   - Config changes: Verify new fields are actually being sent (check `input_data` in logs)
+   - Edge Function changes: Check Supabase Dashboard logs for actual behavior
+   - Database changes: Query actual data, don't just trust migration ran
+   - **Pre-deployment verification**: Provide SQL query user can run to confirm expected behavior
+   - **Why**: Build passing only means "code compiles" - not "feature works as intended"
+
+24. **ROOT CAUSE ANALYSIS BEFORE FIXES** (NEW - Prevents Symptom Whack-a-Mole): When a feature fails, analyze the actual failure case before proposing fixes:
+   - Look at failed examples: What specifically went wrong?
+   - Ask "what would have prevented this?"
+   - Don't just fix symptoms - fix the underlying cause
+   - **Example**: Duplicate suggestions meant Claude wasn't comparing to existing - fix was forcing explicit comparison FIRST
+   - Update CLAUDE.md with the prevention pattern after learning
+   - **Why**: Quick fixes often miss the root cause and failures repeat
 
 ### Supabase CLI-Only Workflow
 
@@ -255,86 +274,29 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 | Component styling inflexible | Expose container/input className props so callers can match layout needs. |
 | AI suggestions degrade | Confirm transcripts and descriptions stay intact; never reapply truncation helpers. |
 | Table data pollution | Revalidate the table's purpose before adding fields and update migrations plus types. |
+| Prompt changes deployed but not working | Check `ai_processing_logs.input_data->>'systemPrompt'` to verify new prompt is actually being sent. |
+| AI generating duplicate suggestions | Put anti-duplication rules FIRST with visual emphasis; use domain-specific examples; force sequential workflow (list covered → propose new → filter). |
+| Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
+| Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
 
 ## Lessons Learned
 
-### Comments System Implementation (2025-10-10)
-**Key Mistakes**:
-1. **Wrong Data Model**: Created separate `comment_replies` table instead of self-referential `comments` table with threading fields
-2. **Missing Fields**: Didn't include `body` field for comment text
-3. **Ignored Generated Types**: Didn't read generated types after migrations to sync implementation
-4. **Overcomplicated Types**: Created separate `CommentReply` type instead of using discriminator field
-5. **Boundary Condition Bug**: Left `changeStart <= startOffset` in offset recalculation, so edits at the anchor boundary shifted the highlight instead of expanding it.
+### Core Habits
+- Clarify requirements with concrete scenarios before choosing libraries or data models.
+- Search the codebase before writing new utilities or components; reuse or update shared patterns across frontend and backend.
+- Read official docs and regenerate types before coding, and confirm the schema design with the user before creating migrations.
 
-**Key Takeaway**: **Data model clarity is MORE critical than algorithm optimization**. Ask about threading model BEFORE creating schema. After porting algorithms, explicitly test boundary cases (≤, ≥, equal) to avoid regressions like offset shifting.
+### Implementation Discipline
+- Keep React hooks ordered (`useState` -> data fetching -> memoization -> effects), wrap async work in `useCallback`, and initialize state where it lives.
+- Test incrementally: after meaningful changes run `npm run build`/`npm run lint` and open the browser instead of batching fixes at the end.
+- For overlays or markdown, mirror styles with `getComputedStyle`, sync scroll positions, and transform the rendered AST (rehype) rather than splitting source text.
+- Do root-cause analysis when something fails; do not patch symptoms without understanding them.
 
-### Markdown Editor Refactor (2025-10-10)
-**Key Mistakes**:
-1. **Requirements Misunderstanding**: Implemented Novel (WYSIWYG) when user wanted Obsidian-style toggle
-2. **Library API Misuse**: Used empty `extensions={[]}` causing "Schema missing top node type" error
-3. **No Incremental Testing**: Made multiple changes before testing
-4. **API Changes**: Used deprecated `className` prop in react-markdown v10+
-5. **Leftover Code**: Removed state but forgot to remove all references
-
-**Key Takeaway**: **Clarification BEFORE coding prevents wasted work**. One minute asking questions saves hours implementing wrong solution.
-
-### Comments Integration (Phases 4-7, 2025-10-11)
-**Key Mistakes**:
-1. **Hook Ordering Violation**: Put useEffect before useCallback, causing "Cannot access before initialization" even though CLAUDE.md documented this pattern
-2. **Type Mismatch**: Passed `initialReplyText` instead of `body` by following plan docs without verifying actual TypeScript types
-3. **State Ownership**: Added `commentCount` state to ResourceDetail but initialized it from child component's callback, causing badge to show nothing until dialog opened
-4. **useCallback Inconsistency**: Used useCallback for `loadComments` but not `loadResolvedComments`, inconsistent pattern application
-
-**Key Takeaway**: **Having patterns documented isn't enough—need enforcement via pre-completion checklist**. Before marking ANY task complete:
-- ✓ Verify hook order: useState → useQuery → useCallback → useEffect
-- ✓ Check actual types match (not just plan assumptions)
-- ✓ Verify state initialized where owned (not by children)
-- ✓ Ensure async functions in useEffect are useCallback-wrapped
-- ✓ Run `npm run build` + `npm run lint`
-
-### Visual Highlighting Implementation (Phase 8, 2025-10-14)
-**Key Mistakes**:
-1. **Incomplete CSS Overlay**: Created TextHighlight without `getComputedStyle()` mirroring, scroll sync, or transparent text color - user had to add these after
-2. **Wrong Markdown Approach**: Split markdown source into segments and rendered each separately, breaking syntax across boundaries (e.g., splitting `**bo|ld**`)
-3. **Inflexible Component API**: Provided only one `className` prop when MarkdownField has both container and textarea elements - user added `textareaClassName`
-4. **No Incremental Testing**: Built all components and wired them up before testing in browser - user caught CSS issues after the fact
-
-**Root Causes**:
-- Didn't think through textarea overlay requirements (exact font/padding/spacing synchronization)
-- Didn't understand markdown parsers deeply (need to transform OUTPUT, not INPUT)
-- Didn't follow shadcn/ui pattern of multiple className props for complex components
-- Skipped browser testing until the end instead of testing each integration point
-
-**Key Takeaway**: **Test integration points immediately, not after all wiring is complete**. For components requiring precise CSS synchronization or DOM structure:
-1. Implement complete version with all CSS synchronization (not minimal MVP)
-2. Integrate into parent component
-3. **Test in browser immediately** - don't wait for build/lint
-4. For textarea overlays: ALWAYS use `getComputedStyle()` + scroll sync + transparent text
-5. For markdown processing: Transform the rendered AST (rehype plugin), never split source text
-6. For multi-element components: Provide granular className props from the start
-
-### AI Notes Check System Implementation (2025-10-17)
-**Key Mistakes**:
-1. **Model ID Assumption**: Picked `claude-4-5-haiku` instead of the documented `claude-haiku-4-5-20251001`.
-2. **Markdown JSON Handling**: Parser failed because the API wrapped JSON in markdown code fences; no defensive stripping.
-3. **Transcript Truncation**: Reused a 500-character truncation helper that removed analysis context.
-4. **CRUD Drift**: Added `input_data` but skipped the UPDATE path, leaving logs incomplete.
-5. **Table Scope Creep**: Added analytics fields to `ai_processing_logs`, obscuring troubleshooting data.
-
-**Root Causes**:
-- Trusted assumptions instead of official docs for model names and response formats.
-- Copy-pasted helpers without checking whether source material must remain intact.
-- Touched schema without auditing every CRUD path or reaffirming the table's purpose.
-
-**Key Takeaway**: Verify external API contracts before coding, preserve full source material, and confirm table intent plus CRUD coverage whenever the schema changes; otherwise you trade hours fixing avoidable drift.
-
-### Key Patterns
-- **Schema & Types**: Clarify relationships before migrations, treat generated types as the source of truth, and prefer discriminated unions or self-referential tables when data shapes match.
-- **Hooks Discipline**: Keep hooks ordered (useState -> useQuery -> useCallback/useMemo -> derived state -> useEffect), wrap async logic in useCallback, and initialize state where it is owned.
-- **Search-First Consistency**: Update shared logic across frontend and backend together and expose flexible component APIs (multiple className props) instead of duplicating patterns.
-- **UI Precision**: Mirror getComputedStyle for overlays, operate on the rendered markdown AST via rehype plugins, and test each integration point in the browser immediately.
-- **External Integrations**: Verify model IDs/endpoints with official docs, strip markdown fences before parsing AI JSON, and preserve full source material for analysis.
-- **Purpose-Driven Data**: Confirm each schema field serves the table intent and run the pre-completion checklist before marking work done.
+### Prompt & Backend Work
+- Treat prompt text, runtime parsers, and shared TypeScript types as a single unit--ship updates together and replay a real request immediately.
+- Use domain-specific examples and force sequential reasoning in prompts; verify results in `ai_processing_logs` before calling a change "done."
+- Question duplication: grep for imports before keeping parallel configs or helpers, and delete dead code instead of letting it drift.
+- Validate external integrations against official docs and production logs instead of assuming a passing build means success.
 
 ## Project Status (Updated 2025-10-17)
 
@@ -377,3 +339,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 ---
 
 **Remember**: Search-first, security-first, test end-to-end, no placeholders.
+
+
+
+
