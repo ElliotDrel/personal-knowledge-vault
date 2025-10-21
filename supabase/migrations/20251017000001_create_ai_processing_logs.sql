@@ -42,7 +42,7 @@ COMMENT ON TABLE ai_processing_logs IS 'Tracks all AI processing operations (not
 COMMENT ON COLUMN ai_processing_logs.action_type IS 'Type of AI operation: notes_check, summary_generation, etc.';
 COMMENT ON COLUMN ai_processing_logs.parent_log_id IS 'Links retry attempts to original run for debugging';
 COMMENT ON COLUMN ai_processing_logs.attempt_number IS '1 for initial attempt, increments for retries';
-COMMENT ON COLUMN ai_processing_logs.status IS 'Lifecycle: processing → completed/failed/partial_success';
+COMMENT ON COLUMN ai_processing_logs.status IS 'Lifecycle: processing -> completed/failed/partial_success';
 COMMENT ON COLUMN ai_processing_logs.input_data IS 'Flexible JSONB for operation-specific input (notes, metadata, etc.)';
 COMMENT ON COLUMN ai_processing_logs.output_data IS 'Flexible JSONB for operation-specific output (comments created, tokens used, etc.)';
 COMMENT ON COLUMN ai_processing_logs.error_details IS 'Flexible JSONB for error context when status=failed';
