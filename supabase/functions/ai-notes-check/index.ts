@@ -363,6 +363,14 @@ async function callAnthropicAPI(prompt: string): Promise<{
           console.warn('[ai-notes-check] Skipping selected_text comment with invalid selectedText');
           return false;
         }
+
+        if (comment.selectedText.length > AI_CONFIG.MAX_SELECTED_TEXT_LENGTH) {
+          console.warn(
+            '[ai-notes-check] Skipping selected_text comment with overly long selectedText:',
+            comment.selectedText.length
+          );
+          return false;
+        }
       } else {
         // General comments should have null selectedText
         comment.selectedText = null;
@@ -614,6 +622,7 @@ Deno.serve(async (req: Request) => {
             code: 'unauthorized',
             message: 'Authorization required',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 401,
@@ -632,6 +641,7 @@ Deno.serve(async (req: Request) => {
             code: 'unauthorized',
             message: 'Invalid or expired token',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 401,
@@ -653,6 +663,7 @@ Deno.serve(async (req: Request) => {
             code: 'invalid_request',
             message: 'Invalid JSON body',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 400,
@@ -670,6 +681,7 @@ Deno.serve(async (req: Request) => {
             code: 'invalid_request',
             message: 'Missing resourceId',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 400,
@@ -706,6 +718,7 @@ Deno.serve(async (req: Request) => {
               code: 'resource_not_found',
               message: 'Resource not found or you do not have access to it',
             },
+            noCommentsMessage: null,
           } as AINotesCheckResponse,
           {
             status: 404,
@@ -714,36 +727,13 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // 5. Check if notes are empty
-      if (!resource.notes || resource.notes.trim().length === 0) {
-        await updateProcessingLog(processingLogId, {
-          status: 'failed',
-          error_details: { message: 'Notes are empty' },
-          processing_time_ms: Date.now() - startTime,
-        });
-
-        return Response.json(
-          {
-            success: false,
-            error: {
-              code: 'empty_notes',
-              message: 'Cannot analyze empty notes. Please add some notes first.',
-            },
-          } as AINotesCheckResponse,
-          {
-            status: 400,
-            headers: corsHeaders,
-          }
-        );
-      }
-
-      // 6. Fetch existing AI comments (to prevent duplicates)
+      // 5. Fetch existing AI comments (to prevent duplicates)
       const existingComments = await fetchExistingAIComments(body.resourceId, user.id);
 
-      // 7. Extract relevant metadata
+      // 6. Extract relevant metadata
       const metadata = getAIMetadataForResource(resource);
 
-      // 8. Build prompt and call Anthropic API
+      // 7. Build prompt and call Anthropic API
       const prompt = buildPrompt(resource.notes, metadata, existingComments);
 
       let aiResult: {
@@ -782,6 +772,7 @@ Deno.serve(async (req: Request) => {
               code: 'ai_api_error',
               message: 'Failed to get suggestions from AI. Please try again later.',
             },
+            noCommentsMessage: null,
           } as AINotesCheckResponse,
           {
             status: 500,
@@ -792,7 +783,52 @@ Deno.serve(async (req: Request) => {
 
       const aiResponse = aiResult.response;
 
-      // 9. Process each suggestion and create comments
+      // 9. Handle no-comments case (completed run without new suggestions)
+      if (aiResponse.comments.length === 0) {
+        const processingTimeMs = Date.now() - startTime;
+        const noCommentsMessage = aiResponse.no_comments_message ?? 'No new suggestions to add.';
+
+        await updateProcessingLog(processingLogId, {
+          status: 'completed',
+          input_data: {
+            systemPrompt: AI_CONFIG.SYSTEM_PROMPT,
+            prompt,
+            notesLength: resource.notes.length,
+            transcriptLength: resource.transcript?.length || 0,
+            metadataFields: Object.keys(metadata),
+            existingAIComments: existingComments.length,
+          },
+          output_data: {
+            commentsCreated: 0,
+            commentsFailed: 0,
+            totalSuggestions: 0,
+            noCommentsMessage,
+            failedComments: [],
+            model: aiResult.metadata.model,
+            inputTokens: aiResult.metadata.inputTokens,
+            outputTokens: aiResult.metadata.outputTokens,
+            stopReason: aiResult.metadata.stopReason,
+            rawResponse: aiResult.metadata.rawResponse,
+          },
+          processing_time_ms: processingTimeMs,
+        });
+
+        return Response.json(
+          {
+            success: true,
+            commentsCreated: 0,
+            commentsFailed: 0,
+            noCommentsMessage,
+            processingLogId,
+          } as AINotesCheckResponse,
+          {
+            status: 200,
+            headers: corsHeaders,
+          }
+        );
+      }
+
+      // 10. Process each suggestion and create comments
       let commentsCreated = 0;
       let commentsFailed = 0;
       const failedComments: Array<{ suggestion: AICommentSuggestion; error: string }> = [];
@@ -817,7 +853,7 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // 10. Update processing log with results
+      // 11. Update processing log with results
       const processingTimeMs = Date.now() - startTime;
       const finalStatus: 'completed' | 'partial_success' | 'failed' =
         commentsCreated > 0 && commentsFailed === 0
@@ -857,7 +893,7 @@ Deno.serve(async (req: Request) => {
         processing_time_ms: processingTimeMs,
       });
 
-      // 11. Return success response
+      // 12. Return success response
       return Response.json(
         {
           success: true,
@@ -892,6 +928,7 @@ Deno.serve(async (req: Request) => {
             code: 'processing_error',
             message: 'An error occurred while processing your notes. Please try again.',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 500,
@@ -911,6 +948,7 @@ Deno.serve(async (req: Request) => {
           code: 'internal_error',
           message: 'An unexpected error occurred',
         },
+        noCommentsMessage: null,
       } as AINotesCheckResponse,
       {
         status: 500,
