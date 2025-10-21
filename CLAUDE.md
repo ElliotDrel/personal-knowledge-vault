@@ -136,9 +136,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 1. **Check NOTICE logs** - Migration output shows counts/warnings
-2. **If needed run validation queries and verify indexes created** - Use queries from migration comments:
-3. **Query sample data** - Confirm data structure matches expectations
-4. **Document findings** - State "Verified: X resources migrated, Y indexes created"
+2. **Run validation script** - Execute `psql -f validate-ai-migrations.sql` (repo root) to confirm schema, indexes, and RLS policies
+3. **Run additional targeted queries if needed** - Use snippets from migration comments when digging into specific tables
+4. **Query sample data** - Confirm data structure matches expectations
+5. **Document findings** - State "Verified: X resources migrated, Y indexes created"
 
 **CRITICAL**: NOTICE logs show execution, not correctness. Always query actual data.
 
