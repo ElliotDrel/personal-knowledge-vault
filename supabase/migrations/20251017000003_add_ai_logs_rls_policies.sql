@@ -15,13 +15,13 @@ CREATE POLICY "users_view_own_ai_logs"
 -- INSERT: Service role can create logs (Edge Functions use service role)
 CREATE POLICY "service_role_insert_ai_logs"
   ON ai_processing_logs FOR INSERT
-  WITH CHECK (true);
+  WITH CHECK (auth.jwt()->>'role' = 'service_role');
 
 -- UPDATE: Service role can update logs (to set completion status, errors, etc.)
 CREATE POLICY "service_role_update_ai_logs"
   ON ai_processing_logs FOR UPDATE
-  USING (true)
-  WITH CHECK (true);
+  USING (auth.jwt()->>'role' = 'service_role')
+  WITH CHECK (auth.jwt()->>'role' = 'service_role');
 
 -- Note: No DELETE policy defined - logs are permanent for audit trail preservation
 -- If cleanup is needed, it should be done via scheduled database maintenance, not user/service actions

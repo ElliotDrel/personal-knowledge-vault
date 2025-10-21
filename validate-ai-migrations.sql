@@ -47,9 +47,5 @@ WHERE conrelid = 'comments'::regclass
 ORDER BY conname;
 
 -- Expected Results Summary:
--- ┌─────────────────────────┬──────────────┬─────────────┬──────────────┐
--- │ table_name              │ column_count │ index_count │ policy_count │
--- ├─────────────────────────┼──────────────┼─────────────┼──────────────┤
--- │ ai_processing_logs      │ 12           │ 5           │ 3            │
--- │ comments (AI fields)    │ 5            │ NULL        │ NULL         │
--- └─────────────────────────┴──────────────┴─────────────┴──────────────┘
+--   ai_processing_logs: column_count = 12, index_count = 5, policy_count = 3
+--   comments (AI fields): ai_field_count = 5
