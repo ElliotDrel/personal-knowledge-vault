@@ -29,6 +29,7 @@ export const AI_CONFIG = {
    */
   MAX_COMMENT_LENGTH: 200, // Keep suggestions concise and actionable
   MIN_SELECTED_TEXT_LENGTH: 5, // Minimum characters for text anchoring (prevents ambiguous matches)
+  MAX_SELECTED_TEXT_LENGTH: 500, // Prevent runaway selections that are too long to highlight reliably
   MAX_RETRY_ATTEMPTS: 3, // Maximum retry attempts for text matching failures
 
   /**
