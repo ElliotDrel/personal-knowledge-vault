@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MarkdownField } from '@/components/ui/markdown-field';
 import { NotesEditorDialog } from '@/components/NotesEditorDialog';
+import { TranscriptEditorDialog } from '@/components/dialogs/TranscriptEditorDialog';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import {
@@ -74,7 +75,7 @@ const ResourceDetail = () => {
   const [transcript, setTranscript] = useState('');
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [isNotesDialogDirty, setIsNotesDialogDirty] = useState(false);
-  const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+  const [isTranscriptDialogOpen, setIsTranscriptDialogOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +126,7 @@ const ResourceDetail = () => {
   useEffect(() => {
     if (!resource) {
       setNotes('');
-      if (!isEditingTranscript) {
+      if (!isTranscriptDialogOpen) {
         setTranscript('');
       }
       if (!isEditingMetadata) {
@@ -166,7 +167,7 @@ const ResourceDetail = () => {
       }
     }
 
-    if (!isEditingTranscript) {
+    if (!isTranscriptDialogOpen) {
       const lastSavedTimestamp = parseTimestamp(lastSavedAt);
       const shouldSyncTranscript =
         resourceTimestamp === null ||
@@ -205,7 +206,7 @@ const ResourceDetail = () => {
     }
   }, [
     resource,
-    isEditingTranscript,
+    isTranscriptDialogOpen,
     isEditingMetadata,
     transcript,
     notes,
@@ -297,7 +298,7 @@ const ResourceDetail = () => {
     setIsNotesDialogOpen(open);
   };
 
-  const handleSaveTranscript = async () => {
+  const handleSaveTranscript = async (value: string) => {
     if (!resource) {
       return;
     }
@@ -305,14 +306,14 @@ const ResourceDetail = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await storageAdapter.updateResource(resource.id, { transcript });
+      const result = await storageAdapter.updateResource(resource.id, { transcript: value });
       setTranscript(result.transcript || '');
       setLastSavedAt(result.updatedAt ?? new Date().toISOString());
       upsertResource(result);
-      setIsEditingTranscript(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveTranscript: Error saving transcript:', err);
       setError('Failed to save transcript');
+      throw err; // Re-throw so dialog can handle error state
     } finally {
       setLoading(false);
     }
@@ -880,6 +881,15 @@ const ResourceDetail = () => {
           onCommentCountChange={setCommentCount}
         />
 
+        {/* Transcript Editor Dialog */}
+        <TranscriptEditorDialog
+          open={isTranscriptDialogOpen}
+          onOpenChange={setIsTranscriptDialogOpen}
+          initialValue={transcript}
+          onSave={handleSaveTranscript}
+          isLoading={loading}
+        />
+
         {/* Transcript Section (for videos/podcasts/short-videos) */}
         {(resource.type === 'video' || resource.type === 'podcast' || resource.type === 'short-video') && (
           <Card className="bg-gradient-card border-0 shadow-card">
@@ -891,27 +901,11 @@ const ResourceDetail = () => {
                 </div>
                 <Button
                   size="sm"
-                  variant={isEditingTranscript ? "default" : "outline"}
-                  onClick={() => {
-                    if (isEditingTranscript) {
-                      handleSaveTranscript();
-                    } else {
-                      setLastSavedAt(resource?.updatedAt ?? null);
-                      setIsEditingTranscript(true);
-                    }
-                  }}
+                  variant="outline"
+                  onClick={() => setIsTranscriptDialogOpen(true)}
                 >
-                  {isEditingTranscript ? (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save
-                    </>
-                  ) : (
-                    <>
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit
-                    </>
-                  )}
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit Transcript
                 </Button>
               </div>
               <CardDescription>
@@ -919,26 +913,15 @@ const ResourceDetail = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isEditingTranscript ? (
-                <Textarea
-                  value={transcript}
-                  onChange={(e) => {
-                    setTranscript(e.target.value);
-                  }}
-                  placeholder="Paste transcript or key quotes here..."
-                  className="min-h-[300px] font-reading text-sm leading-relaxed resize-none"
-                />
-              ) : (
-                <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
-                    {transcript || (
-                      <div className="text-muted-foreground italic text-center py-8">
-                        No transcript available. Click Edit to add one.
-                      </div>
-                    )}
-                  </div>
+              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
+                  {transcript || (
+                    <div className="text-muted-foreground italic text-center py-8">
+                      No transcript available. Click Edit Transcript to add one.
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
         )}
