@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
 import { marked } from 'marked';
 import TurndownService from 'turndown';
 import { Button } from '@/components/ui/button';
@@ -21,8 +22,8 @@ import {
  * Configure Turndown for consistent markdown output
  *
  * Settings:
- * - headingStyle: 'atx' → Use # syntax for headings (not underlines)
- * - codeBlockStyle: 'fenced' → Use ``` for code blocks (not indentation)
+ * - headingStyle: 'atx' -> Use # syntax for headings (not underlines)
+ * - codeBlockStyle: 'fenced' -> Use ``` for code blocks (not indentation)
  */
 const turndownService = new TurndownService({
   headingStyle: 'atx',
@@ -83,17 +84,27 @@ export function WYSIWYGEditor({
 }: WYSIWYGEditorProps) {
   // Convert markdown to HTML for initial content
   const initialHtml = marked(value || '') as string;
+  const lastSyncedMarkdownRef = useRef(value ?? '');
 
-  // Initialize TipTap editor
-  const editor = useEditor({
-    extensions: [
+  const extensions = useMemo(
+    () => [
       StarterKit.configure({
         // Disable default keyboard shortcuts that conflict with browser
         heading: {
           levels: [1, 2, 3],
         },
       }),
+      Placeholder.configure({
+        placeholder,
+        emptyEditorClass: 'is-editor-empty',
+      }),
     ],
+    [placeholder],
+  );
+
+  // Initialize TipTap editor
+  const editor = useEditor({
+    extensions,
     content: initialHtml,
     editable: !readOnly,
     autofocus: autoFocus,
@@ -108,21 +119,29 @@ export function WYSIWYGEditor({
         const html = editor.getHTML();
         const markdown = turndownService.turndown(html);
         onChange(markdown);
+        lastSyncedMarkdownRef.current = markdown;
       }
     },
   });
 
   // Sync external value changes to editor
   useEffect(() => {
-    if (editor && value !== undefined) {
-      const currentHtml = editor.getHTML();
-      const newHtml = marked(value || '') as string;
-
-      // Only update if content actually changed (avoid cursor jumps)
-      if (currentHtml !== newHtml) {
-        editor.commands.setContent(newHtml);
-      }
+    if (!editor) {
+      return;
     }
+
+    const normalizedValue = value ?? '';
+
+    // Only update when external markdown changes
+    if (normalizedValue !== lastSyncedMarkdownRef.current) {
+      const newHtml = marked(normalizedValue) as string;
+      editor.commands.setContent(newHtml, false);
+      lastSyncedMarkdownRef.current = normalizedValue;
+      return;
+    }
+
+    // Keep ref aligned even if nothing changed
+    lastSyncedMarkdownRef.current = normalizedValue;
   }, [value, editor]);
 
   // Cleanup editor on unmount
