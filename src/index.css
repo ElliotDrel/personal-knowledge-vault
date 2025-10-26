@@ -204,4 +204,22 @@
   .badge-short-video {
     @apply bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700;
   }
+
+  /* TipTap / ProseMirror Editor Styles */
+  .ProseMirror {
+    @apply outline-none;
+  }
+
+  .ProseMirror p.is-editor-empty:first-child::before {
+    @apply text-muted-foreground;
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+  }
+
+  /* Ensure editor content is visible */
+  .ProseMirror > * + * {
+    margin-top: 0.75em;
+  }
 }
