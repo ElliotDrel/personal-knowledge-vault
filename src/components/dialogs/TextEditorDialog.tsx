@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
 import { Loader2, Save } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface TextEditorDialogProps {
   /** Controls dialog open/close state */
@@ -80,34 +81,46 @@ export function TextEditorDialog({
 }: TextEditorDialogProps) {
   const [currentValue, setCurrentValue] = useState(initialValue);
   const [isDirty, setIsDirty] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Reset content and dirty state when dialog opens
   useEffect(() => {
     if (open) {
       setCurrentValue(initialValue);
       setIsDirty(false);
+      setSaveError(null);
     }
   }, [open, initialValue]);
 
   const handleChange = (value: string) => {
     setCurrentValue(value);
     setIsDirty(true);
+    if (saveError) {
+      setSaveError(null);
+    }
   };
 
   const handleSave = async () => {
     try {
+      setSaveError(null);
       await onSave(currentValue);
       setIsDirty(false);
       onOpenChange(false);
     } catch (error) {
       // Error handling delegated to parent via onSave
       console.error('Save failed:', error);
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to save changes. Please try again.';
+      setSaveError(message);
     }
   };
 
   const handleCancel = () => {
     // TODO: Add unsaved changes warning if isDirty
     onOpenChange(false);
+    setSaveError(null);
   };
 
   return (
@@ -130,6 +143,13 @@ export function TextEditorDialog({
             minHeight={400}
           />
         </div>
+
+        {saveError && (
+          <Alert variant="destructive">
+            <AlertTitle>Save failed</AlertTitle>
+            <AlertDescription>{saveError}</AlertDescription>
+          </Alert>
+        )}
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
