@@ -10,7 +10,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 3. **DOCUMENTATION-FIRST**: Always check official documentation for Supabase, Vercel, and complex libraries before coding. Use the **Context7 MCP** tools for library docs. For external libraries: check version/changelog for breaking changes, then test minimal example in isolation BEFORE full integration.
 
-4. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**: Before creating ANY utility function OR component, search for existing ones first: `rg "normalize" --type ts` or `rg "useMutation" --type tsx` or `rg "Progress" --type tsx`. Reuse existing patterns (functions, hooks, components, styling patterns). Update ALL occurrences in both `src/` and `supabase/functions/` simultaneously. **This applies to**: utilities, components, hooks, type definitions, and UI patterns.
+4. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**:
+
+   **Before ADDING** - Search for existing patterns:
+   - Creating utility? `rg "normalize" --type ts`
+   - Creating component? `rg "Progress" --type tsx`
+   - Creating hook? `rg "useMutation" --type tsx`
+   - Reuse existing patterns and update ALL occurrences in both `src/` and `supabase/functions/`
+
+   **Before REMOVING** - Search for ALL references:
+   - Removing function? `rg "functionName"` AND `rg "functionName\("`
+   - Removing React state? `rg "variableName"` AND `rg "setVariableName"` (SEPARATE searches!)
+   - Remove ALL references found in BOTH searches
+   - Test in browser after (build doesn't catch runtime errors)
+
+   **This applies to**: utilities, components, hooks, state, props, type definitions, and UI patterns.
 
 5. **Use Storage Adapter Only**: Always `import { useStorageAdapter } from '@/data/storageAdapter'`. Never import `storage.ts` or `supabaseStorage.ts` directly.
 
@@ -25,10 +39,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - [ ] Checked hook ordering: useState → useQuery → useCallback/useMemo → useEffect
    - [ ] Any async function used in useEffect is wrapped in useCallback
    - [ ] State initialized where it's owned (not lazily by child components)
+   - [ ] **For state/prop/function removal: Searched for BOTH variable AND setter (if state), removed ALL references, tested in browser**
    - [ ] For textarea overlays: Used `getComputedStyle()` mirroring + scroll sync + transparent text
    - [ ] For markdown processing: Used rehype plugin (not source splitting)
    - [ ] For multi-element components: Provided granular className props
-   - [ ] Tested in browser after each integration point (not just at end)
+   - [ ] **Tested in browser after EACH integration point (build passing ≠ app working)**
    - [ ] `npm run build` passes
    - [ ] `npm run lint` passes
    - [ ] For backend/Edge Function changes: Verified in production logs/database (not just build)
@@ -41,7 +56,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 11. **Mirror Target Styles for Overlays (NEW)**: For highlight overlays, ghost inputs, or mirror divs, read `getComputedStyle` from the real control, apply font/line-height/padding/border radius/box sizing to the overlay, and sync scroll offsets. Always set overlay text color to transparent so only the background shows. Never rely on Tailwind class duplication—drifted highlights mean you skipped this rule.
 
-12. **Systematic Refactoring** (NEW): When removing state variables, functions, or props: use IDE "Find All References" + search string literals (`rg "isEditingNotes"`), update ALL references, then test immediately to catch "undefined" errors.
+12. **Systematic Refactoring - Complete the Circle** (CRITICAL): When removing state variables, functions, or props, follow the COMPLETE refactoring circle:
+
+   **For React State Removal:**
+   1. Search for variable: `rg "variableName"`
+   2. **Search for setter SEPARATELY**: `rg "setVariableName"` (CRITICAL - different references!)
+   3. Remove/update ALL references from BOTH searches
+   4. Run `npm run build` to catch TypeScript errors
+   5. **Test in browser** - navigate to affected component and verify it works
+   6. Only then mark complete
+
+   **For Functions/Props:**
+   1. Search for declaration: `rg "functionName"`
+   2. Search for all call sites: `rg "functionName\("`
+   3. Remove/update ALL references
+   4. Build + browser test
+
+   **Why**: State setters and variables have separate reference points. Removing only one causes runtime errors that build doesn't catch. Browser testing is the ONLY way to verify removal is complete.
 
 13. **CLARIFY DATA MODELS BEFORE SCHEMA** (NEW - Prevents Major Rework): When implementing database tables with relationships (comments/replies, threads, hierarchies), ALWAYS ask specific questions about the data model BEFORE creating migrations:
    - "Should this be separate tables or a self-referential table?"
@@ -265,6 +296,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 | Issue | Fix |
 |-------|-----|
+| White screen after refactoring / "X is not defined" | Search for ALL references to removed item - for React state, search BOTH `variableName` AND `setVariableName` separately. Remove all uses, then test in browser. |
 | AI prompt/config changes not working | Edit `supabase/functions/ai-notes-check/config.ts` and redeploy with `npm run deploy:edge`. |
 | "Cannot access before initialization" | Declare `useCallback` before the `useEffect` that depends on it and keep the documented hook order. |
 | Infinite re-render loops | Wrap async effect logic in `useCallback`, reference it inside `useEffect`, and audit dependency arrays. |
