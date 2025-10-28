@@ -53,7 +53,7 @@ export function checkCommentStale(
     return { isStale: false, currentText: '' };
   }
 
-  const { startOffset, endOffset, quotedText } = comment;
+  const { startOffset, endOffset, quotedText, originalQuotedText } = comment;
 
   // Safety checks
   if (
@@ -67,13 +67,17 @@ export function checkCommentStale(
   // Extract current text at offset range
   const currentText = text.slice(startOffset, endOffset);
 
-  // If identical, definitely not stale
-  if (currentText === quotedText) {
+  // Use originalQuotedText as baseline if available (better accuracy)
+  // Falls back to quotedText for backwards compatibility
+  const referenceText = originalQuotedText || quotedText;
+
+  // If identical to reference, definitely not stale
+  if (currentText === referenceText) {
     return { isStale: false, currentText };
   }
 
-  // Calculate similarity
-  const similarity = calculateSimilarity(currentText, quotedText);
+  // Calculate similarity against original text
+  const similarity = calculateSimilarity(currentText, referenceText);
 
   // Threshold: 50% similarity
   // If less than 50% of characters match, consider stale
