@@ -36,6 +36,9 @@ import { Label } from '@/components/ui/label';
 import { MarkdownField } from '@/components/ui/markdown-field';
 import { NotesEditorDialog } from '@/components/NotesEditorDialog';
 import { TranscriptEditorDialog } from '@/components/dialogs/TranscriptEditorDialog';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeSanitize from 'rehype-sanitize';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import {
@@ -729,7 +732,7 @@ const ResourceDetail = () => {
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Author</p>
-                          <p className="font-medium">{resource.author}</p>
+                          <p className="font-reading text-base">{resource.author}</p>
                         </div>
                       </div>
                     )}
@@ -738,7 +741,7 @@ const ResourceDetail = () => {
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Creator</p>
-                          <p className="font-medium">{resource.creator}</p>
+                          <p className="font-reading text-base">{resource.creator}</p>
                         </div>
                       </div>
                     )}
@@ -747,7 +750,7 @@ const ResourceDetail = () => {
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Duration</p>
-                          <p className="font-medium">{resource.duration}</p>
+                          <p className="font-reading text-base">{resource.duration}</p>
                         </div>
                       </div>
                     )}
@@ -756,7 +759,7 @@ const ResourceDetail = () => {
                         <Calendar className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Year</p>
-                          <p className="font-medium">{resource.year}</p>
+                          <p className="font-reading text-base">{resource.year}</p>
                         </div>
                       </div>
                     )}
@@ -766,7 +769,7 @@ const ResourceDetail = () => {
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Channel</p>
-                          <p className="font-medium">{resource.channelName}</p>
+                          <p className="font-reading text-base">{resource.channelName}</p>
                         </div>
                       </div>
                     )}
@@ -775,7 +778,7 @@ const ResourceDetail = () => {
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Handle</p>
-                          <p className="font-medium">@{resource.handle}</p>
+                          <p className="font-reading text-base">@{resource.handle}</p>
                         </div>
                       </div>
                     )}
@@ -784,7 +787,7 @@ const ResourceDetail = () => {
                         <span className="w-4 h-4 text-muted-foreground">👁</span>
                         <div>
                           <p className="text-sm text-muted-foreground">Views</p>
-                          <p className="font-medium">{resource.viewCount.toLocaleString()}</p>
+                          <p className="font-reading text-base">{resource.viewCount.toLocaleString()}</p>
                         </div>
                       </div>
                     )}
@@ -914,13 +917,17 @@ const ResourceDetail = () => {
             </CardHeader>
             <CardContent>
               <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
-                <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
-                  {transcript || (
-                    <div className="text-muted-foreground italic text-center py-8">
-                      No transcript available. Click Edit Transcript to add one.
-                    </div>
-                  )}
-                </div>
+                {transcript ? (
+                  <div className="prose prose-slate dark:prose-invert max-w-none font-reading text-base leading-relaxed">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+                      {transcript}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground italic text-center py-8">
+                    No transcript available. Click Edit Transcript to add one.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

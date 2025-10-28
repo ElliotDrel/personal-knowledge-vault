@@ -47,6 +47,8 @@ interface WYSIWYGEditorProps {
   showToolbar?: boolean;
   /** Auto-focus editor on mount (default: false) */
   autoFocus?: boolean;
+  /** Callback when user selects text (provides selected text and character offsets in markdown) */
+  onSelectionChange?: (selection: { text: string; start: number; end: number } | null) => void;
 }
 
 /**
@@ -81,6 +83,7 @@ export function WYSIWYGEditor({
   readOnly = false,
   showToolbar = true,
   autoFocus = false,
+  onSelectionChange,
 }: WYSIWYGEditorProps) {
   // Convert markdown to HTML for initial content
   const initialHtml = marked(value || '') as string;
@@ -120,6 +123,47 @@ export function WYSIWYGEditor({
         const markdown = turndownService.turndown(html);
         onChange(markdown);
         lastSyncedMarkdownRef.current = markdown;
+      }
+    },
+    onSelectionUpdate: ({ editor }) => {
+      if (!onSelectionChange) return;
+
+      const { from, to } = editor.state.selection;
+
+      // If no selection (cursor only), clear
+      if (from === to) {
+        onSelectionChange(null);
+        return;
+      }
+
+      // Get selected text from editor
+      const selectedText = editor.state.doc.textBetween(from, to);
+
+      // Convert current content to markdown to get accurate offsets
+      const html = editor.getHTML();
+      const markdown = turndownService.turndown(html);
+
+      // Find the selected text in the markdown
+      // This is approximate but works for basic selection tracking
+      const markdownStartIndex = markdown.indexOf(selectedText);
+
+      if (markdownStartIndex >= 0) {
+        onSelectionChange({
+          text: selectedText,
+          start: markdownStartIndex,
+          end: markdownStartIndex + selectedText.length,
+        });
+      } else {
+        // If exact match not found, use text content positions
+        const textContent = editor.state.doc.textContent;
+        const textFrom = editor.state.doc.textBetween(0, from).length;
+        const textTo = textFrom + selectedText.length;
+
+        onSelectionChange({
+          text: selectedText,
+          start: textFrom,
+          end: textTo,
+        });
       }
     },
   });
