@@ -167,7 +167,7 @@ const NewResource = () => {
       };
 
       const savedResource = await storageAdapter.addResource(newResource);
-      navigate(`/dashboard/resource/${savedResource.id}`);
+      navigate(`/resource/${savedResource.id}`);
     } catch (error) {
       console.error('Error creating resource:', error);
       setFormError(error instanceof Error ? error.message : 'Failed to create resource');
@@ -352,7 +352,7 @@ const NewResource = () => {
               <RotateCcw className="w-4 h-4 mr-2" />
               Try Again
             </Button>
-            <Link to="/dashboard">
+            <Link to="/">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Dashboard
@@ -380,7 +380,7 @@ const NewResource = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
-          <Link to="/dashboard">
+          <Link to="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
@@ -502,7 +502,7 @@ const NewResource = () => {
                   <p>No custom fields configured for this resource type.</p>
                   <p className="text-sm mt-1">
                     You can add custom fields in{' '}
-                    <Link to="/dashboard/settings" className="text-primary hover:underline">
+                    <Link to="/settings" className="text-primary hover:underline">
                       Settings
                     </Link>
                     .
@@ -576,7 +576,7 @@ const NewResource = () => {
                 </>
               )}
             </Button>
-            <Link to="/dashboard">
+            <Link to="/">
               <Button type="button" variant="outline" size="lg" disabled={loading}>
                 Cancel
               </Button>
