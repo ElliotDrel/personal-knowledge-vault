@@ -1,6 +1,22 @@
 /**
  * URL utilities for short-form video processing
  * Handles URL validation, normalization, and platform detection
+ *
+ * ⚠️ SYNC WARNING ⚠️
+ * ==================
+ * The normalizeUrl() function is a COPY synced from frontend.
+ * DO NOT EDIT DIRECTLY - edit the frontend version instead.
+ *
+ * SOURCE OF TRUTH: src/utils/urlDetection.ts
+ * THIS FILE IS:    Copy (supabase/functions/short-form/utils/urlUtils.ts)
+ *
+ * WHY: Edge Functions cannot import from src/ directory (Deno runtime limitation)
+ *
+ * AUTOMATED PROTECTION:
+ * - Deployment blocked if function logic is out of sync
+ * - Always use `npm run deploy:edge:short-form` to deploy (auto-validates sync)
+ *
+ * NOTE: Logging differences are OK (console.error vs logWarn)
  */
 
 import { ShortFormPlatform, PLATFORM_CONFIGS } from '../types.ts'
@@ -68,7 +84,7 @@ export function normalizeUrl(url: string): string {
   } catch (error) {
     // If it's a validation error (e.g., invalid video ID), re-throw it
     // so the caller can handle it appropriately
-    if (error.message.includes('Invalid YouTube video ID')) {
+    if (error instanceof Error && error.message.includes('Invalid YouTube video ID')) {
       logWarn('Invalid YouTube URL detected', { url, error: error.message })
       throw error
     }
