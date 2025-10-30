@@ -39,6 +39,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
 import { Save, Loader2 } from 'lucide-react';
+import { stripMarkdown } from '@/utils/stripMarkdown';
 
 // Comment system imports
 import type { CommentWithReplies } from '@/types/comments';
@@ -83,7 +84,9 @@ export function NotesEditorDialog({
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [showResolvedComments, setShowResolvedComments] = useState(false);
   const [isCreatingComment, setIsCreatingComment] = useState(false);
-  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [selectionRange, setSelectionRange] = useState<
+    { start: number; end: number; text: string } | null
+  >(null);
   const [commentsLoading, setCommentsLoading] = useState(false);
 
   // AI Notes Check state
@@ -225,7 +228,19 @@ export function NotesEditorDialog({
     }
 
     // Check if selection is not just whitespace
-    const selectedText = currentValue.slice(selectionRange.start, selectionRange.end);
+    const plainText = stripMarkdown(currentValue);
+
+    if (selectionRange.start < 0 || selectionRange.end > plainText.length) {
+      console.warn('[NotesEditorDialog] Selection range out of bounds for plain text:', {
+        range: selectionRange,
+        plainTextLength: plainText.length,
+      });
+      return;
+    }
+
+    const selectedText =
+      plainText.slice(selectionRange.start, selectionRange.end) || selectionRange.text;
+
     if (!selectedText.trim()) {
       console.warn('[NotesEditorDialog] Cannot create comment on empty text selection');
       return;
@@ -244,19 +259,22 @@ export function NotesEditorDialog({
     }
 
     // Validate offsets are within bounds
-    if (selectionRange.start < 0 || selectionRange.end > currentValue.length) {
+    const plainText = stripMarkdown(currentValue);
+
+    if (selectionRange.start < 0 || selectionRange.end > plainText.length) {
       console.error('[NotesEditorDialog] Selection range out of bounds:', {
         range: selectionRange,
-        textLength: currentValue.length,
+        plainTextLength: plainText.length,
       });
       return;
     }
 
     try {
-      const quotedText = currentValue.slice(
-        selectionRange.start,
-        selectionRange.end
-      );
+      let quotedText = plainText.slice(selectionRange.start, selectionRange.end);
+
+      if (!quotedText && selectionRange.text) {
+        quotedText = selectionRange.text;
+      }
 
       // Final validation before creating comment
       if (!quotedText.trim()) {
@@ -483,10 +501,14 @@ export function NotesEditorDialog({
                 onChange={handleValueChange}
                 onSelectionChange={(selection) => {
                   if (selection) {
-                    setSelectionRange({ start: selection.start, end: selection.end });
-                  } else {
-                    setSelectionRange(null);
-                  }
+                setSelectionRange({
+                  start: selection.start,
+                  end: selection.end,
+                  text: selection.text,
+                });
+              } else {
+                setSelectionRange(null);
+              }
                 }}
                 placeholder="Start writing your notes... Use markdown formatting and WYSIWYG editing."
                 minHeight={400}
