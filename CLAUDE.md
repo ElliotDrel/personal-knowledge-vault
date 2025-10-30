@@ -52,7 +52,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 9. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
 
-10. **Incremental Testing**: After EACH significant change, run `npm run build` and test in browser.
+10. **Incremental Testing (Layer-by-Layer)**: After EACH layer of implementation, verify that layer works before proceeding:
+   - **After creating utility**: Test utility in isolation with console.log or unit test
+   - **After updating component**: Test component behavior in browser (not just build)
+   - **After integration**: Test end-to-end flow and verify data reaches destination correctly
+   - **After database write**: Query database to confirm stored format matches expectations
+   - **Red flag**: If you're "done" but haven't opened the browser or checked the database, you're not done
+   - **Why**: Build passing only means "TypeScript compiles" - it says nothing about runtime behavior or data correctness
 
 11. **Mirror Target Styles for Overlays (NEW)**: For highlight overlays, ghost inputs, or mirror divs, read `getComputedStyle` from the real control, apply font/line-height/padding/border radius/box sizing to the overlay, and sync scroll offsets. Always set overlay text color to transparent so only the background shows. Never rely on Tailwind class duplication—drifted highlights mean you skipped this rule.
 
@@ -344,6 +350,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 | Prompt changes deployed but not working | Check `ai_processing_logs.input_data->>'systemPrompt'` to verify new prompt is actually being sent. |
 | AI generating duplicate suggestions | Put anti-duplication rules FIRST with visual emphasis; use domain-specific examples; force sequential workflow (list covered → propose new → filter). |
 | Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
+| Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
 | Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
 
 ## Lessons Learned
@@ -351,12 +358,16 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 ### Core Habits
 - Clarify requirements with concrete scenarios before choosing libraries or data models.
 - Search the codebase before writing new utilities or components; reuse or update shared patterns across frontend and backend.
+- Default to standardization: extend existing utilities/components/hooks instead of creating new variants, and only add net-new code when reuse is impossible and documented.
 - Read official docs and regenerate types before coding, and confirm the schema design with the user before creating migrations.
 
 ### Implementation Discipline
 - Keep React hooks ordered (`useState` -> data fetching -> memoization -> effects), wrap async work in `useCallback`, and initialize state where it lives.
-- Test incrementally: after meaningful changes run `npm run build`/`npm run lint` and open the browser instead of batching fixes at the end. Never batch all testing to the end.
+- Test incrementally: after EACH layer (utility → component → integration → storage), verify that layer in isolation before proceeding. Never batch all testing to the end.
+- **Verify stored data format**: For any persistence feature, query the database to confirm stored format. Build passing means "compiles", not "stores correctly".
+- **Standardize transformations**: When same transformation happens in multiple places (markdown→plain, encode/decode, format), create ONE utility and use everywhere. Red flag: data "fixes itself later" via background sync means transformation isn't applied at all entry points.
 - For overlays or markdown, mirror styles with `getComputedStyle`, sync scroll positions, and transform the rendered AST (rehype) rather than splitting source text.
+- When persistence relies on transformed text offsets (e.g., stripped markdown), store anchors using that same plain-text string and keep a cached selection from the editor so formatting markers never hit the database. Trace full pipeline: selection → storage → database.
 - For TipTap-based editors, track the last synced markdown in a ref and only call `setContent` when the upstream markdown actually changes; comparing raw HTML causes cursor resets.
 - When styling ProseMirror placeholders, add the `@tiptap/extension-placeholder` extension (with matching `emptyEditorClass`) so the CSS selector is triggered.
 - Surface save failures inside modal dialogs (e.g., inline alert state) so the user sees the error even while the dialog remains open.
