@@ -46,7 +46,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - [ ] **Tested in browser after EACH integration point (build passing ≠ app working)**
    - [ ] `npm run build` passes
    - [ ] `npm run lint` passes
-   - [ ] For backend/Edge Function changes: Verified in production logs/database (not just build)
+   - [ ] **For Edge Function changes: Deployed via CLI (`npx supabase functions deploy <name>`), tested in app, verified in database (not just build)**
    - [ ] For prompt changes: User tested with actual AI call and confirmed behavior in logs
    - [ ] For duplication: Grepped for imports to verify both copies are actually used
 
@@ -57,8 +57,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - **After updating component**: Test component behavior in browser (not just build)
    - **After integration**: Test end-to-end flow and verify data reaches destination correctly
    - **After database write**: Query database to confirm stored format matches expectations
+   - **After Edge Function changes**: Deploy immediately (`npx supabase functions deploy <name>`), trigger via app, query database to verify stored data format
    - **Red flag**: If you're "done" but haven't opened the browser or checked the database, you're not done
    - **Why**: Build passing only means "TypeScript compiles" - it says nothing about runtime behavior or data correctness
+
+   **CRITICAL for Edge Functions**: `npm run build` does NOT deploy Edge Functions. You MUST:
+   1. Deploy: `npx supabase functions deploy <name>`
+   2. Test: Trigger via the running app
+   3. Verify: Query database to confirm stored data format
+   4. Never present "testing instructions" without completing steps 1-3 first
 
 11. **Mirror Target Styles for Overlays (NEW)**: For highlight overlays, ghost inputs, or mirror divs, read `getComputedStyle` from the real control, apply font/line-height/padding/border radius/box sizing to the overlay, and sync scroll offsets. Always set overlay text color to transparent so only the background shows. Never rely on Tailwind class duplication—drifted highlights mean you skipped this rule.
 
@@ -352,6 +359,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 | Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
 | Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
 | Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
+| Edge Function changes not working | Deploy immediately after code changes: `npx supabase functions deploy <name>`. Don't wait for user to discover it's not deployed. `npm run build` does NOT deploy Edge Functions. |
 
 ## Lessons Learned
 
@@ -381,6 +389,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - Use domain-specific examples and force sequential reasoning in prompts; verify results in `ai_processing_logs` before calling a change "done."
 - Question duplication: grep for imports before keeping parallel configs or helpers, and delete dead code instead of letting it drift.
 - Validate external integrations against official docs and production logs instead of assuming a passing build means success.
+- **For Edge Functions: Deploy → Test → Verify pipeline is mandatory**. Never present "testing instructions" without deploying first. `npm run build` only builds frontend, not Edge Functions.
 
 ## Project Status (Updated 2025-10-17)
 
