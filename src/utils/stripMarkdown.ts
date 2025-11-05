@@ -56,7 +56,11 @@ export function normalizePlainTextWhitespace(
   return trimEdges ? normalized.trim() : normalized;
 }
 
-export function stripMarkdown(markdown: string): string {
+interface StripMarkdownOptions {
+  trimEdges?: boolean;
+}
+
+export function stripMarkdown(markdown: string, options: StripMarkdownOptions = {}): string {
   if (!markdown) return '';
 
   let text = markdown;
@@ -99,7 +103,9 @@ export function stripMarkdown(markdown: string): string {
   // Remove horizontal rules (---, ***, ___)
   text = text.replace(/^[-*_]{3,}$/gm, '');
 
-  return normalizePlainTextWhitespace(text);
+  const { trimEdges = true } = options;
+
+  return normalizePlainTextWhitespace(text, { trimEdges });
 }
 
 /**
