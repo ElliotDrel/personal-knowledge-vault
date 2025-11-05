@@ -11,7 +11,7 @@ import type {
   AINotesCheckResponse,
 } from '@/types/comments';
 import type { Tables } from '@/types/supabase-generated';
-import { stripMarkdown } from '@/utils/stripMarkdown';
+import { normalizePlainTextWhitespace } from '@/utils/stripMarkdown';
 
 type CommentRow = Tables<'comments'>;
 
@@ -704,16 +704,31 @@ export const createComment = async (
   try {
     const user = await getCurrentUser();
 
-    const normalizedQuotedText =
-      typeof input.quotedText === 'string' ? stripMarkdown(input.quotedText) : null;
+    const isSelectedTextComment = input.commentType === 'selected-text';
+
+    if (isSelectedTextComment) {
+      if (
+        input.quotedText === undefined ||
+        input.startOffset === undefined ||
+        input.endOffset === undefined
+      ) {
+        throw new Error(
+          '[supabaseStorage] quotedText, startOffset, and endOffset are required for selected-text comments'
+        );
+      }
+    }
+
+    const normalizedQuotedText = isSelectedTextComment
+      ? normalizePlainTextWhitespace(input.quotedText)
+      : null;
 
     const payload: Record<string, unknown> = {
       resource_id: input.resourceId,
       user_id: user.id,
       comment_type: input.commentType,
       status: 'active',
-      start_offset: input.startOffset ?? null,
-      end_offset: input.endOffset ?? null,
+      start_offset: isSelectedTextComment ? input.startOffset : null,
+      end_offset: isSelectedTextComment ? input.endOffset : null,
       quoted_text: normalizedQuotedText,
       body: input.body.trim(),
       thread_root_id: input.threadRootId ?? null,
