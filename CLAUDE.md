@@ -279,30 +279,22 @@ This file contains:
 
 | Config/Utility | Frontend Source | Edge Function Copy | Validation Script |
 |----------------|-----------------|-------------------|-------------------|
-| `PLATFORM_CONFIGS` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:video-platform-extraction` |
-| `POLLING_CONFIG` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:video-polling-settings` |
-| `normalizeUrl()` | `src/utils/urlDetection.ts` | `supabase/functions/short-form/utils/urlUtils.ts` | `check-sync:url-normalization` |
+| `PLATFORM_CONFIGS` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:all` (auto-detects) |
+| `POLLING_CONFIG` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:all` (auto-detects) |
+| `normalizeUrl()` | `src/utils/urlDetection.ts` | `supabase/functions/short-form/utils/urlUtils.ts` | `check-sync:all` (auto-detects) |
 
 #### Workflow (When Editing Duplicated Configs)
 
 1. **Edit the frontend source of truth** (e.g., `src/types/shortFormApi.ts`)
 2. **Manually copy changes** to Edge Function file (e.g., `supabase/functions/short-form/types.ts`)
-3. **Validate sync**: `npm run check-sync:short-form`
+3. **Validate sync**: `npm run check-sync:all`
 4. **Deploy with validation**: `npm run deploy:edge:short-form` (auto-validates before deploying)
 
 #### Available Commands
 
-**Individual checks** (fast iteration):
+**Primary check command**:
 ```bash
-npm run check-sync:video-platform-extraction  # Validate PLATFORM_CONFIGS
-npm run check-sync:video-polling-settings     # Validate POLLING_CONFIG
-npm run check-sync:url-normalization          # Validate normalizeUrl function
-```
-
-**Composite checks**:
-```bash
-npm run check-sync:short-form  # All short-form validations
-npm run check-sync:all         # All Edge Function validations
+npm run check-sync:all  # Validates all duplicated configs before deploy
 ```
 
 **Deployment commands** (with validation):
