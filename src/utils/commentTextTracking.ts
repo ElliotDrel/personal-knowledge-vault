@@ -180,9 +180,14 @@ export function updateCommentOffsets(
     // Boundary case: User types at position 10 -> comment expands to include new text
     if (changeStart >= startOffset && changeStart <= endOffset) {
       if (comment.isStale) {
+        const adjustedEnd = Math.max(
+          startOffset,
+          Math.min(endOffset, endOffset + changeLength)
+        );
+
         return {
           ...comment,
-          endOffset: Math.max(startOffset, Math.min(endOffset, startOffset)),
+          endOffset: adjustedEnd,
         };
       }
 
