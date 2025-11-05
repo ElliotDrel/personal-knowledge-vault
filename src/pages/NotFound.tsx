@@ -17,7 +17,7 @@ const NotFound = () => {
         </div>
         <h1 className="text-4xl font-bold mb-4 bg-gradient-knowledge bg-clip-text text-transparent">404</h1>
         <p className="text-xl text-muted-foreground mb-8">This page doesn't exist in your knowledge vault</p>
-        <Link to="/">
+        <Link to="/dashboard">
           <Button className="bg-gradient-primary hover:shadow-knowledge transition-smooth">
             Return to Dashboard
           </Button>
