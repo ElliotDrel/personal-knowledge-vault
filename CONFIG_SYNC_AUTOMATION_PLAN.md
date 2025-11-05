@@ -6,6 +6,8 @@
 - **Approach**: Create granular sync check scripts per Edge Function using separate scripts + composition pattern; add inline warnings to duplicated files; document sync requirements in CLAUDE.md; use npm scripts to enforce checks before deployment.
 - **Guiding principles**: Fail-fast deployment blocking (not silent warnings), single responsibility per script (fast iteration), composition over monoliths (flexible workflows), human + AI + automated reminders (defense in depth), future-ready for database-backed config migration.
 
+> Update (2025-10-18): Per-config scripts were replaced by a single unified checker (`scripts/check-config-sync.js`) exposed as `npm run check-sync:all`. References to legacy command names below are historical notes from the initial design.
+
 ## Current Status (2025-10-17)
 
 **IN PROGRESS**: Batch 1 partially complete (AI notes check config sync). Remaining batches cover short-form Edge Function and composite deployment commands.
