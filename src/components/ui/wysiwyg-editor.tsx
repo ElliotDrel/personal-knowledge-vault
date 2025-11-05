@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { stripMarkdown, normalizePlainTextWhitespace } from '@/utils/stripMarkdown';
 import { sanitizeHtml } from '@/utils/sanitizeHtml';
+import { DOMSerializer } from '@tiptap/pm/model';
 import {
   Bold,
   Italic,
@@ -181,39 +182,69 @@ export function WYSIWYGEditor({
         return;
       }
 
+      const ownerDocument =
+        editor.view?.dom.ownerDocument ?? (typeof document !== 'undefined' ? document : null);
+
+      if (!ownerDocument) {
+        onSelectionChange(null);
+        return;
+      }
+      const serializer = DOMSerializer.fromSchema(editor.schema);
+
+      const getPlainTextForRange = (
+        rangeFrom: number,
+        rangeTo: number,
+        { trimEdges = false }: { trimEdges?: boolean } = {},
+      ) => {
+        if (rangeFrom >= rangeTo) {
+          return '';
+        }
+
+        const slice = editor.state.doc.cut(rangeFrom, rangeTo);
+        if (!slice || slice.content.size === 0) {
+          return '';
+        }
+
+        const container = ownerDocument.createElement('div');
+        const serialized = serializer.serializeFragment(slice.content, {
+          document: ownerDocument,
+        });
+
+        if (serialized) {
+          container.appendChild(serialized);
+        }
+
+        const html = container.innerHTML;
+        if (!html) {
+          return '';
+        }
+
+        const markdownFragment = turndownService.turndown(sanitizeHtml(html));
+        return stripMarkdown(markdownFragment, { trimEdges });
+      };
+
       const sanitizedHtml = sanitizeHtml(editor.getHTML());
       const markdown = turndownService.turndown(sanitizedHtml);
       const plainText = stripMarkdown(markdown);
-      const rawTextBeforeSelection = editor.state.doc.textBetween(0, from, '\n');
-      const normalizedTextBeforeSelection = normalizePlainTextWhitespace(
-        rawTextBeforeSelection,
-        { trimEdges: false },
-      );
 
-      const rawTextThroughSelection = editor.state.doc.textBetween(0, to, '\n');
-      const normalizedTextThroughSelection = normalizePlainTextWhitespace(
-        rawTextThroughSelection,
-        { trimEdges: false },
-      );
+      const plainTextUntrimmed = stripMarkdown(markdown, { trimEdges: false });
+      const leadingWhitespaceRemoved =
+        plainTextUntrimmed.length - plainTextUntrimmed.trimStart().length;
 
-      const rawFullText = editor.state.doc.textBetween(
-        0,
-        editor.state.doc.content.size,
-        '\n',
-      );
-      const normalizedFullText = normalizePlainTextWhitespace(rawFullText, {
+      const plainTextBeforeSelection = getPlainTextForRange(0, from, {
         trimEdges: false,
       });
-      const leadingWhitespaceRemoved =
-        normalizedFullText.length - normalizedFullText.trimStart().length;
+      const plainTextThroughSelection = getPlainTextForRange(0, to, {
+        trimEdges: false,
+      });
 
       const start = Math.max(
         0,
-        normalizedTextBeforeSelection.length - leadingWhitespaceRemoved,
+        plainTextBeforeSelection.length - leadingWhitespaceRemoved,
       );
       const endCandidate = Math.max(
         start,
-        normalizedTextThroughSelection.length - leadingWhitespaceRemoved,
+        plainTextThroughSelection.length - leadingWhitespaceRemoved,
       );
 
       if (start > plainText.length) {
