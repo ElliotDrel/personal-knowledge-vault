@@ -89,12 +89,12 @@ const Dashboard = () => {
     if (!url || !urlResult?.isShortFormVideo) return;
     // Use original URL to preserve user's input format (keeps www, etc.)
     // Use template literal for readable address bar (backend normalizes anyway)
-    navigate(`/resources/process?url=${encodeURIComponent(url)}`);
+    navigate(`/dashboard/resources/process?url=${encodeURIComponent(url)}`);
   };
 
   const handleViewExisting = () => {
     if (!existingResource?.id) return;
-    navigate(`/resource/${existingResource.id}`);
+    navigate(`/dashboard/resource/${existingResource.id}`);
   };
 
   const handleManualAdd = () => {
@@ -103,7 +103,7 @@ const Dashboard = () => {
       params.set('url', url);
       params.set('type', 'video');
     }
-    navigate(`/resources/new${params.toString() ? `?${params.toString()}` : ''}`);
+    navigate(`/dashboard/resources/new${params.toString() ? `?${params.toString()}` : ''}`);
   };
 
   // Status color mapping helper
@@ -268,7 +268,7 @@ const Dashboard = () => {
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
           {/* Total Resources */}
-          <Link to="/resources">
+          <Link to="/dashboard/resources">
             <Card className="bg-gradient-card border-0 shadow-card cursor-pointer hover:shadow-knowledge transition-smooth">
               <CardHeader className="pb-3">
                 <CardDescription>Total Resources</CardDescription>
@@ -321,7 +321,7 @@ const Dashboard = () => {
               <h2 className="text-2xl font-bold text-foreground mb-2">Recent Updates</h2>
               <p className="text-muted-foreground">Your latest learning insights</p>
             </div>
-            <Link to="/resources">
+            <Link to="/dashboard/resources">
               <Button variant="outline" className="hover:bg-accent-soft transition-smooth" disabled={resourcesLoading}>
                 View All Resources
               </Button>
