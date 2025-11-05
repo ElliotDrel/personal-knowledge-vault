@@ -11,6 +11,7 @@ import type {
   AINotesCheckResponse,
 } from '@/types/comments';
 import type { Tables } from '@/types/supabase-generated';
+import { stripMarkdown } from '@/utils/stripMarkdown';
 
 type CommentRow = Tables<'comments'>;
 
@@ -703,6 +704,9 @@ export const createComment = async (
   try {
     const user = await getCurrentUser();
 
+    const normalizedQuotedText =
+      typeof input.quotedText === 'string' ? stripMarkdown(input.quotedText) : null;
+
     const payload: Record<string, unknown> = {
       resource_id: input.resourceId,
       user_id: user.id,
@@ -710,12 +714,12 @@ export const createComment = async (
       status: 'active',
       start_offset: input.startOffset ?? null,
       end_offset: input.endOffset ?? null,
-      quoted_text: input.quotedText ?? null,
+      quoted_text: normalizedQuotedText,
       body: input.body.trim(),
       thread_root_id: input.threadRootId ?? null,
       thread_prev_comment_id: input.threadPrevCommentId ?? null,
       // Save full original text for staleness detection
-      original_quoted_text: input.quotedText ?? null,
+      original_quoted_text: normalizedQuotedText,
     };
 
     const { data: commentRowData, error } = await supabase

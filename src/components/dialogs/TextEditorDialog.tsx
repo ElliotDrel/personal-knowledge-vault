@@ -114,11 +114,28 @@ export function TextEditorDialog({
           ? error.message
           : 'Failed to save changes. Please try again.';
       setSaveError(message);
+
+      if (import.meta.env.DEV) {
+        console.error('Full error context:', {
+          error,
+          currentValuePreview: typeof currentValue === 'string' ? currentValue.slice(0, 100) : null,
+          valueLength: typeof currentValue === 'string' ? currentValue.length : null,
+        });
+      }
     }
   };
 
   const handleCancel = () => {
-    // TODO: Add unsaved changes warning if isDirty
+    if (isDirty) {
+      const shouldDiscard =
+        typeof window === 'undefined'
+          ? true
+          : window.confirm('You have unsaved changes. Discard them?');
+      if (!shouldDiscard) {
+        return;
+      }
+    }
+
     onOpenChange(false);
     setSaveError(null);
   };

@@ -11,6 +11,8 @@
 import type { Comment } from '@/types/comments';
 import { stripMarkdown } from './stripMarkdown';
 
+let hasWarnedLegacyFallback = false;
+
 /**
  * Calculate simple character-based similarity between two strings
  * Returns value between 0 (completely different) and 1 (identical)
@@ -61,6 +63,18 @@ export function checkCommentStale(
   }
 
   const { startOffset, endOffset, quotedText, originalQuotedText } = comment;
+
+  if (
+    import.meta.env.DEV &&
+    !originalQuotedText &&
+    quotedText &&
+    !hasWarnedLegacyFallback
+  ) {
+    console.warn(
+      '[CommentTextTracking] Falling back to quotedText for staleness detection. Consider backfilling originalQuotedText for legacy comments.'
+    );
+    hasWarnedLegacyFallback = true;
+  }
 
   // Safety checks
   if (
