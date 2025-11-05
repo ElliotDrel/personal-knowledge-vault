@@ -52,19 +52,31 @@ export interface CommentWithReplies extends Comment {
   replies: Comment[];
 }
 
-/**
- * Input for creating new comments
- */
-export interface CreateCommentInput {
+interface BaseCreateCommentInput {
   resourceId: string;
-  commentType: CommentType;
   body: string;
-  startOffset?: number;
-  endOffset?: number;
-  quotedText?: string;
   threadRootId?: string;
   threadPrevCommentId?: string;
 }
+
+/**
+ * Input for creating selected-text comments
+ */
+export interface SelectedTextCreateCommentInput extends BaseCreateCommentInput {
+  commentType: 'selected-text';
+  startOffset: number;
+  endOffset: number;
+  quotedText: string;
+}
+
+/**
+ * Input for creating general comments
+ */
+export interface GeneralCreateCommentInput extends BaseCreateCommentInput {
+  commentType: 'general';
+}
+
+export type CreateCommentInput = SelectedTextCreateCommentInput | GeneralCreateCommentInput;
 
 /**
  * Input for updating existing comments
