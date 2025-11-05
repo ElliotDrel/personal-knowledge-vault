@@ -137,7 +137,7 @@ const Resources = () => {
                 {filteredResources.length} of {resources.length} resources
               </p>
             </div>
-            <Link to="/resources/new">
+            <Link to="/dashboard/resources/new">
               <Button className="bg-gradient-primary hover:shadow-knowledge transition-smooth">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Resource
@@ -329,7 +329,7 @@ const Resources = () => {
                 Clear filters
               </Button>
             ) : (
-              <Link to="/resources/new">
+              <Link to="/dashboard/resources/new">
                 <Button className="bg-gradient-primary">
                   <Plus className="w-4 h-4 mr-2" />
                   Add Your First Resource

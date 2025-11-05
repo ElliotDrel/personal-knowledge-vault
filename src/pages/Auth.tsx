@@ -27,7 +27,7 @@ export default function Auth() {
   const from =
     (fromState && fromState.startsWith('/') && fromState) ||
     (redirectParam && redirectParam.startsWith('/') && redirectParam) ||
-    '/'
+    '/dashboard'
 
   // Redirect authenticated users
   useEffect(() => {
