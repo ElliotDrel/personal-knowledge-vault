@@ -12,7 +12,7 @@
  * WHY: Edge Functions cannot import from src/ directory (Deno runtime limitation)
  *
  * AUTOMATED PROTECTION:
- * - Run `npm run check-sync:url-normalization` to validate sync
+ * - Run `npm run check-sync:all` to validate sync
  * - Deployment blocked automatically if out of sync
  * - After editing: `npm run deploy:edge:short-form` (checks sync first)
  *
