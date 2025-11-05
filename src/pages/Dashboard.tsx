@@ -294,7 +294,7 @@ const Dashboard = () => {
 
           {/* Resource Type Stats */}
           {summary.statsByType.map(({ type, config, count }) => (
-            <Link key={type} to={`/resources?type=${type}`}>
+            <Link key={type} to={`/dashboard/resources?type=${type}`}>
               <Card className="bg-gradient-card border-0 shadow-card cursor-pointer group hover:shadow-knowledge transition-smooth">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -356,7 +356,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {resourceTypeConfig ? (
               Object.entries(resourceTypeConfig).map(([type, config]) => (
-                <Link key={type} to={`/resources/new?type=${type}`}>
+                <Link key={type} to={`/dashboard/resources/new?type=${type}`}>
                   <Button
                     variant="outline"
                     className="w-full h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent-soft hover:border-accent transition-smooth group"
