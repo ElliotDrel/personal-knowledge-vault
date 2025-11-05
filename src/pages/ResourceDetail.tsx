@@ -257,7 +257,7 @@ const ResourceDetail = () => {
             <h1 className="text-2xl font-bold mb-4">
               {!resource ? 'Resource not found' : 'Loading...'}
             </h1>
-            <Link to="/resources">
+            <Link to="/dashboard/resources">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Resources
@@ -401,7 +401,7 @@ const ResourceDetail = () => {
     try {
       await storageAdapter.deleteResource(resource.id);
       // Navigate to resources list on success
-      navigate('/resources');
+      navigate('/dashboard/resources');
     } catch (err) {
       console.error('Error deleting resource:', err);
       // Keep dialog open, show error, allow retry
@@ -416,7 +416,7 @@ const ResourceDetail = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Link to="/resources">
+          <Link to="/dashboard/resources">
             <Button variant="ghost" size="sm" className="mb-4 hover:bg-accent-soft transition-smooth">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Resources

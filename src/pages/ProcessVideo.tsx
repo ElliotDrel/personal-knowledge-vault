@@ -165,7 +165,7 @@ export default function ProcessVideo() {
         description: 'Please provide a video URL to process.',
         variant: 'destructive'
       })
-      navigate('/')
+      navigate('/dashboard')
       return
     }
   }, [initialUrl, navigate, resourcesLoading, toast])
@@ -181,7 +181,7 @@ export default function ProcessVideo() {
       description: 'Redirecting to the existing resource for this URL.',
     })
     setAutoProcessAttempted(true)
-    navigate(`/resource/${duplicateResource.id}`)
+    navigate(`/dashboard/resource/${duplicateResource.id}`)
   }, [duplicateResource, navigate, resourcesLoading, toast, urlResult?.normalizedUrl])
 
   // If URL validation failed, show error UI
@@ -484,7 +484,7 @@ export default function ProcessVideo() {
         description: 'Your short-form video has been added to your knowledge vault',
       })
 
-      navigate(`/resource/${savedResource.id}`)
+      navigate(`/dashboard/resource/${savedResource.id}`)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'The video was processed but could not be saved. Please try creating it manually.'
       console.error('❌ [Completion] Failed to save resource:', error)
@@ -540,7 +540,7 @@ export default function ProcessVideo() {
   }, [])
 
   const handleGoBackToDashboard = useCallback(() => {
-    navigate('/')
+    navigate('/dashboard')
   }, [navigate])
 
   // Auto-start processing when page loads with valid URL (gated by existing job check)

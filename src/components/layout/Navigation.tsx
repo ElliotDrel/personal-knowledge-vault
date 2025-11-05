@@ -24,17 +24,17 @@ import {
 const navigationItems = [
   {
     label: 'Dashboard',
-    href: '/',
+    href: '/dashboard',
     icon: Home
   },
   {
     label: 'Resources',
-    href: '/resources',
+    href: '/dashboard/resources',
     icon: Library
   },
   {
     label: 'Settings',
-    href: '/settings',
+    href: '/dashboard/settings',
     icon: Settings
   }
 ];
@@ -52,7 +52,7 @@ export const Navigation = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-3 transition-smooth hover:opacity-80">
+          <Link to="/dashboard" className="flex items-center space-x-3 transition-smooth hover:opacity-80">
             <div className="w-8 h-8 bg-gradient-knowledge rounded-lg flex items-center justify-center">
               <Brain className="w-5 h-5 text-white" />
             </div>
@@ -98,7 +98,7 @@ export const Navigation = () => {
                   Search
                 </Button>
 
-                <Link to="/resources/new">
+                <Link to="/dashboard/resources/new">
                   <Button size="sm" className="bg-gradient-primary hover:shadow-knowledge transition-smooth">
                     <Plus className="w-4 h-4 mr-2" />
                     <span className="hidden sm:inline">Add Resource</span>
@@ -125,7 +125,7 @@ export const Navigation = () => {
                     </div>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link to="/settings">
+                      <Link to="/dashboard/settings">
                         <Settings className="mr-2 h-4 w-4" />
                         Settings
                       </Link>
