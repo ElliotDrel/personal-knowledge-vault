@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 
+const Landing = lazy(() => import("./pages/Landing"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Resources = lazy(() => import("./pages/Resources"));
 const ResourceDetail = lazy(() => import("./pages/ResourceDetail"));
@@ -35,35 +36,36 @@ const App = () => (
           >
             <Routes>
               {/* Public routes */}
+              <Route path="/" element={<Landing />} />
               <Route path="/auth" element={<Auth />} />
 
-              {/* Protected routes */}
-              <Route path="/" element={
+              {/* Protected routes - Dashboard */}
+              <Route path="/dashboard" element={
                 <RequireAuth>
                   <Dashboard />
                 </RequireAuth>
               } />
-              <Route path="/resources" element={
+              <Route path="/dashboard/resources" element={
                 <RequireAuth>
                   <Resources />
                 </RequireAuth>
               } />
-              <Route path="/resources/new" element={
+              <Route path="/dashboard/resources/new" element={
                 <RequireAuth>
                   <NewResource />
                 </RequireAuth>
               } />
-              <Route path="/resources/process" element={
+              <Route path="/dashboard/resources/process" element={
                 <RequireAuth>
                   <ProcessVideo />
                 </RequireAuth>
               } />
-              <Route path="/resource/:id" element={
+              <Route path="/dashboard/resource/:id" element={
                 <RequireAuth>
                   <ResourceDetail />
                 </RequireAuth>
               } />
-              <Route path="/settings" element={
+              <Route path="/dashboard/settings" element={
                 <RequireAuth>
                   <Settings />
                 </RequireAuth>

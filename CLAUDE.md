@@ -10,7 +10,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 3. **DOCUMENTATION-FIRST**: Always check official documentation for Supabase, Vercel, and complex libraries before coding. Use the **Context7 MCP** tools for library docs. For external libraries: check version/changelog for breaking changes, then test minimal example in isolation BEFORE full integration.
 
-4. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**: Before creating ANY utility function OR component, search for existing ones first: `rg "normalize" --type ts` or `rg "useMutation" --type tsx` or `rg "Progress" --type tsx`. Reuse existing patterns (functions, hooks, components, styling patterns). Update ALL occurrences in both `src/` and `supabase/functions/` simultaneously. **This applies to**: utilities, components, hooks, type definitions, and UI patterns.
+4. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**:
+
+   **Before ADDING** - Search for existing patterns:
+   - Creating utility? `rg "normalize" --type ts`
+   - Creating component? `rg "Progress" --type tsx`
+   - Creating hook? `rg "useMutation" --type tsx`
+   - Reuse existing patterns and update ALL occurrences in both `src/` and `supabase/functions/`
+
+   **Before REMOVING** - Search for ALL references:
+   - Removing function? `rg "functionName"` AND `rg "functionName\("`
+   - Removing React state? `rg "variableName"` AND `rg "setVariableName"` (SEPARATE searches!)
+   - Remove ALL references found in BOTH searches
+   - Test in browser after (build doesn't catch runtime errors)
+
+   **This applies to**: utilities, components, hooks, state, props, type definitions, and UI patterns.
 
 5. **Use Storage Adapter Only**: Always `import { useStorageAdapter } from '@/data/storageAdapter'`. Never import `storage.ts` or `supabaseStorage.ts` directly.
 
@@ -25,23 +39,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - [ ] Checked hook ordering: useState → useQuery → useCallback/useMemo → useEffect
    - [ ] Any async function used in useEffect is wrapped in useCallback
    - [ ] State initialized where it's owned (not lazily by child components)
+   - [ ] **For state/prop/function removal: Searched for BOTH variable AND setter (if state), removed ALL references, tested in browser**
    - [ ] For textarea overlays: Used `getComputedStyle()` mirroring + scroll sync + transparent text
    - [ ] For markdown processing: Used rehype plugin (not source splitting)
    - [ ] For multi-element components: Provided granular className props
-   - [ ] Tested in browser after each integration point (not just at end)
+   - [ ] **Tested in browser after EACH integration point (build passing ≠ app working)**
    - [ ] `npm run build` passes
    - [ ] `npm run lint` passes
-   - [ ] For backend/Edge Function changes: Verified in production logs/database (not just build)
+   - [ ] **For Edge Function changes: Deployed via CLI (`npx supabase functions deploy <name>`), tested in app, verified in database (not just build)**
    - [ ] For prompt changes: User tested with actual AI call and confirmed behavior in logs
    - [ ] For duplication: Grepped for imports to verify both copies are actually used
 
 9. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
 
-10. **Incremental Testing**: After EACH significant change, run `npm run build` and test in browser.
+10. **Incremental Testing (Layer-by-Layer)**: After EACH layer of implementation, verify that layer works before proceeding:
+   - **After creating utility**: Test utility in isolation with console.log or unit test
+   - **After updating component**: Test component behavior in browser (not just build)
+   - **After integration**: Test end-to-end flow and verify data reaches destination correctly
+   - **After database write**: Query database to confirm stored format matches expectations
+   - **After Edge Function changes**: Deploy immediately (`npx supabase functions deploy <name>`), trigger via app, query database to verify stored data format
+   - **Red flag**: If you're "done" but haven't opened the browser or checked the database, you're not done
+   - **Why**: Build passing only means "TypeScript compiles" - it says nothing about runtime behavior or data correctness
+
+   **CRITICAL for Edge Functions**: `npm run build` does NOT deploy Edge Functions. You MUST:
+   1. Deploy: `npx supabase functions deploy <name>`
+   2. Test: Trigger via the running app
+   3. Verify: Query database to confirm stored data format
+   4. Never present "testing instructions" without completing steps 1-3 first
 
 11. **Mirror Target Styles for Overlays (NEW)**: For highlight overlays, ghost inputs, or mirror divs, read `getComputedStyle` from the real control, apply font/line-height/padding/border radius/box sizing to the overlay, and sync scroll offsets. Always set overlay text color to transparent so only the background shows. Never rely on Tailwind class duplication—drifted highlights mean you skipped this rule.
 
-12. **Systematic Refactoring** (NEW): When removing state variables, functions, or props: use IDE "Find All References" + search string literals (`rg "isEditingNotes"`), update ALL references, then test immediately to catch "undefined" errors.
+12. **Systematic Refactoring - Complete the Circle** (CRITICAL): When removing state variables, functions, or props, follow the COMPLETE refactoring circle:
+
+   **For React State Removal:**
+   1. Search for variable: `rg "variableName"`
+   2. **Search for setter SEPARATELY**: `rg "setVariableName"` (CRITICAL - different references!)
+   3. Remove/update ALL references from BOTH searches
+   4. Run `npm run build` to catch TypeScript errors
+   5. **Test in browser** - navigate to affected component and verify it works
+   6. Only then mark complete
+
+   **For Functions/Props:**
+   1. Search for declaration: `rg "functionName"`
+   2. Search for all call sites: `rg "functionName\("`
+   3. Remove/update ALL references
+   4. Build + browser test
+
+   **Why**: State setters and variables have separate reference points. Removing only one causes runtime errors that build doesn't catch. Browser testing is the ONLY way to verify removal is complete.
 
 13. **CLARIFY DATA MODELS BEFORE SCHEMA** (NEW - Prevents Major Rework): When implementing database tables with relationships (comments/replies, threads, hierarchies), ALWAYS ask specific questions about the data model BEFORE creating migrations:
    - "Should this be separate tables or a self-referential table?"
@@ -94,9 +138,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Update CLAUDE.md with the prevention pattern after learning
    - **Why**: Quick fixes often miss the root cause and failures repeat
 
-### Supabase CLI-Only Workflow
+25. **Syncing controlled editors:** Use a `useRef` to store the last value you sent to a controlled editor. On local edits, update both the ref and parent. When receiving new props, only overwrite editor state if the value doesn't match your ref. This prevents cursor jumps and editor resets from redundant updates.
 
-**CRITICAL RULE**: This project uses the Supabase CLI **EXCLUSIVELY** against the deployed Supabase project. **NO local Docker setup.**
+26. **Third-party UI libraries:** Always read the docs, especially about required CSS, "Getting Started", and extension/plugin setup. Test a basic version of the component before adding features. Watch for non-standard state management patterns (e.g., controlled vs. uncontrolled) that differ from typical React forms.
+
+27. **Inline error handling:** If a component performs an action (save, submit, delete), show error messages inside that component, near the action button. Keep the UI open so users can retry, and clear errors on new user input or success.
+
+28. **Memoizing expensive configs:** Use `useMemo` for large config objects (like TipTap extensions, Monaco options, chart configs). Only recreate these when actual dependencies change, to avoid unnecessary reinitialization and performance issues.
+
+### Supabase Workflow: MCP + CLI Hybrid
+
+**CRITICAL RULE**: This project uses **CLI for production** and **MCP for AI-assisted development**.
+
+#### Supabase MCP (Development & Exploration)
+
+**What It Is**: Model Context Protocol connects Claude to your Supabase project via natural language.
+
+**Authenticated Setup**: MCP server configured at `https://mcp.supabase.com/mcp?project_ref=<your-project-ref>`
+
+**Use MCP For** (Development Only):
+- Schema exploration: "Show me all tables with RLS policies"
+- Quick queries: "Find comments created in the last hour"
+- Migration drafting: "Draft a migration for user preferences table"
+- Debugging: "Show Edge Function logs for errors"
+- TypeScript type generation via natural language
+
+**MCP Limitations** (Why CLI Still Required):
+- ❌ **NOT for production deployments** (development/testing only)
+- ❌ Cannot manage secrets (`ANTHROPIC_API_KEY`, `YOUTUBE_API_KEY`)
+- ❌ No CI/CD pipeline integration
+- ❌ Limited migration validation capabilities
+
+#### Supabase CLI (Production & Deployment)
+
+**CRITICAL**: All production operations MUST use CLI. **NO local Docker setup.**
 
 **Common Commands**:
 - `npx supabase db push` - Deploy local migrations/config to remote
@@ -105,11 +180,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npx supabase secrets list` - View secrets (digests only)
 - `npx supabase secrets set KEY=value` - Set API key
 
-**Rules**:
+**CLI Rules**:
 1. All settings (`auth`, `db`, etc.) managed in `supabase/config.toml`
 2. **NEVER** use `supabase start`, `supabase functions serve`, or Docker containers
 3. Never commit secrets - use Supabase secrets for API keys like `YOUTUBE_API_KEY`
 4. Never use `VITE_` prefix for server-side secrets (exposes to browser)
+5. **Always verify MCP-drafted migrations via CLI** before pushing to production
 
 ### Edge Function Development & Testing
 
@@ -130,6 +206,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 *   Use modern PostgreSQL functions: `gen_random_uuid()` instead of `uuid_generate_v4()`.
 *   Handle Unicode/emojis carefully in your application code when storing them in JSONB.
 *   Never delete old migration files.
+*   **CRITICAL: Save full baseline data for comparison, not truncated versions**. When saving baseline data (e.g., `original_quoted_text`) that will be used for staleness/change detection, save the FULL value, not a truncated preview. Truncation creates blind spots where changes after the truncation point are invisible to detection logic. The database column is TEXT (unlimited), so use it.
+*   **Validation scripts must be read-only**. Validation SQL files should NEVER contain `COMMENT ON`, `ALTER`, `INSERT`, `UPDATE`, or `DELETE` statements. They should only contain `SELECT` and `EXPLAIN` queries. Mutating statements permanently modify the database and defeat the purpose of validation.
 
 ### Post-Migration Validation (MANDATORY)
 
@@ -325,6 +403,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 | Issue | Fix |
 |-------|-----|
+| White screen after refactoring / "X is not defined" | Search for ALL references to removed item - for React state, search BOTH `variableName` AND `setVariableName` separately. Remove all uses, then test in browser. |
 | AI prompt/config changes not working | Edit `supabase/functions/ai-notes-check/config.ts` and redeploy with `npm run deploy:edge`. |
 | "Cannot access before initialization" | Declare `useCallback` before the `useEffect` that depends on it and keep the documented hook order. |
 | Infinite re-render loops | Wrap async effect logic in `useCallback`, reference it inside `useEffect`, and audit dependency arrays. |
@@ -348,19 +427,31 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 | Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
 | Config out of sync / Edge Function outdated | Run `npm run check-sync:all` to identify mismatches; copy changes from frontend source to Edge Function; always use `npm run deploy:edge:short-form` to auto-validate before deployment. |
 | Deployment blocked by sync check | Sync validation scripts detected config mismatch - copy changes from source of truth (frontend) to Edge Function copy; see file warnings for exact sync instructions. |
+| Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
 | Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
+| Edge Function changes not working | Deploy immediately after code changes: `npx supabase functions deploy <name>`. Don't wait for user to discover it's not deployed. `npm run build` does NOT deploy Edge Functions. |
 
 ## Lessons Learned
 
 ### Core Habits
 - Clarify requirements with concrete scenarios before choosing libraries or data models.
 - Search the codebase before writing new utilities or components; reuse or update shared patterns across frontend and backend.
+- Default to standardization: extend existing utilities/components/hooks instead of creating new variants, and only add net-new code when reuse is impossible and documented.
 - Read official docs and regenerate types before coding, and confirm the schema design with the user before creating migrations.
 
 ### Implementation Discipline
 - Keep React hooks ordered (`useState` -> data fetching -> memoization -> effects), wrap async work in `useCallback`, and initialize state where it lives.
-- Test incrementally: after meaningful changes run `npm run build`/`npm run lint` and open the browser instead of batching fixes at the end.
+- Test incrementally: after EACH layer (utility → component → integration → storage), verify that layer in isolation before proceeding. Never batch all testing to the end.
+- **Verify stored data format**: For any persistence feature, query the database to confirm stored format. Build passing means "compiles", not "stores correctly".
+- **Standardize transformations**: When same transformation happens in multiple places (markdown→plain, encode/decode, format), create ONE utility and use everywhere. Red flag: data "fixes itself later" via background sync means transformation isn't applied at all entry points.
 - For overlays or markdown, mirror styles with `getComputedStyle`, sync scroll positions, and transform the rendered AST (rehype) rather than splitting source text.
+- When persistence relies on transformed text offsets (e.g., stripped markdown), store anchors using that same plain-text string and keep a cached selection from the editor so formatting markers never hit the database. Trace full pipeline: selection → storage → database.
+- For TipTap-based editors, track the last synced markdown in a ref and only call `setContent` when the upstream markdown actually changes; comparing raw HTML causes cursor resets.
+- When styling ProseMirror placeholders, add the `@tiptap/extension-placeholder` extension (with matching `emptyEditorClass`) so the CSS selector is triggered.
+- Surface save failures inside modal dialogs (e.g., inline alert state) so the user sees the error even while the dialog remains open.
+- For third-party UI libraries (TipTap, Monaco, Leaflet), read docs for required CSS imports and extension architecture; test component in isolation before integration.
+- When syncing bidirectional state (parent <-> child), use ref to track "last value I sent" to prevent feedback loops and cursor resets.
+- Memoize expensive library configurations (TipTap extensions, chart options) with `useMemo` to prevent unnecessary re-initializations.
 - Do root-cause analysis when something fails; do not patch symptoms without understanding them.
 
 ### Prompt & Backend Work
@@ -369,6 +460,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - Question duplication: grep for imports before keeping parallel configs or helpers, and delete dead code instead of letting it drift.
 - Validate external integrations against official docs and production logs instead of assuming a passing build means success.
 - For duplicated configs between frontend and Edge Functions: use TypeScript AST parsing for semantic comparison (not fragile regex), normalize whitespace/comments, and block deployments with clear error messages showing exact source-of-truth files.
+- **For Edge Functions: Deploy → Test → Verify pipeline is mandatory**. Never present "testing instructions" without deploying first. `npm run build` only builds frontend, not Edge Functions.
 
 ## Project Status (Updated 2025-10-17)
 
