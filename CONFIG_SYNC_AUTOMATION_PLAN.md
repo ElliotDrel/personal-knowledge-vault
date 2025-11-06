@@ -6,11 +6,11 @@
 - **Approach**: Create granular sync check scripts per Edge Function using separate scripts + composition pattern; add inline warnings to duplicated files; document sync requirements in CLAUDE.md; use npm scripts to enforce checks before deployment.
 - **Guiding principles**: Fail-fast deployment blocking (not silent warnings), single responsibility per script (fast iteration), composition over monoliths (flexible workflows), human + AI + automated reminders (defense in depth), future-ready for database-backed config migration.
 
-> Update (2025-10-18): Per-config scripts were replaced by a single unified checker (`scripts/check-config-sync.js`) exposed as `npm run check-sync:all`. References to legacy command names below are historical notes from the initial design.
+> Update (2025-10-18): Per-config scripts were replaced by a single unified checker (`scripts/check-config-sync.js`) exposed as `npm run check-sync:all`. References to legacy command names below are kept for historical context only.
 
-## Current Status (2025-10-17)
+## Current Status (2025-10-17, refreshed 2025-11-06)
 
-**IN PROGRESS**: Batch 1 partially complete (AI notes check config sync). Remaining batches cover short-form Edge Function and composite deployment commands.
+**IN PROGRESS**: Phase 0 (warnings/docs) and Phase 2 (short-form sync automation) are complete. Phase 1 was de-scoped after consolidating AI configs into the Edge Function source of truth. Remaining batches cover composite workflows, CI wiring, and validation layers.
 
 ### Project Context
 - **Edge Functions**: Two active functions (`ai-notes-check`, `short-form`)
@@ -33,20 +33,20 @@
 - [x] Supabase CLI working (`npx supabase functions deploy` tested)
 - [x] Node.js ES module support (type: "module" in package.json)
 - [x] CLAUDE.md exists for AI assistant guidelines
-- [ ] Batch 1 complete: AI notes check sync validation (Phase 1)
-- [ ] Batch 2 complete: Short-form sync validation (Phase 2)
+- [x] Batch 1 resolved: AI notes check config now lives solely in Edge Function (no duplication to validate)
+- [x] Batch 2 complete: Short-form sync validation (Phase 2)
 - [ ] Batch 3 complete: Composite workflows (Phase 3)
 
 ## Phases & Timeline
 
 | Phase | Focus | Duration | Status | Priority |
 |-------|-------|----------|--------|----------|
-| 0 | Warning comments & CLAUDE.md documentation | 1-2 hours | ✅ COMPLETE | CRITICAL |
-| 1 | AI notes check sync automation (Batch 1) | 2-3 hours | ◐ PARTIAL | CRITICAL |
-| 2 | Short-form sync automation (Batch 2) | 3-4 hours | ❌ PENDING | HIGH |
-| 3 | Composite workflows & CI/CD (Batch 3) | 1-2 hours | ❌ PENDING | MEDIUM |
-| 4 | Edge Function secrets validation (bonus) | 2-3 hours | ❌ PENDING | LOW |
-| 5 | Testing & validation | 1-2 hours | ❌ PENDING | HIGH |
+| 0 | Warning comments & CLAUDE.md documentation | 1-2 hours | COMPLETE | CRITICAL |
+| 1 | AI notes check sync automation (Batch 1) | 2-3 hours | DE-SCOPED (Edge Function single source) | CRITICAL |
+| 2 | Short-form sync automation (Batch 2) | 3-4 hours | COMPLETE | HIGH |
+| 3 | Composite workflows & CI/CD (Batch 3) | 1-2 hours | PENDING | MEDIUM |
+| 4 | Edge Function secrets validation (bonus) | 2-3 hours | PENDING | LOW |
+| 5 | Testing & validation | 1-2 hours | PENDING | HIGH |
 | **TOTAL** | **Full implementation** | **~10-16 hours** | | **~2-3 days** |
 
 ---
@@ -129,7 +129,9 @@ Add inline warnings to all duplicated config/utility files and document sync req
 
 ---
 
-## Phase 1 – AI Notes Check Sync Automation (Batch 1) (2-3 hours) ◐ CRITICAL
+## Phase 1 - AI Notes Check Sync Automation (Batch 1) (2-3 hours) - CRITICAL
+
+> NOTE (2025-11-06): This phase was de-scoped after consolidating AI configs into supabase/functions/ai-notes-check/config.ts. The historical steps remain below for reference only.
 
 ### Objective
 Create automated sync validation for AI notes check Edge Function, covering both `AI_CONFIG` and `AI_METADATA_CONFIG`, with deployment script that blocks on mismatch.
@@ -258,7 +260,7 @@ npm run check-sync:ai-notes-check  # Should pass with no errors
 Create automated sync validation for short-form Edge Function, covering `PLATFORM_CONFIGS`, `POLLING_CONFIG`, and `normalizeUrl` utility function.
 
 ### Prerequisites
-- [ ] Phase 1 complete (AI notes check automation working)
+- [x] Phase 1 de-scoped (AI notes check config consolidated in Edge Function)
 - [ ] Understanding of short-form Edge Function architecture
 
 ### Step 2.1 – Create Short-Form Config Sync Check Script (60 minutes) ❌
@@ -413,8 +415,8 @@ npm run deploy:edge:short-form  # Should check all video configs + utils before 
 Create composite npm scripts for common workflows: check all configs, deploy all Edge Functions, pre-deployment validation, CI/CD pipeline.
 
 ### Prerequisites
-- [ ] Phase 1 complete (AI notes check scripts working)
-- [ ] Phase 2 complete (short-form scripts working)
+- [x] Phase 1 de-scoped (AI notes check config consolidated in Edge Function)
+- [x] Phase 2 complete (short-form sync automation live)
 
 ### Step 3.1 – Create Master Check-Sync Script (15 minutes) ❌
 
@@ -792,18 +794,15 @@ npm run check-sync:all
 - ✅ AI assistants and developers aware of sync requirements
 
 ### Phase 1 (AI Notes Check)
-- ◐ AI_CONFIG sync check working and tested
-- [ ] AI_METADATA_CONFIG sync check working
-- [ ] Composite script validates both before deployment
-- [ ] Current configs confirmed in sync
-- [ ] Deployment blocked when out of sync
+- [x] De-scoped: AI configs now live exclusively in supabase/functions/ai-notes-check/config.ts
+- [x] No sync checker required for AI config duplication
 
 ### Phase 2 (Short-Form)
-- [ ] PLATFORM_CONFIGS + POLLING_CONFIG sync check working
-- [ ] normalizeUrl function sync check working
-- [ ] Composite script validates both before deployment
-- [ ] Warning comments added to short-form files
-- [ ] Deployment blocked when out of sync
+- [x] PLATFORM_CONFIGS + POLLING_CONFIG sync check working via scripts/check-config-sync.js
+- [x] normalizeUrl function sync check working
+- [x] Unified checker validates all short-form duplications before deployment
+- [x] Warning comments present in duplicated short-form files
+- [x] npm run deploy:edge:short-form blocks when files are out of sync
 
 ### Phase 3 (Composite Workflows)
 - [ ] Master sync check validates all 5 duplications
