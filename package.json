@@ -11,11 +11,14 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "analyze": "vite build --mode analyze",
-    "check-sync:all": "node scripts/check-config-sync.js",
+    "check-sync:agents": "node scripts/check-agents-sync.js",
+    "sync:agents": "node scripts/sync-agents.js",
+    "check-sync:all": "npm run check-sync:agents && node scripts/check-config-sync.js",
     "deploy:edge:short-form": "npm run check-sync:all && npx supabase functions deploy short-form",
     "deploy:edge:all": "npm run check-sync:all && npx supabase functions deploy",
     "pre-deploy": "npm run typecheck && npm run lint && npm run check-sync:all",
-    "ci": "npm run typecheck && npm run lint && npm run build && npm run check-sync:all"
+    "ci": "npm run typecheck && npm run lint && npm run build && npm run check-sync:all",
+    "prepare": "husky"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -93,6 +96,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "husky": "^9.1.7",
     "lovable-tagger": "^1.1.9",
     "postcss": "^8.5.6",
     "rollup-plugin-visualizer": "^6.0.3",
