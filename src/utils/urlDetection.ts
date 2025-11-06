@@ -208,15 +208,17 @@ export function normalizeUrl(url: string): string {
     return parsed.toString()
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
     // If it's a validation error (e.g., invalid video ID), re-throw it
     // so the caller can handle it appropriately
-    if (error instanceof Error && error.message.includes('Invalid YouTube video ID')) {
-      console.error('Invalid YouTube URL detected', { url, error: error.message })
-      throw error
+    if (errorMessage.includes('Invalid YouTube video ID')) {
+      console.error('Invalid YouTube URL detected', { url, error: errorMessage })
+      throw error instanceof Error ? error : new Error(errorMessage)
     }
 
     // For other errors, log and return original URL
-    console.error('Failed to normalize URL, returning original', { url, error: error.message })
+    console.error('Failed to normalize URL, returning original', { url, error: errorMessage })
     return url
   }
 }
