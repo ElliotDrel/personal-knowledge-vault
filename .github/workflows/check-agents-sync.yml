@@ -16,10 +16,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version-file: '.nvmrc'
       
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       
       - name: Check CLAUDE.md and AGENTS.md are in sync
         run: npm run check-sync:agents
