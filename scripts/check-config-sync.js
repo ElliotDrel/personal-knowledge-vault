@@ -139,6 +139,17 @@ function normalizeExpression(expressionText) {
   return normalizeText(expressionText);
 }
 
+/**
+ * Normalize logging calls to ignore differences in logging implementation
+ *
+ * Frontend uses console.log/console.error for logging
+ * Edge Functions use logInfo/logWarn for logging
+ *
+ * We only care about business logic sync, not logging implementation details.
+ * This normalization ensures that equivalent logging calls (with potentially
+ * different argument counts or formatting) don't trigger false positives in
+ * the sync validation.
+ */
 function normalizeFunction(functionText) {
   const normalizedLogs = functionText
     .replace(/console\.(error|log)\s*\(/g, 'LOG_PLACEHOLDER(')
