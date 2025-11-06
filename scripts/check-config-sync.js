@@ -178,7 +178,8 @@ function run() {
 
         console.error(`[fail] Sync mismatch detected for "${pair.description}"`);
         console.error(`  Source of truth: ${pair.sourceFile}`);
-        console.error(`  Needs sync to:   ${pair.targetFile}\n`);
+        console.error(`  Needs sync to:   ${pair.targetFile}`);
+        console.error(`  Tip: Copy the ${pair.id} definition from source to target.\n`);
       } else {
         console.log(`[ok] ${pair.description} is in sync`);
       }
