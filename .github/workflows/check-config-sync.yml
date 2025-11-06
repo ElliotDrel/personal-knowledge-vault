@@ -13,10 +13,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
+      - name: Get Node version from package.json
+        id: node-version
+        run: |
+          VERSION=$(grep -o '"node": "[^"]*"' package.json | grep -o '[0-9]\+\.[0-9]\+' | head -1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version: ${{ steps.node-version.outputs.version }}
       
       - name: Install dependencies
         run: npm install
