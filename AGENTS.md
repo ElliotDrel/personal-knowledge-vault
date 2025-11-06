@@ -146,6 +146,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 28. **Memoizing expensive configs:** Use `useMemo` for large config objects (like TipTap extensions, Monaco options, chart configs). Only recreate these when actual dependencies change, to avoid unnecessary reinitialization and performance issues.
 
+29. **AGENTS.md Sync is Mandatory** (NEW): After ANY edit to CLAUDE.md, immediately run `npm run sync:agents`. CI validates sync on every PR and will fail if files are out of sync.
+
+30. **CI/CD Workflow Assumptions** (NEW): Before configuring GitHub Actions workflows:
+   - Check if `package-lock.json` exists. If missing, use `npm install` not `npm ci`
+   - Set timeouts: validation 5min, AI/Claude 10min, complex builds 15-30min
+   - New workflows added in PR can't run until merged to main (GitHub security) - this is EXPECTED
+
 ### Supabase Workflow: MCP + CLI Hybrid
 
 **CRITICAL RULE**: This project uses **CLI for production** and **MCP for AI-assisted development**.
@@ -237,13 +244,18 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 **Build & Quality**: `npm run build` + `npm run lint` pass, `npm run dev` starts
 
+**Config Sync** (if editing duplicated configs):
+- Run `npm run check-sync:all` to verify all configs in sync
+- For Edge Function changes: use `npm run deploy:edge:short-form` (validates before deploying)
+- Never use raw `npx supabase functions deploy` - always use npm scripts with validation
+
 **End-to-End**: Navigate all routes → create resource → verify navigation/auth/loading/errors
 
 **Full-Stack**:
 - Search shared logic in BOTH `src/` + `supabase/functions/` → update ALL occurrences
 - Check type conditionals include ALL relevant types (`type === 'video' || type === 'short-video'`)
 - Test flow: Backend → DB → API → Frontend → UI
-- Deploy both: frontend (auto) + backend (`npx supabase functions deploy <name>`)
+- Deploy both: frontend (auto) + backend (via `npm run deploy:edge:*` with auto-validation)
 - Verify logs + DB values on both sides
 
 ## Critical Code Patterns
@@ -266,6 +278,69 @@ This file contains:
 1. Edit `supabase/functions/ai-notes-check/config.ts` directly
 2. Run `npm run deploy:edge` to deploy changes
 3. No sync needed - there's only ONE config file!
+
+---
+
+### Configuration File Synchronization (AUTOMATED)
+
+**Problem**: Edge Functions run in Deno and cannot import from `src/` directory, forcing config/utility duplication between frontend and Edge Functions.
+
+**Solution**: Automated sync validation scripts that block deployments when configs are out of sync.
+
+#### Duplicated Configs (Short-Form Video Processing)
+
+| Config/Utility | Frontend Source | Edge Function Copy | Validation Script |
+|----------------|-----------------|-------------------|-------------------|
+| `PLATFORM_CONFIGS` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:all` (auto-detects) |
+| `POLLING_CONFIG` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:all` (auto-detects) |
+| `normalizeUrl()` | `src/utils/urlDetection.ts` | `supabase/functions/short-form/utils/urlUtils.ts` | `check-sync:all` (auto-detects) |
+
+#### Workflow (When Editing Duplicated Configs)
+
+1. **Edit the frontend source of truth** (e.g., `src/types/shortFormApi.ts`)
+2. **Manually copy changes** to Edge Function file (e.g., `supabase/functions/short-form/types.ts`)
+3. **Validate sync**: `npm run check-sync:all`
+4. **Deploy with validation**: `npm run deploy:edge:short-form` (auto-validates before deploying)
+
+#### Available Commands
+
+**Primary check command**:
+```bash
+npm run check-sync:all  # Validates all duplicated configs before deploy
+```
+
+**Deployment commands** (with validation):
+```bash
+npm run deploy:edge:short-form  # Validates sync, then deploys short-form function
+npm run deploy:edge:all         # Validates all, then deploys all Edge Functions
+```
+
+**Quality gates**:
+```bash
+npm run pre-deploy  # Typecheck + lint + sync validation
+npm run ci          # Full CI suite (includes build)
+```
+
+#### Automated Protection
+
+- **Deployment blocked** if configs are out of sync
+- **Clear error messages** showing which file to sync
+- **Exit code 1** stops deployment pipeline
+- **Fail-fast** behavior (stops on first mismatch)
+
+#### File Warnings
+
+All duplicated files have `⚠️ SYNC WARNING` comments at the top:
+- **Source files**: "SOURCE OF TRUTH - edit this, sync to Edge Function"
+- **Copy files**: "DO NOT EDIT DIRECTLY - synced from frontend"
+
+#### Future Improvements
+
+Consider migrating to **database-backed config** to eliminate duplication entirely:
+- Store configs in `app_config` table
+- Manage via admin dashboard
+- No sync needed, no deployment required for config changes
+- Suitable for A/B testing and feature flags
 
 ---
 
@@ -357,6 +432,12 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 | Prompt changes deployed but not working | Check `ai_processing_logs.input_data->>'systemPrompt'` to verify new prompt is actually being sent. |
 | AI generating duplicate suggestions | Put anti-duplication rules FIRST with visual emphasis; use domain-specific examples; force sequential workflow (list covered → propose new → filter). |
 | Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
+| Config out of sync / Edge Function outdated | Run `npm run check-sync:all` to identify mismatches; copy changes from frontend source to Edge Function; always use `npm run deploy:edge:short-form` to auto-validate before deployment. |
+| Deployment blocked by sync check | Sync validation scripts detected config mismatch - copy changes from source of truth (frontend) to Edge Function copy; see file warnings for exact sync instructions. |
+| AGENTS.md out of sync with CLAUDE.md | Run `npm run sync:agents` to update AGENTS.md from CLAUDE.md. Always run this after modifying CLAUDE.md before committing. |
+| GitHub Actions `npm ci` failing | Check if `package-lock.json` exists in repo. If missing, change workflow to use `npm install` instead of `npm ci`. |
+| New GitHub Actions workflow not running on PR | Expected behavior - workflows added in a PR cannot run until merged to main branch (GitHub security model). Merge PR first, future PRs will work. |
+| CI workflow timing out | Adjust timeout-minutes: validation jobs 5min, AI/Claude jobs 10min, complex builds 15-30min. Add `timeout-minutes` to job configuration. |
 | Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
 | Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
 | Edge Function changes not working | Deploy immediately after code changes: `npx supabase functions deploy <name>`. Don't wait for user to discover it's not deployed. `npm run build` does NOT deploy Edge Functions. |
@@ -389,7 +470,12 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - Use domain-specific examples and force sequential reasoning in prompts; verify results in `ai_processing_logs` before calling a change "done."
 - Question duplication: grep for imports before keeping parallel configs or helpers, and delete dead code instead of letting it drift.
 - Validate external integrations against official docs and production logs instead of assuming a passing build means success.
+- For duplicated configs between frontend and Edge Functions: use TypeScript AST parsing for semantic comparison (not fragile regex), normalize whitespace/comments, and block deployments with clear error messages showing exact source-of-truth files.
 - **For Edge Functions: Deploy → Test → Verify pipeline is mandatory**. Never present "testing instructions" without deploying first. `npm run build` only builds frontend, not Edge Functions.
+
+### CI/CD & Infrastructure
+- Validate repository state before configuring workflows - check for package-lock.json, understand expected vs. actual setup.
+- Distinguish expected failures (new workflow security model) from bugs when explaining CI errors to users.
 
 ## Project Status (Updated 2025-10-17)
 
@@ -432,3 +518,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 ---
 
 **Remember**: Search-first, security-first, test end-to-end, no placeholders.
+
+
+
+
