@@ -44,6 +44,19 @@ const chunkForPackage = (id: string) => {
     return "toast";
   }
 
+  if (
+    scope === "marked" ||
+    scope === "turndown" ||
+    scope === "react-markdown" ||
+    scope === "remark-gfm" ||
+    scope === "rehype-sanitize" ||
+    scope.startsWith("unist-") ||
+    scope.startsWith("hast-") ||
+    scope.startsWith("mdast-")
+  ) {
+    return "markdown";
+  }
+
   if (scope === "refractor") {
     return "syntax";
   }
