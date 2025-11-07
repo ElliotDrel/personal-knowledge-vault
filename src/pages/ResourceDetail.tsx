@@ -11,7 +11,7 @@
  * @component
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -34,8 +34,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MarkdownField } from '@/components/ui/markdown-field';
-import { NotesEditorDialog } from '@/components/NotesEditorDialog';
-import { TranscriptEditorDialog } from '@/components/dialogs/TranscriptEditorDialog';
+
+// Lazy load editor dialogs to reduce initial bundle size
+const NotesEditorDialog = lazy(() => import('@/components/NotesEditorDialog').then(m => ({ default: m.NotesEditorDialog })));
+const TranscriptEditorDialog = lazy(() => import('@/components/dialogs/TranscriptEditorDialog').then(m => ({ default: m.TranscriptEditorDialog })));
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
