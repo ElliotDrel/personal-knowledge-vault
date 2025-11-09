@@ -9,8 +9,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, X, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useAutoSave } from '@/hooks/useAutoSave';
+import { useNavigationBlocker } from '@/hooks/useNavigationBlocker';
+import { useUnloadProtection } from '@/hooks/useUnloadProtection';
 
 interface TextEditorDialogProps {
   /** Controls dialog open/close state */
@@ -37,11 +40,13 @@ interface TextEditorDialogProps {
  * Base Text Editor Dialog Component
  *
  * A reusable dialog that wraps WYSIWYGEditor for modal editing workflows.
- * Provides consistent save/cancel actions and dirty state tracking.
+ * Provides consistent save/cancel actions and auto-save with dirty state tracking.
  *
  * Features:
  * - Markdown editing with WYSIWYG interface
+ * - Silent auto-save with 1-second debounce and exponential retry
  * - Dirty state tracking (detects unsaved changes)
+ * - Critical trigger flushes (manual save, dialog close)
  * - Resets content when dialog opens
  * - Children slot for additional toolbar items
  * - Consistent dialog UI across the app
@@ -57,7 +62,6 @@ interface TextEditorDialogProps {
  *   onSave={async (value) => {
  *     await saveNotes(value);
  *   }}
- *   isLoading={isSaving}
  * />
  * ```
  *
@@ -80,40 +84,62 @@ export function TextEditorDialog({
   children,
 }: TextEditorDialogProps) {
   const [currentValue, setCurrentValue] = useState(initialValue);
-  const [isDirty, setIsDirty] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Reset content and dirty state when dialog opens
+  // Auto-save for text content
+  const {
+    isDirty,
+    isSaving,
+    saveError: autoSaveError,
+    retryCount,
+    flushPendingUpdates,
+    clearError,
+  } = useAutoSave({
+    value: currentValue,
+    onSave,
+    maxRetries: 5,
+    enabled: open, // Only auto-save while dialog is open
+  });
+
+  // Navigation protection: block navigation while dirty to flush auto-save
+  useNavigationBlocker({
+    when: isDirty && open,
+    onBlock: flushPendingUpdates,
+  });
+
+  // Browser unload protection: prevent tab close during active save
+  useUnloadProtection({
+    when: isSaving,
+  });
+
+  // Format error message from auto-save hook
+  const saveError = autoSaveError
+    ? autoSaveError.message || 'Failed to save changes. Please try again.'
+    : null;
+
+  // Reset content when dialog opens
   useEffect(() => {
     if (open) {
       setCurrentValue(initialValue);
-      setIsDirty(false);
-      setSaveError(null);
+      clearError();
     }
-  }, [open, initialValue]);
+  }, [open, initialValue, clearError]);
 
   const handleChange = (value: string) => {
     setCurrentValue(value);
-    setIsDirty(true);
+    // Auto-save hook tracks dirty state and errors automatically
     if (saveError) {
-      setSaveError(null);
+      clearError();
     }
   };
 
   const handleSave = async () => {
     try {
-      setSaveError(null);
-      await onSave(currentValue);
-      setIsDirty(false);
+      // Flush auto-save to ensure latest changes are saved
+      await flushPendingUpdates();
       onOpenChange(false);
     } catch (error) {
-      // Error handling delegated to parent via onSave
+      // Error handling done by auto-save hook
       console.error('Save failed:', error);
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : 'Failed to save changes. Please try again.';
-      setSaveError(message);
 
       if (import.meta.env.DEV) {
         console.error('Full error context:', {
@@ -126,7 +152,12 @@ export function TextEditorDialog({
   };
 
   const handleCancel = () => {
+    // Flush auto-save if there are pending changes (fire and forget)
     if (isDirty) {
+      void flushPendingUpdates().catch((error) => {
+        console.error('Auto-save flush failed on cancel:', error);
+      });
+
       const shouldDiscard =
         typeof window === 'undefined'
           ? true
@@ -137,11 +168,19 @@ export function TextEditorDialog({
     }
 
     onOpenChange(false);
-    setSaveError(null);
+    clearError();
+  };
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      void handleSave();
+      return;
+    }
+    onOpenChange(true);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-[900px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -162,18 +201,29 @@ export function TextEditorDialog({
         </div>
 
         {saveError && (
-          <Alert variant="destructive">
-            <AlertTitle>Save failed</AlertTitle>
-            <AlertDescription>{saveError}</AlertDescription>
+          <Alert variant="destructive" className="relative">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Unable to save your changes</AlertTitle>
+            <AlertDescription>
+              {saveError} Please check your network connection and try saving again.
+            </AlertDescription>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-2 right-2 h-6 w-6 p-0"
+              onClick={clearError}
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </Alert>
         )}
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
+          <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isLoading || !isDirty}>
-            {isLoading ? (
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Saving...
