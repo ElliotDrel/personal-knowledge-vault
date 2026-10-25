@@ -36,6 +36,13 @@ export interface Comment {
   // Threading metadata (null when comment is a root)
   threadRootId?: string | null;
   threadPrevCommentId?: string | null;
+
+  // AI-specific fields (present when created_by_ai is true)
+  createdByAi?: boolean;
+  aiCommentCategory?: 'general' | 'selected_text' | null;
+  aiSuggestionType?: 'missing_concept' | 'rewording' | 'factual_correction' | 'structural_suggestion' | null;
+  aiProcessingLogId?: string | null;
+  retryCount?: number;
 }
 
 /**
@@ -103,4 +110,45 @@ export function isActiveComment(comment: Comment): boolean {
  */
 export function isReply(comment: Comment): boolean {
   return Boolean(comment.threadRootId);
+}
+
+/**
+ * Type guard: Check if comment was created by AI
+ */
+export function isAIComment(comment: Comment): boolean {
+  return Boolean(comment.createdByAi);
+}
+
+/**
+ * AI Processing Log
+ */
+export interface AIProcessingLog {
+  id: string;
+  parentLogId?: string | null;
+  userId: string;
+  resourceId: string | null;
+  actionType: string;
+  attemptNumber: number;
+  status: 'processing' | 'completed' | 'failed' | 'partial_success';
+  modelUsed: string;
+  inputData?: Record<string, unknown> | null;
+  outputData?: Record<string, unknown> | null;
+  errorDetails?: Record<string, unknown> | null;
+  processingTimeMs?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Response from AI Notes Check Edge Function
+ */
+export interface AINotesCheckResponse {
+  success: boolean;
+  commentsCreated?: number;
+  commentsFailed?: number;
+  processingLogId?: string;
+  error?: {
+    code: string;
+    message: string;
+  };
 }

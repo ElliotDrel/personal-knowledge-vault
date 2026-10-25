@@ -7,6 +7,8 @@ import type {
   CreateCommentInput,
   UpdateCommentInput,
   CommentStatus,
+  AIProcessingLog,
+  AINotesCheckResponse,
 } from '@/types/comments';
 import type { Tables } from '@/types/supabase-generated';
 
@@ -522,6 +524,12 @@ const mapToComment = (row: CommentRow): Comment => {
     resolvedAt: row.resolved_at ?? undefined,
     threadRootId: row.thread_root_id ?? null,
     threadPrevCommentId: row.thread_prev_comment_id ?? null,
+    // AI fields
+    createdByAi: row.created_by_ai ?? false,
+    aiCommentCategory: row.ai_comment_category ?? undefined,
+    aiSuggestionType: row.ai_suggestion_type ?? undefined,
+    aiProcessingLogId: row.ai_processing_log_id ?? undefined,
+    retryCount: row.retry_count ?? undefined,
   };
 };
 
@@ -951,6 +959,114 @@ export const deleteReply = async (replyId: string): Promise<void> => {
     }
   } catch (error) {
     console.error('[supabaseStorage] Error in deleteReply:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
+// AI Operations
+// ============================================================================
+
+/**
+ * Run AI Notes Check on a resource
+ * Calls the Edge Function to analyze notes and create AI comments
+ */
+export const runAINotesCheck = async (resourceId: string): Promise<AINotesCheckResponse> => {
+  try {
+    console.log('[supabaseStorage] Calling AI Notes Check Edge Function for resource:', resourceId);
+
+    const { data, error } = await supabase.functions.invoke('ai-notes-check', {
+      body: { resourceId },
+    });
+
+    if (error) {
+      console.error('[supabaseStorage] Edge Function error:', error);
+      throw new Error(`AI Notes Check failed: ${error.message}`);
+    }
+
+    if (!data || !data.success) {
+      console.error('[supabaseStorage] Edge Function returned error:', data?.error);
+      throw new Error(data?.error?.message || 'AI Notes Check failed');
+    }
+
+    console.log('[supabaseStorage] AI Notes Check completed:', {
+      commentsCreated: data.commentsCreated,
+      commentsFailed: data.commentsFailed,
+    });
+
+    return data as AINotesCheckResponse;
+  } catch (error) {
+    console.error('[supabaseStorage] Error in runAINotesCheck:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get AI processing logs for a resource
+ */
+export const getAIProcessingLogs = async (resourceId: string): Promise<AIProcessingLog[]> => {
+  try {
+    const user = await getCurrentUser();
+
+    const { data, error } = await supabase
+      .from('ai_processing_logs')
+      .select('*')
+      .eq('resource_id', resourceId)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[supabaseStorage] Error fetching AI processing logs:', error);
+      throw new Error(`Failed to fetch processing logs: ${error.message}`);
+    }
+
+    // Transform snake_case to camelCase
+    return (data || []).map((log) => ({
+      id: log.id,
+      parentLogId: log.parent_log_id,
+      userId: log.user_id,
+      resourceId: log.resource_id,
+      actionType: log.action_type,
+      attemptNumber: log.attempt_number,
+      status: log.status as AIProcessingLog['status'],
+      modelUsed: log.model_used,
+      inputData: log.input_data as Record<string, unknown> | null | undefined,
+      outputData: log.output_data as Record<string, unknown> | null | undefined,
+      errorDetails: log.error_details as Record<string, unknown> | null | undefined,
+      processingTimeMs: log.processing_time_ms,
+      createdAt: log.created_at,
+      updatedAt: log.updated_at,
+    }));
+  } catch (error) {
+    console.error('[supabaseStorage] Error in getAIProcessingLogs:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get active AI-generated comments for a resource
+ */
+export const getActiveAIComments = async (resourceId: string): Promise<Comment[]> => {
+  try {
+    const user = await getCurrentUser();
+
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('resource_id', resourceId)
+      .eq('user_id', user.id)
+      .eq('created_by_ai', true)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[supabaseStorage] Error fetching active AI comments:', error);
+      throw new Error(`Failed to fetch AI comments: ${error.message}`);
+    }
+
+    return (data || []).map(mapToComment);
+  } catch (error) {
+    console.error('[supabaseStorage] Error in getActiveAIComments:', error);
     throw error;
   }
 };
