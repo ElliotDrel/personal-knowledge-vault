@@ -166,7 +166,10 @@ export function NotesEditorDialog({
       setAiCheckState('processing');
       // Brief delay for UX (shows processing state)
       await new Promise((resolve) => setTimeout(resolve, 500));
-      
+
+      // Ensure any pending text sync completes so AI reads the latest notes
+      await flushPendingUpdates();
+
       const result = await storageAdapter.runAINotesCheck(resourceId);
       
       if (!result.success) {
