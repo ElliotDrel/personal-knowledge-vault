@@ -181,32 +181,64 @@ export function WYSIWYGEditor({
         return;
       }
 
+      const sanitizedHtml = sanitizeHtml(editor.getHTML());
+      const markdown = turndownService.turndown(sanitizedHtml);
+      const plainText = stripMarkdown(markdown);
       const rawTextBeforeSelection = editor.state.doc.textBetween(0, from, '\n');
       const normalizedTextBeforeSelection = normalizePlainTextWhitespace(
         rawTextBeforeSelection,
         { trimEdges: false },
       );
 
-      const sanitizedHtml = sanitizeHtml(editor.getHTML());
-      const markdown = turndownService.turndown(sanitizedHtml);
-      const plainText = stripMarkdown(markdown);
+      const rawTextThroughSelection = editor.state.doc.textBetween(0, to, '\n');
+      const normalizedTextThroughSelection = normalizePlainTextWhitespace(
+        rawTextThroughSelection,
+        { trimEdges: false },
+      );
 
-      const start = normalizedTextBeforeSelection.length;
-      const end = start + normalizedSelectedText.length;
+      const rawFullText = editor.state.doc.textBetween(
+        0,
+        editor.state.doc.content.size,
+        '\n',
+      );
+      const normalizedFullText = normalizePlainTextWhitespace(rawFullText, {
+        trimEdges: false,
+      });
+      const leadingWhitespaceRemoved =
+        normalizedFullText.length - normalizedFullText.trimStart().length;
+
+      const start = Math.max(
+        0,
+        normalizedTextBeforeSelection.length - leadingWhitespaceRemoved,
+      );
+      const endCandidate = Math.max(
+        start,
+        normalizedTextThroughSelection.length - leadingWhitespaceRemoved,
+      );
+
+      if (start > plainText.length) {
+        onSelectionChange(null);
+        return;
+      }
+
+      const end = Math.min(endCandidate, plainText.length);
       const plainTextSelection = plainText.slice(start, end);
 
-      if (plainTextSelection !== normalizedSelectedText) {
+      if (!plainTextSelection.trim()) {
+        onSelectionChange(null);
+        return;
+      }
+
+      if (
+        normalizePlainTextWhitespace(plainTextSelection, { trimEdges: false }) !==
+        normalizedSelectedText
+      ) {
         console.warn('[WYSIWYGEditor] Plain text selection mismatch detected.', {
           normalizedSelectedText,
           plainTextSelection,
           start,
           end,
         });
-      }
-
-      if (!plainTextSelection.trim()) {
-        onSelectionChange(null);
-        return;
       }
 
       onSelectionChange({
