@@ -269,6 +269,77 @@ This file contains:
 
 ---
 
+### Configuration File Synchronization (AUTOMATED)
+
+**Problem**: Edge Functions run in Deno and cannot import from `src/` directory, forcing config/utility duplication between frontend and Edge Functions.
+
+**Solution**: Automated sync validation scripts that block deployments when configs are out of sync.
+
+#### Duplicated Configs (Short-Form Video Processing)
+
+| Config/Utility | Frontend Source | Edge Function Copy | Validation Script |
+|----------------|-----------------|-------------------|-------------------|
+| `PLATFORM_CONFIGS` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:video-platform-extraction` |
+| `POLLING_CONFIG` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:video-polling-settings` |
+| `normalizeUrl()` | `src/utils/urlDetection.ts` | `supabase/functions/short-form/utils/urlUtils.ts` | `check-sync:url-normalization` |
+
+#### Workflow (When Editing Duplicated Configs)
+
+1. **Edit the frontend source of truth** (e.g., `src/types/shortFormApi.ts`)
+2. **Manually copy changes** to Edge Function file (e.g., `supabase/functions/short-form/types.ts`)
+3. **Validate sync**: `npm run check-sync:short-form`
+4. **Deploy with validation**: `npm run deploy:edge:short-form` (auto-validates before deploying)
+
+#### Available Commands
+
+**Individual checks** (fast iteration):
+```bash
+npm run check-sync:video-platform-extraction  # Validate PLATFORM_CONFIGS
+npm run check-sync:video-polling-settings     # Validate POLLING_CONFIG
+npm run check-sync:url-normalization          # Validate normalizeUrl function
+```
+
+**Composite checks**:
+```bash
+npm run check-sync:short-form  # All short-form validations
+npm run check-sync:all         # All Edge Function validations
+```
+
+**Deployment commands** (with validation):
+```bash
+npm run deploy:edge:short-form  # Validates sync, then deploys short-form function
+npm run deploy:edge:all         # Validates all, then deploys all Edge Functions
+```
+
+**Quality gates**:
+```bash
+npm run pre-deploy  # Typecheck + lint + sync validation
+npm run ci          # Full CI suite (includes build)
+```
+
+#### Automated Protection
+
+- **Deployment blocked** if configs are out of sync
+- **Clear error messages** showing which file to sync
+- **Exit code 1** stops deployment pipeline
+- **Fail-fast** behavior (stops on first mismatch)
+
+#### File Warnings
+
+All duplicated files have `⚠️ SYNC WARNING` comments at the top:
+- **Source files**: "SOURCE OF TRUTH - edit this, sync to Edge Function"
+- **Copy files**: "DO NOT EDIT DIRECTLY - synced from frontend"
+
+#### Future Improvements
+
+Consider migrating to **database-backed config** to eliminate duplication entirely:
+- Store configs in `app_config` table
+- Manage via admin dashboard
+- No sync needed, no deployment required for config changes
+- Suitable for A/B testing and feature flags
+
+---
+
 ### React Hooks Order & Dependencies
 **Hook Execution Order** (CRITICAL - violating causes "Cannot access before initialization"):
 1. All `useState` declarations
@@ -358,6 +429,8 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 | AI generating duplicate suggestions | Put anti-duplication rules FIRST with visual emphasis; use domain-specific examples; force sequential workflow (list covered → propose new → filter). |
 | Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
 | Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
+| Config out of sync / Edge Function outdated | Run `npm run check-sync:all` to identify mismatches; copy changes from frontend source to Edge Function; always use `npm run deploy:edge:short-form` to auto-validate before deployment. |
+| Deployment blocked by sync check | Sync validation scripts detected config mismatch - copy changes from source of truth (frontend) to Edge Function copy; see file warnings for exact sync instructions. |
 | Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
 | Edge Function changes not working | Deploy immediately after code changes: `npx supabase functions deploy <name>`. Don't wait for user to discover it's not deployed. `npm run build` does NOT deploy Edge Functions. |
 
