@@ -9,7 +9,15 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Resource } from './mockData';
 import * as supabaseOps from './supabaseStorage';
-import type { Comment, CommentWithReplies, CreateCommentInput, UpdateCommentInput, CommentStatus } from '@/types/comments';
+import type {
+  Comment,
+  CommentWithReplies,
+  CreateCommentInput,
+  UpdateCommentInput,
+  CommentStatus,
+  AIProcessingLog,
+  AINotesCheckResponse,
+} from '@/types/comments';
 
 /**
  * Storage adapter interface that provides unified access to Supabase-backed resource storage.
@@ -54,6 +62,11 @@ export interface StorageAdapter {
   markAsStale(commentId: string, newQuotedText: string): Promise<Comment>;
   deleteComment(commentId: string): Promise<void>;
   deleteReply(replyId: string): Promise<void>;
+
+  // AI operations
+  runAINotesCheck(resourceId: string): Promise<AINotesCheckResponse>;
+  getAIProcessingLogs(resourceId: string): Promise<AIProcessingLog[]>;
+  getActiveAIComments(resourceId: string): Promise<Comment[]>;
 }
 
 // Supabase adapter (uses existing async operations)
@@ -165,6 +178,19 @@ class SupabaseStorageAdapter implements StorageAdapter {
 
   async deleteReply(replyId: string): Promise<void> {
     return supabaseOps.deleteReply(replyId);
+  }
+
+  // AI operations
+  async runAINotesCheck(resourceId: string): Promise<AINotesCheckResponse> {
+    return supabaseOps.runAINotesCheck(resourceId);
+  }
+
+  async getAIProcessingLogs(resourceId: string): Promise<AIProcessingLog[]> {
+    return supabaseOps.getAIProcessingLogs(resourceId);
+  }
+
+  async getActiveAIComments(resourceId: string): Promise<Comment[]> {
+    return supabaseOps.getActiveAIComments(resourceId);
   }
 }
 
