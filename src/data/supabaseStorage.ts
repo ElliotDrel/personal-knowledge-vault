@@ -11,7 +11,6 @@ import type {
   AINotesCheckResponse,
 } from '@/types/comments';
 import type { Tables } from '@/types/supabase-generated';
-import { normalizePlainTextWhitespace } from '@/utils/stripMarkdown';
 
 type CommentRow = Tables<'comments'>;
 
@@ -704,37 +703,17 @@ export const createComment = async (
   try {
     const user = await getCurrentUser();
 
-    const isSelectedTextComment = input.commentType === 'selected-text';
-
-    if (isSelectedTextComment) {
-      if (
-        input.quotedText === undefined ||
-        input.startOffset === undefined ||
-        input.endOffset === undefined
-      ) {
-        throw new Error(
-          '[supabaseStorage] quotedText, startOffset, and endOffset are required for selected-text comments'
-        );
-      }
-    }
-
-    const normalizedQuotedText = isSelectedTextComment
-      ? normalizePlainTextWhitespace(input.quotedText)
-      : null;
-
     const payload: Record<string, unknown> = {
       resource_id: input.resourceId,
       user_id: user.id,
       comment_type: input.commentType,
       status: 'active',
-      start_offset: isSelectedTextComment ? input.startOffset : null,
-      end_offset: isSelectedTextComment ? input.endOffset : null,
-      quoted_text: normalizedQuotedText,
+      start_offset: input.startOffset ?? null,
+      end_offset: input.endOffset ?? null,
+      quoted_text: input.quotedText ?? null,
       body: input.body.trim(),
       thread_root_id: input.threadRootId ?? null,
       thread_prev_comment_id: input.threadPrevCommentId ?? null,
-      // Save full original text for staleness detection
-      original_quoted_text: normalizedQuotedText,
     };
 
     const { data: commentRowData, error } = await supabase
@@ -994,6 +973,8 @@ export const deleteReply = async (replyId: string): Promise<void> => {
  */
 export const runAINotesCheck = async (resourceId: string): Promise<AINotesCheckResponse> => {
   try {
+    console.log('[supabaseStorage] Calling AI Notes Check Edge Function for resource:', resourceId);
+
     const { data, error } = await supabase.functions.invoke('ai-notes-check', {
       body: { resourceId },
     });
@@ -1007,6 +988,11 @@ export const runAINotesCheck = async (resourceId: string): Promise<AINotesCheckR
       console.error('[supabaseStorage] Edge Function returned error:', data?.error);
       throw new Error(data?.error?.message || 'AI Notes Check failed');
     }
+
+    console.log('[supabaseStorage] AI Notes Check completed:', {
+      commentsCreated: data.commentsCreated,
+      commentsFailed: data.commentsFailed,
+    });
 
     return data as AINotesCheckResponse;
   } catch (error) {

@@ -1,17 +1,12 @@
 /**
  * NotesEditorDialog Component
  *
- * A modal dialog for editing notes with WYSIWYG editing and markdown storage.
+ * A modal dialog for editing notes with markdown support.
  * Features:
- * - WYSIWYG editing area with rich text formatting toolbar
- * - Comment system integration (create, reply, resolve)
- * - AI Notes Check tool for automated suggestions
+ * - Large editing area with MarkdownField (raw on focus, formatted on blur)
  * - Unsaved changes protection with confirmation dialog
+ * - Future-ready layout structure for additional features
  * - Explicit save action (no auto-save)
- * - Markdown storage format for AI compatibility
- *
- * Note: Inline comment highlights during editing will be added in Phase 3
- * with ProseMirror decorations. Currently, comments are managed via sidebar.
  *
  * @component
  */
@@ -37,9 +32,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
+import { MarkdownField } from '@/components/ui/markdown-field';
 import { Save, Loader2 } from 'lucide-react';
-import { stripMarkdown } from '@/utils/stripMarkdown';
 
 // Comment system imports
 import type { CommentWithReplies } from '@/types/comments';
@@ -84,10 +78,9 @@ export function NotesEditorDialog({
   const [hoveredCommentId, setHoveredCommentId] = useState<string | null>(null);
   const [showResolvedComments, setShowResolvedComments] = useState(false);
   const [isCreatingComment, setIsCreatingComment] = useState(false);
-  const [selectionRange, setSelectionRange] = useState<
-    { start: number; end: number; text: string } | null
-  >(null);
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [isMarkdownEditing, setIsMarkdownEditing] = useState(true);
 
   // AI Notes Check state
   const [aiCheckState, setAiCheckState] = useState<'idle' | 'processing' | 'complete' | 'error'>('idle');
@@ -130,6 +123,10 @@ export function NotesEditorDialog({
     }
   }, [open]);
 
+  useEffect(() => {
+    setIsMarkdownEditing(open);
+  }, [open]);
+
   /**
    * Load active comments from database
    */
@@ -169,10 +166,7 @@ export function NotesEditorDialog({
       setAiCheckState('processing');
       // Brief delay for UX (shows processing state)
       await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Ensure any pending text sync completes so AI reads the latest notes
-      await flushPendingUpdates();
-
+      
       const result = await storageAdapter.runAINotesCheck(resourceId);
       
       if (!result.success) {
@@ -228,27 +222,9 @@ export function NotesEditorDialog({
     }
 
     // Check if selection is not just whitespace
-    const plainText = stripMarkdown(currentValue);
-
-    if (selectionRange.start < 0 || selectionRange.end > plainText.length) {
-      console.warn('[NotesEditorDialog] Selection range out of bounds for plain text:', {
-        range: selectionRange,
-        plainTextLength: plainText.length,
-      });
-      return;
-    }
-
-    const selectedText = plainText.slice(selectionRange.start, selectionRange.end);
-
+    const selectedText = currentValue.slice(selectionRange.start, selectionRange.end);
     if (!selectedText.trim()) {
-      console.warn(
-        '[NotesEditorDialog] Plain text slice for selection is empty. Aborting comment creation.',
-        {
-          selectionRange,
-          plainTextLength: plainText.length,
-          originalSelectionText: selectionRange.text,
-        }
-      );
+      console.warn('[NotesEditorDialog] Cannot create comment on empty text selection');
       return;
     }
 
@@ -265,29 +241,23 @@ export function NotesEditorDialog({
     }
 
     // Validate offsets are within bounds
-    const plainText = stripMarkdown(currentValue);
-
-    if (selectionRange.start < 0 || selectionRange.end > plainText.length) {
+    if (selectionRange.start < 0 || selectionRange.end > currentValue.length) {
       console.error('[NotesEditorDialog] Selection range out of bounds:', {
         range: selectionRange,
-        plainTextLength: plainText.length,
+        textLength: currentValue.length,
       });
       return;
     }
 
     try {
-      const quotedText = plainText.slice(selectionRange.start, selectionRange.end);
+      const quotedText = currentValue.slice(
+        selectionRange.start,
+        selectionRange.end
+      );
 
       // Final validation before creating comment
       if (!quotedText.trim()) {
-        console.error(
-          '[NotesEditorDialog] Plain text slice for comment creation is empty after validation. Aborting.',
-          {
-            selectionRange,
-            plainTextLength: plainText.length,
-            originalSelectionText: selectionRange.text,
-          }
-        );
+        console.error('[NotesEditorDialog] Cannot create comment with empty quoted text');
         return;
       }
 
@@ -433,6 +403,13 @@ export function NotesEditorDialog({
     handleTextChange(oldValue, newValue, comments, setComments);
   };
 
+  /**
+   * Handle text selection changes
+   */
+  const handleSelectionChange = (range: { start: number; end: number } | null) => {
+    setSelectionRange(range);
+  };
+
   // Handle save action
   const handleSave = async () => {
     try {
@@ -505,26 +482,19 @@ export function NotesEditorDialog({
           <div className="flex-1 min-h-0 flex gap-4">
             {/* Editor area */}
             <div className="flex-1 min-h-0 max-h-[600px] overflow-y-auto px-1">
-              <WYSIWYGEditor
+              <MarkdownField
                 value={currentValue}
                 onChange={handleValueChange}
-                onSelectionChange={(selection) => {
-                  if (selection) {
-                setSelectionRange({
-                  start: selection.start,
-                  end: selection.end,
-                  text: selection.text,
-                });
-              } else {
-                setSelectionRange(null);
-              }
-                }}
-                placeholder="Start writing your notes... Use markdown formatting and WYSIWYG editing."
+                onSelectionChange={handleSelectionChange}
+                placeholder="Start writing your notes... Use markdown formatting."
                 minHeight={400}
-                showToolbar={true}
-                autoFocus={false}
+                textareaClassName="font-reading text-base leading-relaxed"
+                isEditing={isMarkdownEditing}
+                onEditingChange={setIsMarkdownEditing}
+                comments={comments}
+                activeCommentId={activeCommentId}
+                hoveredCommentId={hoveredCommentId}
               />
-              {/* Note: Inline comment highlights during editing will be added in Phase 3 with ProseMirror decorations */}
             </div>
 
             {/* Sidebar: Comments */}
