@@ -5,7 +5,7 @@
  * Scrolls active comment into view when clicked from editor.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo, memo } from 'react';
 import { CommentCard } from './CommentCard';
 import type { CommentWithReplies } from '@/types/comments';
 import { cn } from '@/lib/utils';
@@ -23,7 +23,7 @@ interface CommentSidebarProps {
   onCreateCommentCancel: () => void;
 }
 
-export function CommentSidebar({
+export const CommentSidebar = memo(function CommentSidebar({
   comments,
   activeCommentId,
   onCommentClick,
@@ -47,8 +47,11 @@ export function CommentSidebar({
     }
   }, [activeCommentId]);
 
-  // Filter to only active comments (resolved shown in modal)
-  const activeComments = comments.filter((c) => c.status === 'active');
+  // Filter to only active comments (resolved shown in modal) - memoized for performance
+  const activeComments = useMemo(
+    () => comments.filter((c) => c.status === 'active'),
+    [comments]
+  );
 
   return (
     <div
@@ -95,4 +98,4 @@ export function CommentSidebar({
       ))}
     </div>
   );
-}
+});
