@@ -96,11 +96,27 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
   }
 
   // Normalize URL
-  const normalizedUrl = normalizeUrl(trimmedUrl)
-  console.log('🔄 [URL Detection] Normalized:', {
-    from: trimmedUrl,
-    to: normalizedUrl
-  })
+  let normalizedUrl: string
+  try {
+    normalizedUrl = normalizeUrl(trimmedUrl)
+    console.log('🔄 [URL Detection] Normalized:', {
+      from: trimmedUrl,
+      to: normalizedUrl
+    })
+  } catch (error) {
+    // Handle validation errors (e.g., invalid video IDs)
+    const errorMessage = error instanceof Error ? error.message : 'Invalid URL'
+    console.log('❌ [URL Detection] Validation failed:', errorMessage)
+    return {
+      isShortFormVideo: false,
+      platform: null,
+      normalizedUrl: trimmedUrl,
+      originalUrl: url,
+      isValid: false,
+      platformInfo: null,
+      errorMessage
+    }
+  }
 
   // Detect platform
   const platform = detectPlatform(normalizedUrl)
@@ -149,6 +165,7 @@ export function isValidUrl(url: string): boolean {
 /**
  * Normalizes a URL to a canonical form
  * This should match the backend normalization logic
+ * Throws error if URL contains invalid platform-specific data (e.g., malformed video IDs)
  */
 export function normalizeUrl(url: string): string {
   try {
@@ -167,7 +184,7 @@ export function normalizeUrl(url: string): string {
 
     // Handle platform-specific normalizations
     if (hostname === 'youtube.com' || hostname === 'youtu.be') {
-      return normalizeYouTubeUrl(parsed)
+      return normalizeYouTubeUrl(parsed) // May throw if video ID is invalid
     } else if (hostname === 'tiktok.com' || hostname.includes('tiktok.com')) {
       return normalizeTikTokUrl(parsed)
     } else if (hostname === 'instagram.com') {
@@ -193,20 +210,45 @@ export function normalizeUrl(url: string): string {
     return parsed.toString()
 
   } catch (error) {
+    // If it's a validation error (e.g., invalid video ID), re-throw it
+    // so the caller can handle it appropriately
+    if (error instanceof Error && error.message.includes('Invalid YouTube video ID')) {
+      console.warn('Invalid YouTube URL detected:', error.message)
+      throw error
+    }
+
+    // For other errors, log and return original URL
     console.warn('Failed to normalize URL, returning original:', error)
     return url
   }
 }
 
 /**
+ * Validates that a YouTube video ID is exactly 11 characters
+ * YouTube video IDs are always 11 characters of [a-zA-Z0-9_-]
+ */
+function validateYouTubeVideoId(videoId: string): void {
+  if (videoId.length !== 11) {
+    throw new Error(`Invalid YouTube video ID: must be exactly 11 characters, got ${videoId.length}`)
+  }
+  // Additional validation: check that it only contains valid characters
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+    throw new Error(`Invalid YouTube video ID: contains invalid characters`)
+  }
+}
+
+/**
  * Normalizes YouTube URLs to a standard format
+ * Throws error if video ID is invalid (not exactly 11 characters)
  */
 function normalizeYouTubeUrl(parsed: URL): string {
+  const originalHost = parsed.hostname.toLowerCase()
   parsed.hostname = 'youtube.com'
 
   // Handle /shorts/ URLs - PRESERVE the /shorts/ path for platform detection
   if (parsed.pathname.startsWith('/shorts/')) {
     const videoId = parsed.pathname.split('/shorts/')[1].split('?')[0].split('/')[0]
+    validateYouTubeVideoId(videoId)
     // Keep it as a shorts URL so detectPlatform can recognize it
     return `https://youtube.com/shorts/${videoId}`
   }
@@ -214,14 +256,16 @@ function normalizeYouTubeUrl(parsed: URL): string {
   // Handle youtu.be short URLs - convert to /watch format (NOT /shorts)
   // youtu.be is YouTube's generic short URL format used for BOTH regular videos and Shorts
   // Only explicit /shorts/ URLs should be treated as Shorts
-  if (parsed.hostname === 'youtu.be') {
+  if (originalHost === 'youtu.be') {
     const videoId = parsed.pathname.substring(1).split('?')[0].split('/')[0]
+    validateYouTubeVideoId(videoId)
     return `https://youtube.com/watch?v=${videoId}`
   }
 
   // Keep only essential parameters for regular watch URLs
   const videoId = parsed.searchParams.get('v')
   if (videoId) {
+    validateYouTubeVideoId(videoId)
     return `https://youtube.com/watch?v=${videoId}`
   }
 
