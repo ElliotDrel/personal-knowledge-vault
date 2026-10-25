@@ -26,9 +26,6 @@ ORDER BY ordinal_position;
 -- original_quoted_text  | text    | YES | NULL
 -- quoted_text           | text    | YES | NULL
 
-COMMENT ON COLUMN comments.is_stale IS 'Current validation check';
-COMMENT ON COLUMN comments.original_quoted_text IS 'Current validation check';
-
 -- ============================================================================
 -- SECTION 2: Index Validation
 -- ============================================================================

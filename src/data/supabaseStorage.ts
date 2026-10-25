@@ -714,8 +714,8 @@ export const createComment = async (
       body: input.body.trim(),
       thread_root_id: input.threadRootId ?? null,
       thread_prev_comment_id: input.threadPrevCommentId ?? null,
-      // Save original text for staleness detection (first 100 chars)
-      original_quoted_text: input.quotedText ? input.quotedText.slice(0, 100) : null,
+      // Save full original text for staleness detection
+      original_quoted_text: input.quotedText ?? null,
     };
 
     const { data: commentRowData, error } = await supabase
