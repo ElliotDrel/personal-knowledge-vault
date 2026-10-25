@@ -1,11 +1,12 @@
 import { supabase } from '@/lib/supabaseClient';
+import { isResourceTypeColor, type ResourceTypeColor, type ResourceTypeId } from '@/types/resource';
 import { Resource } from './mockData';
 
 // Database types that align with our schema
 export interface DatabaseResource {
   id: string;
   user_id: string;
-  type: 'book' | 'video' | 'podcast' | 'article' | 'short-video';
+  type: ResourceTypeId;
   title: string;
   description: string;
   notes: string;
@@ -19,7 +20,7 @@ export interface DatabaseResource {
 export interface DatabaseResourceTypeConfig {
   id: string;
   user_id: string;
-  resource_type: 'book' | 'video' | 'podcast' | 'article' | 'short-video';
+  resource_type: ResourceTypeId;
   config: {
     label: string;
     icon: string;
@@ -91,9 +92,7 @@ export const getResources = async (): Promise<Resource[]> => {
       .from('resources')
       .select('*')
       .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
-      .setHeader('Cache-Control', 'no-store, max-age=0')
-      .setHeader('Pragma', 'no-cache');
+      .order('updated_at', { ascending: false });
 
     const { data, error } = await query;
 
@@ -103,9 +102,6 @@ export const getResources = async (): Promise<Resource[]> => {
     }
 
     const transformed = (data || []).map(transformDatabaseResource);
-
-    if (import.meta.env.DEV) {
-    }
 
     return transformed;
   } catch (error) {
@@ -218,10 +214,25 @@ export const updateResource = async (resourceId: string, updates: Partial<Resour
 
         if (verificationError) {
           console.warn('[supabaseStorage] updateResource: Verification query failed', verificationError);
-        } else {
-          const verificationTranscript = verification?.transcript ?? '';
-          const verificationLength = verificationTranscript.length;
+        } else if (verification) {
+          const expectedTranscript = mergedResource.transcript ?? '';
+          const verificationTranscript = verification.transcript ?? '';
 
+          if (verificationTranscript !== expectedTranscript) {
+            console.warn('[supabaseStorage] updateResource: Transcript verification mismatch', {
+              resourceId,
+              expectedLength: expectedTranscript.length,
+              verifiedLength: verificationTranscript.length,
+            });
+          }
+
+          if (verification.updated_at !== data.updated_at) {
+            console.warn('[supabaseStorage] updateResource: updated_at mismatch after verification', {
+              resourceId,
+              expectedUpdatedAt: data.updated_at,
+              verifiedUpdatedAt: verification.updated_at,
+            });
+          }
         }
       } catch (verificationException) {
         console.warn('[supabaseStorage] updateResource: Verification query threw exception', verificationException);
@@ -309,10 +320,10 @@ export const getRecentResources = async (limit = 5): Promise<Resource[]> => {
 // Resource Type Configuration Operations
 
 export type ResourceTypeConfig = {
-  [key in 'book' | 'video' | 'podcast' | 'article' | 'short-video']: {
+  [key in ResourceTypeId]: {
     label: string;
     icon: string;
-    color: string;
+    color: ResourceTypeColor;
     fields: string[];
   };
 };
@@ -342,7 +353,23 @@ export const getResourceTypeConfig = async (): Promise<ResourceTypeConfig> => {
 
     // Override with user's custom configurations
     (data || []).forEach((item: DatabaseResourceTypeConfig) => {
-      config[item.resource_type] = item.config;
+      const current = config[item.resource_type];
+      if (!current) {
+        return;
+      }
+
+      const incomingColor = item.config?.color;
+      let resolvedColor: ResourceTypeColor = current.color;
+
+      if (typeof incomingColor === 'string' && isResourceTypeColor(incomingColor)) {
+        resolvedColor = incomingColor;
+      }
+
+      config[item.resource_type] = {
+        ...current,
+        ...item.config,
+        color: resolvedColor,
+      };
     });
 
     return config;
@@ -353,7 +380,7 @@ export const getResourceTypeConfig = async (): Promise<ResourceTypeConfig> => {
 };
 
 export const updateResourceTypeFields = async (
-  resourceType: keyof ResourceTypeConfig,
+  resourceType: ResourceTypeId,
   fields: string[]
 ): Promise<ResourceTypeConfig> => {
   try {
@@ -386,7 +413,7 @@ export const updateResourceTypeFields = async (
 };
 
 export const addFieldToResourceType = async (
-  resourceType: keyof ResourceTypeConfig,
+  resourceType: ResourceTypeId,
   fieldName: string
 ): Promise<ResourceTypeConfig> => {
   try {
@@ -406,7 +433,7 @@ export const addFieldToResourceType = async (
 };
 
 export const removeFieldFromResourceType = async (
-  resourceType: keyof ResourceTypeConfig,
+  resourceType: ResourceTypeId,
   fieldName: string
 ): Promise<ResourceTypeConfig> => {
   try {
