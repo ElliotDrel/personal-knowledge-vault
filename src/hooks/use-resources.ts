@@ -1,39 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStorageAdapter, Resource } from '@/data/storageAdapter';
 import { useAuth } from '@/hooks/useAuth';
-import { parseTimestamp } from '@/utils/timestamp';
-
-const mergeResources = (previous: Resource[], incoming: Resource[]) => {
-  if (!previous.length) {
-    return incoming;
-  }
-
-  const byId = new Map(previous.map((resource) => [resource.id, resource]));
-
-  incoming.forEach((resource) => {
-    const current = byId.get(resource.id);
-    if (!current) {
-      byId.set(resource.id, resource);
-      return;
-    }
-
-    const currentTime = parseTimestamp(current.updatedAt);
-    const incomingTime = parseTimestamp(resource.updatedAt);
-
-    if (currentTime === null || incomingTime === null) {
-      // If we cannot compare timestamps reliably, prefer the incoming value
-      byId.set(resource.id, resource);
-      return;
-    }
-
-    if (incomingTime >= currentTime) {
-      byId.set(resource.id, resource);
-    }
-  });
-
-  // Only keep resources returned from Supabase; drop deleted entries
-  return incoming.map((resource) => byId.get(resource.id) ?? resource);
-};
 
 export const useResources = () => {
   const { user } = useAuth();
@@ -61,8 +28,9 @@ export const useResources = () => {
 
     try {
       const data = await storageAdapter.getResources();
+
       if (isMountedRef.current) {
-        setResources((previous) => mergeResources(previous, data));
+        setResources(data);
       }
     } catch (err) {
       console.error('Error loading resources:', err);
@@ -85,48 +53,18 @@ export const useResources = () => {
 
   // Subscribe to resource changes for real-time updates
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout | null = null;
-
     const unsubscribe = storageAdapter.subscribeToResourceChanges(() => {
-      // Clear any pending refetch
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-
-      // Wait 500ms before refetching to allow database replication
-      // This prevents reading stale data from read replicas
-      timeoutId = setTimeout(() => {
-        loadResources();
-      }, 500);
+      loadResources();
     });
 
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [loadResources, user?.id, storageAdapter]);
-
-  const upsertResource = useCallback((updatedResource: Resource) => {
-    setResources((previous) => {
-      const exists = previous.some((resource) => resource.id === updatedResource.id);
-      if (!exists) {
-        return [...previous, updatedResource];
-      }
-
-      return previous.map((resource) =>
-        resource.id === updatedResource.id ? updatedResource : resource
-      );
-    });
-  }, []);
 
   return {
     resources,
     loading,
     error,
     refetch: loadResources,
-    upsertResource,
   };
 };
 

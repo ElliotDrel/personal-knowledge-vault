@@ -33,12 +33,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MarkdownField } from '@/components/ui/markdown-field';
-import { NotesEditorDialog } from '@/components/NotesEditorDialog';
-import { TranscriptEditorDialog } from '@/components/dialogs/TranscriptEditorDialog';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeSanitize from 'rehype-sanitize';
+import { MarkdownEditor } from '@/components/ui/markdown-editor';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import {
@@ -58,12 +53,10 @@ import {
   Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { parseTimestamp } from '@/utils/timestamp';
-import { getResourceBadgeClasses } from '@/utils/resourceTypeStyles';
 
 const ResourceDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const { resources, upsertResource } = useResources();
+  const { resources } = useResources();
   const storageAdapter = useStorageAdapter();
   const navigate = useNavigate();
 
@@ -71,19 +64,14 @@ const ResourceDetail = () => {
     () => (id ? resources.find((item) => item.id === id) ?? null : null),
     [resources, id]
   );
-  const resourceId = resource?.id ?? null;
 
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [notes, setNotes] = useState('');
   const [transcript, setTranscript] = useState('');
-  const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
-  const [isNotesDialogDirty, setIsNotesDialogDirty] = useState(false);
-  const [isTranscriptDialogOpen, setIsTranscriptDialogOpen] = useState(false);
-  const [commentCount, setCommentCount] = useState(0);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [notesLastSavedAt, setNotesLastSavedAt] = useState<string | null>(null);
 
   // Delete functionality state
   const [isDeleting, setIsDeleting] = useState(false);
@@ -104,7 +92,6 @@ const ResourceDetail = () => {
 
   // Metadata editing state
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
-  const [metadataLastSavedAt, setMetadataLastSavedAt] = useState<string | null>(null);
   const [metadataForm, setMetadataForm] = useState({
     title: '',
     description: '',
@@ -123,13 +110,12 @@ const ResourceDetail = () => {
     hashtags: ''
   });
 
-  // Description truncation state
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-
   useEffect(() => {
     if (!resource) {
-      setNotes('');
-      if (!isTranscriptDialogOpen) {
+      if (!isEditingNotes) {
+        setNotes('');
+      }
+      if (!isEditingTranscript) {
         setTranscript('');
       }
       if (!isEditingMetadata) {
@@ -149,105 +135,35 @@ const ResourceDetail = () => {
           hashtags: ''
         });
       }
-      setLastSavedAt(null);
-      setNotesLastSavedAt(null);
-      setMetadataLastSavedAt(null);
       return;
     }
 
-    const resourceTimestamp = parseTimestamp(resource.updatedAt);
-
-    // Sync notes unless the dialog currently has unsaved edits
-    if (!isNotesDialogOpen && !isNotesDialogDirty) {
-      const notesSavedTimestamp = parseTimestamp(notesLastSavedAt);
-      const shouldSyncNotes =
-        resourceTimestamp === null ||
-        notesSavedTimestamp === null ||
-        resourceTimestamp >= notesSavedTimestamp;
-
-      if (shouldSyncNotes) {
-        setNotes(resource.notes || '');
-      }
+    if (!isEditingNotes) {
+      setNotes(resource.notes || '');
     }
 
-    if (!isTranscriptDialogOpen) {
-      const lastSavedTimestamp = parseTimestamp(lastSavedAt);
-      const shouldSyncTranscript =
-        resourceTimestamp === null ||
-        lastSavedTimestamp === null ||
-        resourceTimestamp >= lastSavedTimestamp;
-
-      if (shouldSyncTranscript) {
-        setTranscript(resource.transcript || '');
-      }
+    if (!isEditingTranscript) {
+      setTranscript(resource.transcript || '');
     }
 
     if (!isEditingMetadata) {
-      const metadataSavedTimestamp = parseTimestamp(metadataLastSavedAt);
-      const shouldSyncMetadata =
-        resourceTimestamp === null ||
-        metadataSavedTimestamp === null ||
-        resourceTimestamp >= metadataSavedTimestamp;
-
-      if (shouldSyncMetadata) {
-        setMetadataForm({
-          title: resource.title || '',
-          description: resource.description || '',
-          tags: resource.tags?.join(', ') || '',
-          author: resource.author || '',
-          creator: resource.creator || '',
-          platform: resource.platform || '',
-          year: resource.year?.toString() || '',
-          duration: resource.duration || '',
-          url: resource.url || '',
-          channelName: resource.channelName || '',
-          handle: resource.handle || '',
-          viewCount: resource.viewCount?.toString() || '',
-          hashtags: resource.hashtags?.join(', ') || ''
-        });
-      }
+      setMetadataForm({
+        title: resource.title || '',
+        description: resource.description || '',
+        tags: resource.tags?.join(', ') || '',
+        author: resource.author || '',
+        creator: resource.creator || '',
+        platform: resource.platform || '',
+        year: resource.year?.toString() || '',
+        duration: resource.duration || '',
+        url: resource.url || '',
+        channelName: resource.channelName || '',
+        handle: resource.handle || '',
+        viewCount: resource.viewCount?.toString() || '',
+        hashtags: resource.hashtags?.join(', ') || ''
+      });
     }
-  }, [
-    resource,
-    isTranscriptDialogOpen,
-    isEditingMetadata,
-    transcript,
-    notes,
-    lastSavedAt,
-    notesLastSavedAt,
-    metadataLastSavedAt,
-    isNotesDialogOpen,
-    isNotesDialogDirty
-  ]);
-
-  useEffect(() => {
-    if (!resourceId) {
-      setCommentCount(0);
-      return;
-    }
-
-    let isActive = true;
-
-    const loadCommentCount = async () => {
-      try {
-        const activeComments = await storageAdapter.getComments(resourceId, 'active');
-        if (isActive) {
-          setCommentCount(activeComments.length);
-        }
-      } catch (err) {
-        console.error('[ResourceDetail] Error loading comment count:', err);
-        if (isActive) {
-          setCommentCount(0);
-        }
-      }
-    };
-
-    loadCommentCount();
-
-    return () => {
-      isActive = false;
-    };
-  }, [resourceId, storageAdapter]);
+  }, [resource, isEditingNotes, isEditingTranscript, isEditingMetadata]);
 
   if (!resource || !resourceTypeConfig) {
     return (
@@ -257,7 +173,7 @@ const ResourceDetail = () => {
             <h1 className="text-2xl font-bold mb-4">
               {!resource ? 'Resource not found' : 'Loading...'}
             </h1>
-            <Link to="/dashboard/resources">
+            <Link to="/resources">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Resources
@@ -271,52 +187,31 @@ const ResourceDetail = () => {
 
   const config = resourceTypeConfig[resource.type];
 
-  const handleSaveNotes = async (value: string) => {
-    if (!resource) {
-      return;
-    }
-
+  const handleSaveNotes = async () => {
+    if (!resource) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await storageAdapter.updateResource(resource.id, { notes: value });
-      setNotes(result.notes || '');
-      setNotesLastSavedAt(result.updatedAt ?? new Date().toISOString());
-      upsertResource(result);
+      await storageAdapter.updateResource(resource.id, { notes });
+      setIsEditingNotes(false);
     } catch (err) {
-      console.error('[ResourceDetail] handleSaveNotes: Error saving notes:', err);
+      console.error('Error saving notes:', err);
       setError('Failed to save notes');
-      throw err; // Re-throw so dialog knows save failed
     } finally {
       setLoading(false);
     }
   };
 
-  const handleNotesDialogOpenChange = (open: boolean) => {
-    if (open) {
-      setNotesLastSavedAt(resource?.updatedAt ?? null);
-    } else {
-      setIsNotesDialogDirty(false);
-    }
-    setIsNotesDialogOpen(open);
-  };
-
-  const handleSaveTranscript = async (value: string) => {
-    if (!resource) {
-      return;
-    }
-
+  const handleSaveTranscript = async () => {
+    if (!resource) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await storageAdapter.updateResource(resource.id, { transcript: value });
-      setTranscript(result.transcript || '');
-      setLastSavedAt(result.updatedAt ?? new Date().toISOString());
-      upsertResource(result);
+      await storageAdapter.updateResource(resource.id, { transcript });
+      setIsEditingTranscript(false);
     } catch (err) {
-      console.error('[ResourceDetail] handleSaveTranscript: Error saving transcript:', err);
+      console.error('Error saving transcript:', err);
       setError('Failed to save transcript');
-      throw err; // Re-throw so dialog can handle error state
     } finally {
       setLoading(false);
     }
@@ -327,9 +222,7 @@ const ResourceDetail = () => {
   };
 
   const handleSaveMetadata = async () => {
-    if (!resource) {
-      return;
-    }
+    if (!resource) return;
 
     // Validation
     if (!metadataForm.title.trim()) {
@@ -363,29 +256,10 @@ const ResourceDetail = () => {
         updatedData.hashtags = metadataForm.hashtags.split(',').map(tag => tag.trim()).filter(Boolean);
       }
 
-      const result = await storageAdapter.updateResource(resource.id, updatedData);
-      const nextMetadataForm = {
-        title: result.title || '',
-        description: result.description || '',
-        tags: result.tags?.join(', ') || '',
-        author: result.author || '',
-        creator: result.creator || '',
-        platform: result.platform || '',
-        year: result.year ? result.year.toString() : '',
-        duration: result.duration || '',
-        url: result.url || '',
-        channelName: result.channelName || '',
-        handle: result.handle || '',
-        viewCount: typeof result.viewCount === 'number' ? result.viewCount.toString() : '',
-        hashtags: result.hashtags?.join(', ') || ''
-      };
-
-      setMetadataForm(nextMetadataForm);
-      setMetadataLastSavedAt(result.updatedAt ?? new Date().toISOString());
-      upsertResource(result);
+      await storageAdapter.updateResource(resource.id, updatedData);
       setIsEditingMetadata(false);
     } catch (err) {
-      console.error('[ResourceDetail] handleSaveMetadata: Error saving metadata:', err);
+      console.error('Error saving metadata:', err);
       setError('Failed to save metadata');
     } finally {
       setLoading(false);
@@ -401,7 +275,7 @@ const ResourceDetail = () => {
     try {
       await storageAdapter.deleteResource(resource.id);
       // Navigate to resources list on success
-      navigate('/dashboard/resources');
+      navigate('/resources');
     } catch (err) {
       console.error('Error deleting resource:', err);
       // Keep dialog open, show error, allow retry
@@ -416,7 +290,7 @@ const ResourceDetail = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <Link to="/dashboard/resources">
+          <Link to="/resources">
             <Button variant="ghost" size="sm" className="mb-4 hover:bg-accent-soft transition-smooth">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Resources
@@ -431,7 +305,7 @@ const ResourceDetail = () => {
                   variant="secondary" 
                   className={cn(
                     "font-medium",
-                    getResourceBadgeClasses(config.color)
+                    `bg-${config.color}/10 text-${config.color} border-${config.color}/20`
                   )}
                 >
                   {config.label.slice(0, -1)}
@@ -441,6 +315,10 @@ const ResourceDetail = () => {
               <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4 font-reading">
                 {resource.title}
               </h1>
+              
+              <p className="text-lg text-muted-foreground font-reading leading-relaxed">
+                {resource.description}
+              </p>
             </div>
 
             <div className="flex items-center space-x-2 ml-4">
@@ -475,14 +353,13 @@ const ResourceDetail = () => {
                 <Button
                   size="sm"
                   variant={isEditingMetadata ? "default" : "outline"}
-                onClick={() => {
-                  if (isEditingMetadata) {
-                    handleSaveMetadata();
-                  } else {
-                    setMetadataLastSavedAt(resource?.updatedAt ?? null);
-                    setIsEditingMetadata(true);
-                  }
-                }}
+                  onClick={() => {
+                    if (isEditingMetadata) {
+                      handleSaveMetadata();
+                    } else {
+                      setIsEditingMetadata(true);
+                    }
+                  }}
                 >
                   {isEditingMetadata ? (
                     <>
@@ -505,7 +382,6 @@ const ResourceDetail = () => {
               {isEditingMetadata ? (
                 // Edit mode - Form fields
                 <div className="space-y-4">
-                  {/* First row: Title & Platform */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Title - always shown */}
                     <div className="space-y-2">
@@ -521,37 +397,20 @@ const ResourceDetail = () => {
                       />
                     </div>
 
-                    {config.fields.includes('platform') && (
-                      <div className="space-y-2">
-                        <Label htmlFor="platform" className="text-sm font-medium">
-                          Platform
-                        </Label>
-                        <Input
-                          id="platform"
-                          value={metadataForm.platform}
-                          onChange={(e) => handleMetadataChange('platform', e.target.value)}
-                          placeholder="Platform or source"
-                        />
-                      </div>
-                    )}
-                  </div>
+                    {/* Description - always shown */}
+                    <div className="space-y-2">
+                      <Label htmlFor="description" className="text-sm font-medium">
+                        Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={metadataForm.description}
+                        onChange={(e) => handleMetadataChange('description', e.target.value)}
+                        placeholder="Brief description"
+                        rows={3}
+                      />
+                    </div>
 
-                  {/* Second row: Description - full width */}
-                  <div className="space-y-2">
-                    <Label htmlFor="description" className="text-sm font-medium">
-                      Description
-                    </Label>
-                    <Textarea
-                      id="description"
-                      value={metadataForm.description}
-                      onChange={(e) => handleMetadataChange('description', e.target.value)}
-                      placeholder="Brief description"
-                      rows={3}
-                    />
-                  </div>
-
-                  {/* Remaining fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Dynamic fields based on resource type */}
                     {config.fields.includes('author') && (
                       <div className="space-y-2">
@@ -577,6 +436,20 @@ const ResourceDetail = () => {
                           value={metadataForm.creator}
                           onChange={(e) => handleMetadataChange('creator', e.target.value)}
                           placeholder="Creator name"
+                        />
+                      </div>
+                    )}
+
+                    {config.fields.includes('platform') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="platform" className="text-sm font-medium">
+                          Platform
+                        </Label>
+                        <Input
+                          id="platform"
+                          value={metadataForm.platform}
+                          onChange={(e) => handleMetadataChange('platform', e.target.value)}
+                          placeholder="Platform or source"
                         />
                       </div>
                     )}
@@ -701,38 +574,13 @@ const ResourceDetail = () => {
               ) : (
                 // Display mode - Current format
                 <>
-                  {/* Description Section - Truncated with expand/collapse */}
-                  {resource.description && (
-                    <>
-                      <div
-                        className="mb-4 cursor-pointer group"
-                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                      >
-                        <p className="text-sm text-muted-foreground mb-1">Description</p>
-                        <p
-                          className={cn(
-                            "text-base font-reading leading-relaxed transition-all",
-                            !isDescriptionExpanded && "line-clamp-1",
-                            "group-hover:text-foreground/80"
-                          )}
-                        >
-                          {resource.description}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1 group-hover:text-primary transition-colors">
-                          Click to {isDescriptionExpanded ? 'collapse' : 'expand'}
-                        </p>
-                      </div>
-                      <Separator className="mb-4" />
-                    </>
-                  )}
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {resource.author && (
                       <div className="flex items-center space-x-2">
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Author</p>
-                          <p className="font-reading text-base">{resource.author}</p>
+                          <p className="font-medium">{resource.author}</p>
                         </div>
                       </div>
                     )}
@@ -741,7 +589,7 @@ const ResourceDetail = () => {
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Creator</p>
-                          <p className="font-reading text-base">{resource.creator}</p>
+                          <p className="font-medium">{resource.creator}</p>
                         </div>
                       </div>
                     )}
@@ -750,7 +598,7 @@ const ResourceDetail = () => {
                         <Clock className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Duration</p>
-                          <p className="font-reading text-base">{resource.duration}</p>
+                          <p className="font-medium">{resource.duration}</p>
                         </div>
                       </div>
                     )}
@@ -759,7 +607,7 @@ const ResourceDetail = () => {
                         <Calendar className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Year</p>
-                          <p className="font-reading text-base">{resource.year}</p>
+                          <p className="font-medium">{resource.year}</p>
                         </div>
                       </div>
                     )}
@@ -769,7 +617,7 @@ const ResourceDetail = () => {
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Channel</p>
-                          <p className="font-reading text-base">{resource.channelName}</p>
+                          <p className="font-medium">{resource.channelName}</p>
                         </div>
                       </div>
                     )}
@@ -778,7 +626,7 @@ const ResourceDetail = () => {
                         <User className="w-4 h-4 text-muted-foreground" />
                         <div>
                           <p className="text-sm text-muted-foreground">Handle</p>
-                          <p className="font-reading text-base">@{resource.handle}</p>
+                          <p className="font-medium">@{resource.handle}</p>
                         </div>
                       </div>
                     )}
@@ -787,7 +635,7 @@ const ResourceDetail = () => {
                         <span className="w-4 h-4 text-muted-foreground">👁</span>
                         <div>
                           <p className="text-sm text-muted-foreground">Views</p>
-                          <p className="font-reading text-base">{resource.viewCount.toLocaleString()}</p>
+                          <p className="font-medium">{resource.viewCount.toLocaleString()}</p>
                         </div>
                       </div>
                     )}
@@ -844,57 +692,57 @@ const ResourceDetail = () => {
               </div>
               <Button
                 size="sm"
-                variant="outline"
-                onClick={() => handleNotesDialogOpenChange(true)}
-                className="gap-2"
+                variant={isEditingNotes ? "default" : "outline"}
+                onClick={() => {
+                  if (isEditingNotes) {
+                    handleSaveNotes();
+                  } else {
+                    setIsEditingNotes(true);
+                  }
+                }}
               >
-                <Edit className="w-4 h-4" />
-                Edit
-                {commentCount > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {commentCount}
-                  </Badge>
+                {isEditingNotes ? (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save
+                  </>
+                ) : (
+                  <>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit
+                  </>
                 )}
               </Button>
             </div>
             <CardDescription>
-              Capture your insights, key takeaways, and thoughts - markdown supported
+              Capture your insights, key takeaways, and thoughts
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <MarkdownField
-              value={notes}
-              placeholder="Click Edit to start writing... Use markdown formatting."
-              minHeight={400}
-              textareaClassName="font-reading text-base leading-relaxed"
-              readOnly={true}
-            />
+            {isEditingNotes ? (
+              <MarkdownEditor
+                value={notes}
+                onChange={(value) => setNotes(value)}
+                placeholder="Write your notes here... You can use markdown formatting."
+                height={400}
+                className="font-reading text-base leading-relaxed"
+              />
+            ) : (
+              <div className="prose prose-slate max-w-none font-reading">
+                <div className="whitespace-pre-wrap text-base leading-relaxed">
+                  {notes || (
+                    <div className="text-muted-foreground italic text-center py-8">
+                      No notes yet. Click Edit to add your insights.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Notes Editor Dialog */}
-        <NotesEditorDialog
-          open={isNotesDialogOpen}
-          onOpenChange={handleNotesDialogOpenChange}
-          initialValue={notes}
-          onSave={handleSaveNotes}
-          isLoading={loading}
-          onDirtyChange={setIsNotesDialogDirty}
-          resourceId={resource.id}
-          onCommentCountChange={setCommentCount}
-        />
-
-        {/* Transcript Editor Dialog */}
-        <TranscriptEditorDialog
-          open={isTranscriptDialogOpen}
-          onOpenChange={setIsTranscriptDialogOpen}
-          initialValue={transcript}
-          onSave={handleSaveTranscript}
-          isLoading={loading}
-        />
-
-        {/* Transcript Section (for videos/podcasts/short-videos) */}
-        {(resource.type === 'video' || resource.type === 'podcast' || resource.type === 'short-video') && (
+        {/* Transcript Section (for videos/podcasts) */}
+        {(resource.type === 'video' || resource.type === 'podcast') && (
           <Card className="bg-gradient-card border-0 shadow-card">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -904,11 +752,26 @@ const ResourceDetail = () => {
                 </div>
                 <Button
                   size="sm"
-                  variant="outline"
-                  onClick={() => setIsTranscriptDialogOpen(true)}
+                  variant={isEditingTranscript ? "default" : "outline"}
+                  onClick={() => {
+                    if (isEditingTranscript) {
+                      handleSaveTranscript();
+                    } else {
+                      setIsEditingTranscript(true);
+                    }
+                  }}
                 >
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit Transcript
+                  {isEditingTranscript ? (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </>
+                  )}
                 </Button>
               </div>
               <CardDescription>
@@ -916,19 +779,24 @@ const ResourceDetail = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="bg-muted/30 rounded-lg p-4 border border-border/50 max-h-[400px] overflow-y-auto">
-                {transcript ? (
-                  <div className="prose prose-slate dark:prose-invert max-w-none font-reading text-base leading-relaxed">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
-                      {transcript}
-                    </ReactMarkdown>
+              {isEditingTranscript ? (
+                <Textarea
+                  value={transcript}
+                  onChange={(e) => setTranscript(e.target.value)}
+                  placeholder="Paste transcript or key quotes here..."
+                  className="min-h-[300px] font-reading text-sm leading-relaxed resize-none"
+                />
+              ) : (
+                <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed font-reading">
+                    {transcript || (
+                      <div className="text-muted-foreground italic text-center py-8">
+                        No transcript available. Click Edit to add one.
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="text-muted-foreground italic text-center py-8">
-                    No transcript available. Click Edit Transcript to add one.
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

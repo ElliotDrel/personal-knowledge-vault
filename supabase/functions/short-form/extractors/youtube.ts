@@ -6,7 +6,6 @@ import {
   TIMEOUTS
 } from '../types.ts'
 import { logInfo, logError, logWarn } from '../utils/logging.ts'
-import { getSubtitles } from 'youtube-caption-extractor'
 
 /**
  * Extract metadata from YouTube using Data API v3
@@ -176,12 +175,18 @@ export async function extractYouTubeMetadata(
     let transcript: string | undefined
     if (includeTranscript) {
       if (config.features?.enableYouTubeTranscripts) {
-        transcript = await extractYouTubeTranscript(videoId, config)
-        if (!transcript) {
-          warnings.push('No captions available for this video')
+        try {
+          transcript = await extractYouTubeTranscript(videoId, config)
+          if (!transcript) {
+            warnings.push('Transcript extraction not yet implemented')
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          logWarn('Transcript extraction failed', { videoId, error: message })
+          warnings.push('Transcript extraction encountered an error')
         }
       } else {
-        warnings.push('Transcript extraction disabled via configuration')
+        warnings.push('Transcript extraction disabled in configuration')
       }
     }
 
@@ -352,39 +357,10 @@ async function extractYouTubeTranscript(
   videoId: string,
   config: EdgeFunctionConfig
 ): Promise<string | undefined> {
-  try {
-    logInfo('Extracting YouTube transcript', { videoId })
+  logInfo('Transcript extraction not yet implemented', { videoId })
 
-    // Try English captions first
-    let subtitles = await getSubtitles({ videoID: videoId, lang: 'en' })
-      .catch(() => null)
+  // TODO: Implement transcript extraction via YouTube timedtext or Captions API
+  // This will require authentication and parsing caption tracks.
 
-    // If no English captions, try auto-selected language (library default)
-    if (!subtitles || subtitles.length === 0) {
-      logInfo('No English captions, trying auto-selected language', { videoId })
-      subtitles = await getSubtitles({ videoID: videoId })
-        .catch(() => null)
-    }
-
-    if (!subtitles || subtitles.length === 0) {
-      logWarn('No captions available for video', { videoId })
-      return undefined
-    }
-
-    // Join all subtitle text segments
-    const transcript = subtitles.map(s => s.text).join(' ').trim()
-
-    logInfo('Successfully extracted transcript', {
-      videoId,
-      length: transcript.length,
-      subtitleCount: subtitles.length
-    })
-
-    return transcript
-
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    logError('Transcript extraction failed', { videoId, error: message })
-    return undefined  // Graceful degradation
-  }
+  return undefined
 }
