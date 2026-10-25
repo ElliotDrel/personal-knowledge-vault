@@ -90,7 +90,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
           "line-clamp-2 group-hover:text-primary transition-smooth",
           isCompact ? "text-lg" : "text-xl"
         )}>
-          <Link to={`/resource/${resource.id}`} className="hover:underline">
+          <Link to={`/dashboard/resource/${resource.id}`} className="hover:underline">
             {resource.title}
           </Link>
         </CardTitle>
@@ -183,7 +183,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
             <span className="text-xs text-muted-foreground">
               Updated {new Date(resource.updatedAt).toLocaleDateString()}
             </span>
-            <Link to={`/resource/${resource.id}`}>
+            <Link to={`/dashboard/resource/${resource.id}`}>
               <Button size="sm" variant="ghost" className="group-hover:bg-primary group-hover:text-primary-foreground transition-smooth">
                 {isCompact ? 'View' : 'View Notes'}
               </Button>
