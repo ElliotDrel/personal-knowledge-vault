@@ -22,7 +22,7 @@
  * @component
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
@@ -51,6 +51,12 @@ export function MarkdownField({
   readOnly = false
 }: MarkdownFieldProps) {
   const [isFocused, setIsFocused] = useState(isEditing);
+
+  useEffect(() => {
+    if (readOnly) {
+      setIsFocused(isEditing);
+    }
+  }, [isEditing, readOnly]);
 
   const handleFocus = () => {
     if (!readOnly) {
