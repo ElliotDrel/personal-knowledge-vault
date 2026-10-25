@@ -22,14 +22,13 @@ import type { ResourceTypeId } from '../types/resource';
  * - Easy to extend: just add new resource type mapping
  */
 export const AI_METADATA_CONFIG: Record<ResourceTypeId, string[]> = {
-  // Short-form videos: Include everything available
+  // Short-form videos: Include everything available (no title, full description)
   'short-video': [
-    'title',
+    'description',
     'author',
     'creator',
     'channelName',
     'handle',
-    'description',
     'transcript',
     'platform',
     'url',
@@ -40,9 +39,8 @@ export const AI_METADATA_CONFIG: Record<ResourceTypeId, string[]> = {
     'publishedAt',
   ],
 
-  // Long-form videos: Include everything available
+  // Long-form videos: Include everything available (no title, full description)
   video: [
-    'title',
     'description',
     'transcript',
     'author',
@@ -57,9 +55,8 @@ export const AI_METADATA_CONFIG: Record<ResourceTypeId, string[]> = {
     'publishedAt',
   ],
 
-  // Books: Include everything available
+  // Books: Include everything available (no title, full description)
   book: [
-    'title',
     'description',
     'author',
     'year',
@@ -69,9 +66,8 @@ export const AI_METADATA_CONFIG: Record<ResourceTypeId, string[]> = {
     'url',
   ],
 
-  // Articles: Include everything available
+  // Articles: Include everything available (no title, full description)
   article: [
-    'title',
     'url',
     'author',
     'platform',
@@ -80,9 +76,8 @@ export const AI_METADATA_CONFIG: Record<ResourceTypeId, string[]> = {
     'siteName',
   ],
 
-  // Podcasts: Include everything available
+  // Podcasts: Include everything available (no title, full description)
   podcast: [
-    'title',
     'description',
     'transcript',
     'creator',
