@@ -1,12 +1,17 @@
 /**
  * NotesEditorDialog Component
  *
- * A modal dialog for editing notes with markdown support.
+ * A modal dialog for editing notes with WYSIWYG editing and markdown storage.
  * Features:
- * - Large editing area with MarkdownField (raw on focus, formatted on blur)
+ * - WYSIWYG editing area with rich text formatting toolbar
+ * - Comment system integration (create, reply, resolve)
+ * - AI Notes Check tool for automated suggestions
  * - Unsaved changes protection with confirmation dialog
- * - Future-ready layout structure for additional features
  * - Explicit save action (no auto-save)
+ * - Markdown storage format for AI compatibility
+ *
+ * Note: Inline comment highlights during editing will be added in Phase 3
+ * with ProseMirror decorations. Currently, comments are managed via sidebar.
  *
  * @component
  */
@@ -32,7 +37,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { MarkdownField } from '@/components/ui/markdown-field';
+import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
 import { Save, Loader2 } from 'lucide-react';
 
 // Comment system imports
@@ -80,7 +85,6 @@ export function NotesEditorDialog({
   const [isCreatingComment, setIsCreatingComment] = useState(false);
   const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
   const [commentsLoading, setCommentsLoading] = useState(false);
-  const [isMarkdownEditing, setIsMarkdownEditing] = useState(true);
 
   // AI Notes Check state
   const [aiCheckState, setAiCheckState] = useState<'idle' | 'processing' | 'complete' | 'error'>('idle');
@@ -121,10 +125,6 @@ export function NotesEditorDialog({
     if (!open) {
       setShowConfirmation(false);
     }
-  }, [open]);
-
-  useEffect(() => {
-    setIsMarkdownEditing(open);
   }, [open]);
 
   /**
@@ -406,13 +406,6 @@ export function NotesEditorDialog({
     handleTextChange(oldValue, newValue, comments, setComments);
   };
 
-  /**
-   * Handle text selection changes
-   */
-  const handleSelectionChange = (range: { start: number; end: number } | null) => {
-    setSelectionRange(range);
-  };
-
   // Handle save action
   const handleSave = async () => {
     try {
@@ -485,19 +478,22 @@ export function NotesEditorDialog({
           <div className="flex-1 min-h-0 flex gap-4">
             {/* Editor area */}
             <div className="flex-1 min-h-0 max-h-[600px] overflow-y-auto px-1">
-              <MarkdownField
+              <WYSIWYGEditor
                 value={currentValue}
                 onChange={handleValueChange}
-                onSelectionChange={handleSelectionChange}
-                placeholder="Start writing your notes... Use markdown formatting."
+                onSelectionChange={(selection) => {
+                  if (selection) {
+                    setSelectionRange({ start: selection.start, end: selection.end });
+                  } else {
+                    setSelectionRange(null);
+                  }
+                }}
+                placeholder="Start writing your notes... Use markdown formatting and WYSIWYG editing."
                 minHeight={400}
-                textareaClassName="font-reading text-base leading-relaxed"
-                isEditing={isMarkdownEditing}
-                onEditingChange={setIsMarkdownEditing}
-                comments={comments}
-                activeCommentId={activeCommentId}
-                hoveredCommentId={hoveredCommentId}
+                showToolbar={true}
+                autoFocus={false}
               />
+              {/* Note: Inline comment highlights during editing will be added in Phase 3 with ProseMirror decorations */}
             </div>
 
             {/* Sidebar: Comments */}
