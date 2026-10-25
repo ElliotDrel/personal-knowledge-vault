@@ -51,6 +51,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 15. **STABILIZE CALLBACK PROPS** (NEW): When parent callbacks are optional or likely to re-create on every render, mirror them into a `useRef` and read from the ref inside memoized callbacks/effects. This keeps dependency arrays minimal while always using the latest handler.
 16. **FLUSH DEBOUNCED WORK ON EXIT** (NEW): Whenever debouncing persistence (e.g., `useDebouncedCallback`), expose a flush helper. Await it before saves/closures and trigger it in effect cleanup. Log flush errors so dropped updates never fail silently.
 
+17. **VERIFY EXTERNAL API DETAILS FIRST** (NEW - Prevents Integration Failures): Before implementing ANY external API integration (Anthropic, OpenAI, Stripe, etc.), VERIFY against official documentation:
+   - Exact model names/endpoint URLs (don't assume formats)
+   - Authentication method and header format
+   - Request/response structure and data types
+   - Rate limits and error codes
+   - **Example**: For Anthropic, check docs.anthropic.com/models for exact model IDs before writing config
+   - **Why**: Assumptions about API details cause 404s, 400s, and authentication failures that waste debugging time
+
+18. **DEFENSIVE API RESPONSE PARSING** (NEW - Handles AI Output Variability): AI models (Claude, GPT, etc.) may return JSON wrapped in markdown code fences or other formatting. Always parse defensively:
+   - Strip markdown fences before JSON.parse: `text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')`
+   - Validate response structure after parsing
+   - Log both raw and cleaned responses for debugging
+   - **Why**: AI outputs are non-deterministic; one run succeeds, next run wraps in markdown
+
+19. **PURPOSE-DRIVEN DATA DESIGN** (NEW - Prevents Table Pollution): Before adding ANY field to a database table, ask "What is this table's PURPOSE?" Only include data that serves that specific purpose.
+   - **Example**: `ai_processing_logs` is for troubleshooting AI interactions → only save data going TO or FROM the AI
+   - Don't add analytics data (resource type, title) to debugging tables
+   - Don't add debugging data to business logic tables
+   - **Why**: Mixed-purpose tables become confusing and hard to query
+
+20. **NEVER TRUNCATE SOURCE MATERIAL** (NEW - Preserves Analysis Quality): When sending data to AI for analysis, NEVER truncate the source material (transcripts, documents, descriptions). Truncate metadata summaries if needed, but preserve complete source content.
+   - **Example**: Full transcript (1000+ chars) → keep all, Description summary → can truncate
+   - **Why**: AI needs complete source material to identify missing concepts and give quality suggestions
+
 ### Supabase CLI-Only Workflow
 
 **CRITICAL RULE**: This project uses the Supabase CLI **EXCLUSIVELY** against the deployed Supabase project. **NO local Docker setup.**
@@ -217,24 +241,26 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 ## Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| **Config out of sync / Edge Function outdated** | Copy changes from `src/config/aiConfig.ts` to Edge config, run `npm run deploy:edge` |
-| **"Cannot access before initialization"** | Define useCallback BEFORE useEffect that uses it (see Hook Ordering) |
-| **Infinite re-render loop** | Wrap async functions in useCallback if used in useEffect dependencies |
-| **State flag never sets (query.onSettled)** | Set state in useEffect with query.isFetched dependency instead |
-| **Badge/count not showing** | Initialize state where it's owned, not in child callback (see State Ownership) |
-| **Type mismatch runtime error** | Verify actual TypeScript types before implementing (not just plan docs) |
-| **URL comparison fails (duplicate detection)** | Use same `normalizeUrl()` function for both sides of comparison |
-| **404 Table Not Found** | Run `npx supabase db push` to deploy migrations |
-| **Frontend/Backend Mismatch** | Search-first: `rg "normalizeUrl" --type ts` → update ALL files |
-| **Hooks Order Error** | Order: useState → useQuery → useCallback/useMemo → derived state → useEffect |
-| **Background Polling Noise** | Hard refresh: `Ctrl+Shift+R` (Win) / `Cmd+Shift+R` (Mac) |
-| **React Query Side Effects** | Never set state in `queryFn`; use effects with query.isFetched |
-| **Missing useCallback deps** | Include ALL captured variables; wrap function before useEffect that uses it |
-| **Textarea overlay misaligned** | Use `getComputedStyle()` to mirror ALL font/spacing props, sync scroll position |
-| **Markdown highlighting breaks syntax** | Use rehype plugin to transform AST, don't split source text |
-| **Component styling inflexible** | Provide multiple className props (container, input, etc.) for granular control |
+| Issue | Fix |
+|-------|-----|
+| Config drift between app and Edge Function | Mirror changes from `src/config/aiConfig.ts` into the Edge config and redeploy with `npm run deploy:edge`. |
+| "Cannot access before initialization" | Declare `useCallback` before the `useEffect` that depends on it and keep the documented hook order. |
+| Infinite re-render loops | Wrap async effect logic in `useCallback`, reference it inside `useEffect`, and audit dependency arrays. |
+| Loading flags never flip | Read React Query state via `useEffect` watching `query.isFetched` or `query.status` instead of relying on `onSettled`. |
+| Runtime type mismatches | Inspect the actual TypeScript definitions before implementing; align inputs and outputs exactly. |
+| Duplicate detection misses | Normalize both stored and incoming URLs with the shared `normalizeUrl()` helper before comparison. |
+| Missing tables after migrations | Run `npx supabase db push` and confirm the schema in Supabase. |
+| Edge or external API 404s | Verify model IDs and endpoints against official docs before deployment. |
+| AI JSON parsing failures | Strip markdown code fences and guard JSON parsing with try/catch plus logging. |
+| New fields not persisting | Update every CRUD path (create/read/update/delete) and regenerate types whenever a schema field is added. |
+| Background polling noise | Hard refresh the browser (`Ctrl+Shift+R` / `Cmd+Shift+R`) after Supabase config changes. |
+| React Query side effects | Keep `queryFn` pure; move side effects into `onSuccess` or `useEffect`. |
+| Missing useCallback deps | Wrap the function first, then include every captured value in the dependency array. |
+| Textarea overlay misaligned | Mirror `getComputedStyle`, sync scroll offsets, and render text transparent. |
+| Markdown highlighting breaks syntax | Modify the rendered markdown AST with a rehype plugin instead of splitting source text. |
+| Component styling inflexible | Expose container/input className props so callers can match layout needs. |
+| AI suggestions degrade | Confirm transcripts and descriptions stay intact; never reapply truncation helpers. |
+| Table data pollution | Revalidate the table's purpose before adding fields and update migrations plus types. |
 
 ## Lessons Learned
 
@@ -293,80 +319,39 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 5. For markdown processing: Transform the rendered AST (rehype plugin), never split source text
 6. For multi-element components: Provide granular className props from the start
 
+### AI Notes Check System Implementation (2025-10-17)
+**Key Mistakes**:
+1. **Model ID Assumption**: Picked `claude-4-5-haiku` instead of the documented `claude-haiku-4-5-20251001`.
+2. **Markdown JSON Handling**: Parser failed because the API wrapped JSON in markdown code fences; no defensive stripping.
+3. **Transcript Truncation**: Reused a 500-character truncation helper that removed analysis context.
+4. **CRUD Drift**: Added `input_data` but skipped the UPDATE path, leaving logs incomplete.
+5. **Table Scope Creep**: Added analytics fields to `ai_processing_logs`, obscuring troubleshooting data.
+
+**Root Causes**:
+- Trusted assumptions instead of official docs for model names and response formats.
+- Copy-pasted helpers without checking whether source material must remain intact.
+- Touched schema without auditing every CRUD path or reaffirming the table's purpose.
+
+**Key Takeaway**: Verify external API contracts before coding, preserve full source material, and confirm table intent plus CRUD coverage whenever the schema changes; otherwise you trade hours fixing avoidable drift.
+
 ### Key Patterns
-- **Data Model First**: Clarify threading/relationship model BEFORE creating schema
-- **Generated Types = Truth**: Read generated types after migrations, sync implementation
-- **Type Verification**: Check actual TypeScript types BEFORE implementing (not plan docs)
-- **Discriminated Unions**: Use single type with discriminator over separate types
-- **Self-Referential Tables**: Prefer single table with foreign keys when parent/child are same type
-- **Hooks Order**: useState → useQuery → useCallback/useMemo → derived state → useEffect (ALWAYS)
-- **useCallback Pattern**: Async function + useEffect dependency = MUST wrap in useCallback
-- **State Ownership**: Initialize state where it's owned, not lazily by child components
-- **Callback Stability**: Never pass inline callbacks to custom hooks
-- **Pattern Consistency**: If you use a pattern correctly once, apply it EVERYWHERE
-- **Search-First**: Update ALL occurrences (frontend + backend) when changing shared logic
-- **Security**: Filter at query level BEFORE `.single()`
-- **Pre-Completion Checklist**: Use the mandatory checklist BEFORE marking ANY task complete
-- **Textarea Overlays**: Use `getComputedStyle()` to mirror ALL font/spacing props, sync scroll position, transparent text color
-- **Markdown Processing**: Use rehype plugins to transform AST, never split source text
-- **Component API Design**: Provide multiple className props for complex components (containerClassName, inputClassName, etc.)
-- **Incremental Testing**: Test each integration point in browser immediately after wiring, don't wait for end
+- **Schema & Types**: Clarify relationships before migrations, treat generated types as the source of truth, and prefer discriminated unions or self-referential tables when data shapes match.
+- **Hooks Discipline**: Keep hooks ordered (useState -> useQuery -> useCallback/useMemo -> derived state -> useEffect), wrap async logic in useCallback, and initialize state where it is owned.
+- **Search-First Consistency**: Update shared logic across frontend and backend together and expose flexible component APIs (multiple className props) instead of duplicating patterns.
+- **UI Precision**: Mirror getComputedStyle for overlays, operate on the rendered markdown AST via rehype plugins, and test each integration point in the browser immediately.
+- **External Integrations**: Verify model IDs/endpoints with official docs, strip markdown fences before parsing AI JSON, and preserve full source material for analysis.
+- **Purpose-Driven Data**: Confirm each schema field serves the table intent and run the pre-completion checklist before marking work done.
 
-## Project Status (Updated 2025-10-11)
+## Project Status (Updated 2025-10-17)
 
-**Latest Update (2025-10-11)**:
-- **Notes Commenting System** (Phases 0-5 Complete):
-  - **Phase 0-3** (Infrastructure):
-    - Database: Self-referential comments table with threading support
-    - Text anchoring: Character offset tracking with automatic stale detection (>50% text change)
-    - Storage adapter: Full CRUD operations with RLS security
-    - Text tracking: Debounced persistence (2s), real-time offset recalculation
-    - UI components: CommentToolbar, CommentCard (with threaded replies), CommentSidebar
-  - **Phase 4** (NotesEditorDialog Integration - COMPLETE):
-    - Dialog layout updated with toolbar and sidebar (1800px width)
-    - Comment state management with loading, creation, and activation
-    - Handler functions for create, reply, resolve, and delete operations
-    - Text tracking hook integrated for automatic offset updates
-    - ResourceDetail passes resourceId prop for comment loading
-  - **Phase 5** (Text Selection - COMPLETE):
-    - Text selection capture in MarkdownField (onSelect event)
-    - Character offset tracking (selectionStart/selectionEnd)
-    - "Add Comment" button enables when text selected
-    - Comment cards display quoted text as visual reference
-    - **Note**: In-editor visual highlighting deferred (architectural complexity)
-  - **Phase 6** (Resolution Modal - COMPLETE):
-    - ResolvedCommentsModal component for viewing archived comments
-    - Unresolve action to restore comments to active status
-    - Permanent delete with confirmation dialog
-    - Wired to "View Resolved" button in CommentToolbar
-  - **Phase 7** (ResourceDetail Badges - COMPLETE):
-    - Comment count badge on "Edit Notes" button
-    - Shows count of unresolved comments (e.g., "Edit [3]")
-    - Updates dynamically via onCommentCountChange callback
-    - Only displays when count > 0 (no clutter)
-  - **Phase 8** (Visual Highlighting - COMPLETE):
-    - In-editor visual highlights that sync with comment selection
-    - Highlight regions based on character offsets (startOffset/endOffset)
-    - Active state: Highlight selected comment's text region (blue)
-    - Hover state: Preview highlight when hovering comment card (lighter blue)
-    - Multiple highlights: Show all comment regions simultaneously (darker when overlapping)
-    - Handle edge cases: Stale comments filtered out (no visual highlight)
-    - Support both raw markdown and preview modes
-    - Implementation:
-      - TextHighlight component: Segment-based highlighting for raw markdown mode
-      - MarkdownHighlight component: Integrated highlighting for preview mode
-      - Mirror computed textarea styles + scroll offsets (`getComputedStyle`) so overlay highlights stay pixel-aligned; set overlay text color transparent to avoid "double text"
-      - Markdown preview highlighting uses a rehype plugin (`unist-util-visit`) instead of splitting markdown, preserving list/paragraph structure
-      - Hover events wired through CommentSidebar to trigger highlight previews
-      - Layered opacity system for overlapping comment regions
-  - **Remaining**: Phase 9-10 (Testing & validation, Polish)
+**Latest Update (2025-10-17) - AI Notes Check System**:
+- Phases 0-4 shipped: RLS-backed logging schema, shared config modules, Edge Function pipeline with defensive Anthropic integration, storage adapter APIs, and editor surface via `AINotesCheckTool`.
+- Phase 7 hardening: corrected model identifier, stripped markdown fences before JSON parsing, removed transcript truncation, ensured `input_data` persists, and expanded metadata sync.
+- Current focus: finish end-to-end validation, wire retry/error telemetry, and document handoff criteria before production flag.
 
-- **Markdown Editor Upgrade**: Replaced split-view editor with Obsidian-style toggle (raw markdown ↔ formatted preview)
-  - Uses react-markdown + remark-gfm + rehype-sanitize
-  - 60% smaller bundle size (976 KB → 389 KB vendor.js)
-  - Single field, click to edit → raw markdown visible, blur/save → formatted output
-  - GitHub Flavored Markdown support (tables, task lists, strikethrough)
-  - Tailwind Typography plugin for proper heading/list/blockquote styling
+**Earlier Highlights**:
+- 2025-10-11 - Notes Commenting System: self-referential schema with offset tracking, storage adapter CRUD, NotesEditorDialog integration, resolution modal, badges, and highlight overlays; Phase 9-10 polish/testing still pending.
+- 2025-10-11 - Markdown Editor Upgrade: Obsidian-style toggle using react-markdown + remark-gfm + rehype-sanitize, bundle shrink, and GitHub-flavored markdown styling via Tailwind Typography.
 
 **Core Features**:
 - ✅ React 18 + Vite + TypeScript + Tailwind + shadcn/ui
