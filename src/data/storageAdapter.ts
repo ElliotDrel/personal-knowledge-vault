@@ -9,6 +9,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Resource } from './mockData';
 import * as supabaseOps from './supabaseStorage';
+import type { Comment, CommentWithReplies, CreateCommentInput, UpdateCommentInput, CommentStatus } from '@/types/comments';
 
 /**
  * Storage adapter interface that provides unified access to Supabase-backed resource storage.
@@ -41,6 +42,18 @@ export interface StorageAdapter {
   // Real-time subscription operations
   subscribeToResourceChanges(callback: () => void): () => void;
   subscribeToResourceTypeConfigChanges?(callback: () => void): () => void;
+
+  // Comment operations
+  getComments(resourceId: string, status?: CommentStatus): Promise<CommentWithReplies[]>;
+  getComment(commentId: string): Promise<CommentWithReplies>;
+  getUnresolvedCount(resourceId: string): Promise<number>;
+  createComment(input: CreateCommentInput): Promise<CommentWithReplies>;
+  addReply(commentId: string, body: string): Promise<Comment>;
+  updateComment(commentId: string, updates: UpdateCommentInput): Promise<Comment>;
+  resolveComment(commentId: string): Promise<Comment>;
+  markAsStale(commentId: string, newQuotedText: string): Promise<Comment>;
+  deleteComment(commentId: string): Promise<void>;
+  deleteReply(replyId: string): Promise<void>;
 }
 
 // Supabase adapter (uses existing async operations)
@@ -111,6 +124,47 @@ class SupabaseStorageAdapter implements StorageAdapter {
 
   subscribeToResourceTypeConfigChanges?(callback: () => void): () => void {
     return supabaseOps.subscribeToResourceTypeConfigChanges(callback);
+  }
+
+  // Comment operations
+  async getComments(resourceId: string, status?: CommentStatus): Promise<CommentWithReplies[]> {
+    return supabaseOps.getComments(resourceId, status);
+  }
+
+  async getComment(commentId: string): Promise<CommentWithReplies> {
+    return supabaseOps.getComment(commentId);
+  }
+
+  async getUnresolvedCount(resourceId: string): Promise<number> {
+    return supabaseOps.getUnresolvedCount(resourceId);
+  }
+
+  async createComment(input: CreateCommentInput): Promise<CommentWithReplies> {
+    return supabaseOps.createComment(input);
+  }
+
+  async addReply(commentId: string, body: string): Promise<Comment> {
+    return supabaseOps.addReply(commentId, body);
+  }
+
+  async updateComment(commentId: string, updates: UpdateCommentInput): Promise<Comment> {
+    return supabaseOps.updateComment(commentId, updates);
+  }
+
+  async resolveComment(commentId: string): Promise<Comment> {
+    return supabaseOps.resolveComment(commentId);
+  }
+
+  async markAsStale(commentId: string, newQuotedText: string): Promise<Comment> {
+    return supabaseOps.markAsStale(commentId, newQuotedText);
+  }
+
+  async deleteComment(commentId: string): Promise<void> {
+    return supabaseOps.deleteComment(commentId);
+  }
+
+  async deleteReply(replyId: string): Promise<void> {
+    return supabaseOps.deleteReply(replyId);
   }
 }
 
