@@ -14,12 +14,13 @@
  * If using BrowserRouter (older setup), this hook will be disabled but won't error.
  */
 
-import { useEffect } from 'react';
-import { UNSAFE_DataRouterContext as DataRouterContext } from 'react-router-dom';
-import { useContext } from 'react';
+import { useContext, useEffect, useRef } from 'react';
+import {
+  UNSAFE_DataRouterContext as DataRouterContext,
+  UNSAFE_NavigationContext as NavigationContext,
+} from 'react-router-dom';
 
 let hasWarnedMissingRouter = false;
-let hasLoggedDisabledMessage = false;
 
 export interface UseNavigationBlockerOptions {
   /** Whether to block navigation (typically: isDirty && isOpen) */
@@ -40,28 +41,64 @@ export interface UseNavigationBlockerOptions {
 export function useNavigationBlocker(options: UseNavigationBlockerOptions): void {
   const { when, onBlock } = options;
   const dataRouterContext = useContext(DataRouterContext);
+  const navigationContext = useContext(NavigationContext);
+  const navigator = navigationContext?.navigator as
+    | { block?: (blocker: (tx: { retry: () => void }) => void) => () => void }
+    | undefined;
+  const onBlockRef = useRef(onBlock);
 
-  // Graceful degradation: if no data router context, navigation blocking isn't available
-  // This happens when using BrowserRouter instead of createBrowserRouter
-  // We silently disable the feature rather than erroring
   useEffect(() => {
-    if (!dataRouterContext) {
-      if (when && !hasWarnedMissingRouter) {
-        console.warn(
-          '[useNavigationBlocker] Navigation blocking is not available with this router setup. ' +
-          'To enable navigation protection, migrate to createBrowserRouter. ' +
-          'See: https://reactrouter.com/v6/routers/picking-a-router'
-        );
-        hasWarnedMissingRouter = true;
-      }
+    onBlockRef.current = onBlock;
+  }, [onBlock]);
+
+  useEffect(() => {
+    if (when && !dataRouterContext && !hasWarnedMissingRouter) {
+      console.warn(
+        '[useNavigationBlocker] Navigation blocking requires createBrowserRouter / RouterProvider. ' +
+          'Current router does not expose Data Router context.',
+      );
+      hasWarnedMissingRouter = true;
+    }
+  }, [when, dataRouterContext]);
+
+  useEffect(() => {
+    if (when && !navigator?.block) {
+      console.warn(
+        '[useNavigationBlocker] Router navigator does not support blocking. ' +
+          'Ensure you are using react-router-dom v6.4+.',
+      );
+    }
+  }, [when, navigator]);
+
+  useEffect(() => {
+    if (!when || !navigator?.block) {
       return;
     }
 
-    // Navigation blocking with data router would go here
-    // For now, we're just gracefully handling the absence of the feature
-    if (!hasLoggedDisabledMessage) {
-      console.log('[useNavigationBlocker] Router available but navigation blocking is not yet implemented for this hook.');
-      hasLoggedDisabledMessage = true;
-    }
-  }, [when, dataRouterContext, onBlock]);
+    const unblock = navigator.block((tx: { retry: () => void }) => {
+      const retry = () => {
+        unblock();
+        tx.retry();
+      };
+
+      const execute = async () => {
+        try {
+          await onBlockRef.current();
+          retry();
+        } catch (error) {
+          console.error('[useNavigationBlocker] Error during navigation block handler:', error);
+        }
+      };
+
+      try {
+        void execute();
+      } catch (error) {
+        console.error('[useNavigationBlocker] Unexpected error scheduling blocker:', error);
+      }
+
+      return;
+    });
+
+    return unblock;
+  }, [navigator, when]);
 }
