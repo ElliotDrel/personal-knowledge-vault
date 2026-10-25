@@ -40,6 +40,7 @@ interface NotesEditorDialogProps {
   initialValue: string;
   onSave: (value: string) => Promise<void>;
   isLoading?: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 export function NotesEditorDialog({
@@ -48,6 +49,7 @@ export function NotesEditorDialog({
   initialValue,
   onSave,
   isLoading = false,
+  onDirtyChange,
 }: NotesEditorDialogProps) {
   // Internal editing state
   const [currentValue, setCurrentValue] = useState(initialValue);
@@ -62,6 +64,18 @@ export function NotesEditorDialog({
 
   // Check if content has been modified
   const isDirty = currentValue !== initialValue;
+
+  // Surface dirty state to parent so it can coordinate sync behaviour
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  // Ensure confirmation dialog is reset when the editor closes externally
+  useEffect(() => {
+    if (!open) {
+      setShowConfirmation(false);
+    }
+  }, [open]);
 
   // Handle save action
   const handleSave = async () => {
@@ -102,7 +116,14 @@ export function NotesEditorDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={() => handleClose()}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            handleClose();
+          }
+        }}
+      >
         <DialogContent className="max-w-[1400px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Notes</DialogTitle>
