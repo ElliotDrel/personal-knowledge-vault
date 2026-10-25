@@ -378,15 +378,22 @@ async function callAnthropicAPI(prompt: string): Promise<{
 
 /**
  * Find exact text match in notes
+ * Returns match details or error reason
  */
-function findExactTextMatch(notes: string, selectedText: string): { start: number; end: number } | null {
+function findExactTextMatch(
+  notes: string,
+  selectedText: string
+): { match: { start: number; end: number } | null; error: string | null } {
   // Find first occurrence
   const index = notes.indexOf(selectedText);
 
   if (index === -1) {
     // Text not found
     console.log('[ai-notes-check] Text not found in notes');
-    return null;
+    return {
+      match: null,
+      error: 'Text not found in current notes (may have been edited during AI processing)',
+    };
   }
 
   // Check for multiple occurrences (ambiguous)
@@ -395,13 +402,19 @@ function findExactTextMatch(notes: string, selectedText: string): { start: numbe
   if (secondOccurrence !== -1) {
     // Text appears multiple times - ambiguous
     console.log('[ai-notes-check] Text appears multiple times in notes (ambiguous)');
-    return null;
+    return {
+      match: null,
+      error: 'Text appears multiple times in notes (ambiguous - need longer selection for unique match)',
+    };
   }
 
   // Unique match found
   return {
-    start: index,
-    end: index + selectedText.length,
+    match: {
+      start: index,
+      end: index + selectedText.length,
+    },
+    error: null,
   };
 }
 
@@ -426,9 +439,9 @@ async function processCommentWithRetry(
 
     // Handle selected-text comments
     if (suggestion.category === 'selected_text' && suggestion.selectedText) {
-      const match = findExactTextMatch(context.notes, suggestion.selectedText);
+      const result = findExactTextMatch(context.notes, suggestion.selectedText);
 
-      if (!match) {
+      if (!result.match) {
         // Text matching failed
         if (attemptNumber < AI_CONFIG.MAX_RETRY_ATTEMPTS) {
           console.log('[ai-notes-check] Text match failed, would retry, but retry with AI feedback not yet implemented');
@@ -438,12 +451,12 @@ async function processCommentWithRetry(
 
         return {
           success: false,
-          error: 'text_match_failed',
+          error: result.error || 'text_match_failed',
         };
       }
 
-      startOffset = match.start;
-      endOffset = match.end;
+      startOffset = result.match.start;
+      endOffset = result.match.end;
       quotedText = suggestion.selectedText;
     }
 
@@ -822,7 +835,8 @@ Deno.serve(async (req: Request) => {
       await updateProcessingLog(processingLogId, {
         status: finalStatus,
         input_data: {
-          prompt, // Full prompt sent to Claude
+          systemPrompt: AI_CONFIG.SYSTEM_PROMPT, // System prompt sent to Claude
+          prompt, // User message prompt sent to Claude
           notesLength: resource.notes.length,
           transcriptLength: resource.transcript?.length || 0,
           metadataFields: Object.keys(metadata), // Which fields were included in prompt
