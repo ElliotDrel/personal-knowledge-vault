@@ -973,8 +973,6 @@ export const deleteReply = async (replyId: string): Promise<void> => {
  */
 export const runAINotesCheck = async (resourceId: string): Promise<AINotesCheckResponse> => {
   try {
-    console.log('[supabaseStorage] Calling AI Notes Check Edge Function for resource:', resourceId);
-
     const { data, error } = await supabase.functions.invoke('ai-notes-check', {
       body: { resourceId },
     });
@@ -988,11 +986,6 @@ export const runAINotesCheck = async (resourceId: string): Promise<AINotesCheckR
       console.error('[supabaseStorage] Edge Function returned error:', data?.error);
       throw new Error(data?.error?.message || 'AI Notes Check failed');
     }
-
-    console.log('[supabaseStorage] AI Notes Check completed:', {
-      commentsCreated: data.commentsCreated,
-      commentsFailed: data.commentsFailed,
-    });
 
     return data as AINotesCheckResponse;
   } catch (error) {
