@@ -14,7 +14,7 @@
 
 import { useMemo } from 'react';
 import type { Plugin } from 'unified';
-import type { Root } from 'hast';
+import type { Root, Element, Text, Parent } from 'hast';
 import { visit } from 'unist-util-visit';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -179,8 +179,8 @@ function createRehypeHighlightPlugin(ranges: HighlightRange[]): Plugin<[], Root>
     if (!ranges.length) return;
 
     interface TextNodeInfo {
-      node: any;
-      parent: any;
+      node: Text;
+      parent: Parent;
       index: number;
       start: number;
       length: number;
@@ -223,7 +223,7 @@ function createRehypeHighlightPlugin(ranges: HighlightRange[]): Plugin<[], Root>
       });
 
       const sortedBreakpoints = Array.from(breakpoints).sort((a, b) => a - b);
-      const replacement: any[] = [];
+      const replacement: (Text | Element)[] = [];
 
       for (let j = 0; j < sortedBreakpoints.length - 1; j++) {
         const segStart = sortedBreakpoints[j];
