@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -41,7 +42,6 @@ import { useCommentTextTracking } from '@/hooks/use-comment-text-tracking';
 import { CommentToolbar } from '@/components/comments/CommentToolbar';
 import { CommentSidebar } from '@/components/comments/CommentSidebar';
 import { ResolvedCommentsModal } from '@/components/comments/ResolvedCommentsModal';
-import { AINotesCheckTool } from '@/components/AINotesCheckTool';
 
 interface NotesEditorDialogProps {
   open: boolean;
@@ -82,8 +82,12 @@ export function NotesEditorDialog({
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [isMarkdownEditing, setIsMarkdownEditing] = useState(true);
 
+  // AI Notes Check state
+  const [aiCheckState, setAiCheckState] = useState<'idle' | 'processing' | 'complete' | 'error'>('idle');
+
   // Hooks
   const storageAdapter = useStorageAdapter();
+  const queryClient = useQueryClient();
 
   // Text tracking for comment offsets
   const { handleTextChange, flushPendingUpdates } = useCommentTextTracking({
@@ -153,6 +157,54 @@ export function NotesEditorDialog({
       loadComments();
     }
   }, [open, resourceId, loadComments]);
+
+  /**
+   * AI Notes Check mutation
+   */
+  const aiCheckMutation = useMutation({
+    mutationFn: async () => {
+      setAiCheckState('processing');
+      // Brief delay for UX (shows processing state)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      
+      const result = await storageAdapter.runAINotesCheck(resourceId);
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || 'AI processing failed');
+      }
+      
+      return result;
+    },
+    onSuccess: (result) => {
+      setAiCheckState('complete');
+      
+      // Invalidate and reload comments to show new AI suggestions
+      queryClient.invalidateQueries({ queryKey: ['comments', resourceId] });
+      loadComments();
+      
+      // Auto-reset after showing success
+      setTimeout(() => {
+        setAiCheckState('idle');
+      }, 2500);
+    },
+    onError: (error: Error) => {
+      console.error('[NotesEditorDialog] AI check error:', error);
+      setAiCheckState('error');
+      
+      // Auto-reset after showing error
+      setTimeout(() => {
+        setAiCheckState('idle');
+      }, 4000);
+    },
+  });
+
+  /**
+   * Handle AI Notes Check button click
+   */
+  const handleAICheck = useCallback(() => {
+    if (aiCheckState !== 'idle') return;
+    aiCheckMutation.mutate();
+  }, [aiCheckState, aiCheckMutation]);
 
   /**
    * Handle starting comment creation flow
@@ -421,6 +473,9 @@ export function NotesEditorDialog({
             onCreateComment={handleStartCommentCreation}
             onViewResolved={() => setShowResolvedComments(true)}
             unresolvedCount={comments.filter((c) => c.status === 'active').length}
+            onAICheck={handleAICheck}
+            aiCheckState={aiCheckState}
+            aiCheckDisabled={false}
           />
 
           {/* Main content area with sidebar */}
@@ -442,16 +497,8 @@ export function NotesEditorDialog({
               />
             </div>
 
-            {/* Sidebar: AI Tool and Comments */}
+            {/* Sidebar: Comments */}
             <div className="w-[380px] flex flex-col gap-4 min-h-0">
-              {/* AI Notes Check Tool */}
-              <div className="border rounded-lg p-4 bg-card">
-                <AINotesCheckTool
-                  resourceId={resourceId}
-                  onComplete={loadComments}
-                />
-              </div>
-
               {/* Comment sidebar (appears when comments exist) */}
               {(comments.length > 0 || isCreatingComment) && (
                 <div className="flex-1 min-h-0">
