@@ -73,6 +73,7 @@ const ResourceDetail = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [notesLastSavedAt, setNotesLastSavedAt] = useState<string | null>(null);
 
   // Delete functionality state
   const [isDeleting, setIsDeleting] = useState(false);
@@ -93,6 +94,7 @@ const ResourceDetail = () => {
 
   // Metadata editing state
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
+  const [metadataLastSavedAt, setMetadataLastSavedAt] = useState<string | null>(null);
   const [metadataForm, setMetadataForm] = useState({
     title: '',
     description: '',
@@ -119,12 +121,15 @@ const ResourceDetail = () => {
       resourceId: resource?.id,
       hasResource: !!resource,
       isEditingTranscript,
+      isEditingNotes,
       isEditingMetadata,
       resourceTranscriptLength: resource?.transcript?.length,
       resourceTranscriptPreview: resource?.transcript?.substring(0, 100),
       localTranscriptLength: transcript.length,
       localTranscriptPreview: transcript.substring(0, 100),
-      lastSavedAt
+      lastSavedAt,
+      notesLastSavedAt,
+      metadataLastSavedAt
     });
 
     if (!resource) {
@@ -151,14 +156,36 @@ const ResourceDetail = () => {
         });
       }
       setLastSavedAt(null);
+      setNotesLastSavedAt(null);
+      setMetadataLastSavedAt(null);
       return;
     }
 
-    // Always sync notes since WYSIWYG editor handles its own state
-    console.log('[ResourceDetail] useEffect: Syncing notes from resource', {
-      resourceNotesLength: resource.notes?.length || 0
-    });
-    setNotes(resource.notes || '');
+    if (!isEditingNotes) {
+      const resourceTimestamp = resource.updatedAt ? Date.parse(resource.updatedAt) : NaN;
+      const notesSavedTimestamp = notesLastSavedAt ? Date.parse(notesLastSavedAt) : NaN;
+      const shouldSyncNotes =
+        Number.isNaN(notesSavedTimestamp) ||
+        Number.isNaN(resourceTimestamp) ||
+        resourceTimestamp >= notesSavedTimestamp;
+
+      console.log('[ResourceDetail] useEffect: Evaluating notes sync', {
+        fromLength: notes.length,
+        toLength: resource.notes?.length || 0,
+        willUpdate: notes !== (resource.notes || ''),
+        resourceTimestamp,
+        notesSavedTimestamp,
+        shouldSyncNotes
+      });
+
+      if (shouldSyncNotes) {
+        setNotes(resource.notes || '');
+      } else {
+        console.log('[ResourceDetail] useEffect: Skipping notes sync due to newer local value');
+      }
+    } else {
+      console.log('[ResourceDetail] useEffect: Skipping notes sync (currently editing)');
+    }
 
     if (!isEditingTranscript) {
       const resourceTimestamp = resource.updatedAt ? Date.parse(resource.updatedAt) : NaN;
@@ -187,26 +214,52 @@ const ResourceDetail = () => {
     }
 
     if (!isEditingMetadata) {
-      console.log('[ResourceDetail] useEffect: Syncing metadata from resource');
-      setMetadataForm({
-        title: resource.title || '',
-        description: resource.description || '',
-        tags: resource.tags?.join(', ') || '',
-        author: resource.author || '',
-        creator: resource.creator || '',
-        platform: resource.platform || '',
-        year: resource.year?.toString() || '',
-        duration: resource.duration || '',
-        url: resource.url || '',
-        channelName: resource.channelName || '',
-        handle: resource.handle || '',
-        viewCount: resource.viewCount?.toString() || '',
-        hashtags: resource.hashtags?.join(', ') || ''
+      const resourceTimestamp = resource.updatedAt ? Date.parse(resource.updatedAt) : NaN;
+      const metadataSavedTimestamp = metadataLastSavedAt ? Date.parse(metadataLastSavedAt) : NaN;
+      const shouldSyncMetadata =
+        Number.isNaN(metadataSavedTimestamp) ||
+        Number.isNaN(resourceTimestamp) ||
+        resourceTimestamp >= metadataSavedTimestamp;
+
+      console.log('[ResourceDetail] useEffect: Evaluating metadata sync', {
+        resourceTimestamp,
+        metadataSavedTimestamp,
+        shouldSyncMetadata
       });
+
+      if (shouldSyncMetadata) {
+        setMetadataForm({
+          title: resource.title || '',
+          description: resource.description || '',
+          tags: resource.tags?.join(', ') || '',
+          author: resource.author || '',
+          creator: resource.creator || '',
+          platform: resource.platform || '',
+          year: resource.year?.toString() || '',
+          duration: resource.duration || '',
+          url: resource.url || '',
+          channelName: resource.channelName || '',
+          handle: resource.handle || '',
+          viewCount: resource.viewCount?.toString() || '',
+          hashtags: resource.hashtags?.join(', ') || ''
+        });
+      } else {
+        console.log('[ResourceDetail] useEffect: Skipping metadata sync due to newer local value');
+      }
     } else {
       console.log('[ResourceDetail] useEffect: Skipping metadata sync (currently editing)');
     }
-  }, [resource, isEditingTranscript, isEditingMetadata, transcript, lastSavedAt]);
+  }, [
+    resource,
+    isEditingTranscript,
+    isEditingMetadata,
+    isEditingNotes,
+    transcript,
+    notes,
+    lastSavedAt,
+    notesLastSavedAt,
+    metadataLastSavedAt
+  ]);
 
   if (!resource || !resourceTypeConfig) {
     return (
@@ -248,6 +301,9 @@ const ResourceDetail = () => {
       console.log('[ResourceDetail] handleSaveNotes: Calling storageAdapter.updateResource');
       const result = await storageAdapter.updateResource(resource.id, { notes });
       console.log('[ResourceDetail] handleSaveNotes: Update successful', { result });
+      setNotes(result.notes || '');
+      setNotesLastSavedAt(result.updatedAt ?? new Date().toISOString());
+      upsertResource(result);
       setIsEditingNotes(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveNotes: Error saving notes:', err);
@@ -352,6 +408,26 @@ const ResourceDetail = () => {
       const result = await storageAdapter.updateResource(resource.id, updatedData);
 
       console.log('[ResourceDetail] handleSaveMetadata: Update successful', { result });
+
+      const nextMetadataForm = {
+        title: result.title || '',
+        description: result.description || '',
+        tags: result.tags?.join(', ') || '',
+        author: result.author || '',
+        creator: result.creator || '',
+        platform: result.platform || '',
+        year: result.year ? result.year.toString() : '',
+        duration: result.duration || '',
+        url: result.url || '',
+        channelName: result.channelName || '',
+        handle: result.handle || '',
+        viewCount: typeof result.viewCount === 'number' ? result.viewCount.toString() : '',
+        hashtags: result.hashtags?.join(', ') || ''
+      };
+
+      setMetadataForm(nextMetadataForm);
+      setMetadataLastSavedAt(result.updatedAt ?? new Date().toISOString());
+      upsertResource(result);
       setIsEditingMetadata(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveMetadata: Error saving metadata:', err);
@@ -449,13 +525,14 @@ const ResourceDetail = () => {
                 <Button
                   size="sm"
                   variant={isEditingMetadata ? "default" : "outline"}
-                  onClick={() => {
-                    if (isEditingMetadata) {
-                      handleSaveMetadata();
-                    } else {
-                      setIsEditingMetadata(true);
-                    }
-                  }}
+                onClick={() => {
+                  if (isEditingMetadata) {
+                    handleSaveMetadata();
+                  } else {
+                    setMetadataLastSavedAt(resource?.updatedAt ?? null);
+                    setIsEditingMetadata(true);
+                  }
+                }}
                 >
                   {isEditingMetadata ? (
                     <>
@@ -822,6 +899,7 @@ const ResourceDetail = () => {
                   if (isEditingNotes) {
                     handleSaveNotes();
                   } else {
+                    setNotesLastSavedAt(resource?.updatedAt ?? null);
                     setIsEditingNotes(true);
                   }
                 }}
