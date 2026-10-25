@@ -14,9 +14,9 @@ They are historical drafts, not claims of tested or deployed features.
 | Source branch feature/notes-edit-popup-card (personal-knowledge-vault) | [preserved commit](https://github.com/ElliotDrel/personal-knowledge-vault/commit/de4a2edac8092b3796d758bc10182dfa741c2522) |
 | Source branch standardize-notes-and-transcript-text-boxes (personal-knowledge-vault) | [preserved commit](https://github.com/ElliotDrel/personal-knowledge-vault/commit/3913a520a4558cb84e34f270082d04c436eb6c9a) |
 | Source branch ui/website-redesign (personal-knowledge-vault) | [preserved commit](https://github.com/ElliotDrel/personal-knowledge-vault/commit/20218c48c2694fca1fcad059f2d8167169fb271e) |
-| Published feature history feature/auto-save-notes-critical-triggers | [preserved commit](https://github.com/ElliotDrel/personal-knowledge-vault/commit/048b95988225d72631be5de6918c30dc61490011) |
+| Older published auto-save planning checkpoint (implementation tip is indexed separately above) | [preserved commit](https://github.com/ElliotDrel/personal-knowledge-vault/commit/048b95988225d72631be5de6918c30dc61490011) |
 | orphaned Resource Detail refactor and design notes | [preserved commit](https://github.com/ElliotDrel/personal-knowledge-vault/commit/dedde48f9e00a7b687baa8c37fcc67004365fbda) |
 | orphaned project guidance | [preserved commit](https://github.com/ElliotDrel/personal-knowledge-vault/commit/80e098184b45e239dd8546de9b07cc8048635674) |
 
-Local credentials, account records, and machine-specific settings were excluded.
+New local credentials and account-record changes were excluded. Existing tracked configuration inherited from the already-published upstream baseline remains unchanged; transient local planner/settings edits were not imported.
 The application source tree stays on the upstream baseline; this index makes the preserved work discoverable without extra branches.
