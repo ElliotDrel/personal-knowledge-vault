@@ -22,7 +22,7 @@
  * @component
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, type CSSProperties } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
@@ -37,6 +37,7 @@ interface MarkdownFieldProps {
   onChange?: (value: string) => void;
   placeholder?: string;
   className?: string;
+  textareaClassName?: string;
   minHeight?: number;
   isEditing?: boolean;
   onEditingChange?: (editing: boolean) => void;
@@ -56,6 +57,7 @@ export function MarkdownField({
   onChange,
   placeholder = 'Start writing...',
   className,
+  textareaClassName = '',
   minHeight = 300,
   isEditing = false,
   onEditingChange,
@@ -67,6 +69,10 @@ export function MarkdownField({
 }: MarkdownFieldProps) {
   const [isFocused, setIsFocused] = useState(isEditing);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [mirrorStyle, setMirrorStyle] = useState<CSSProperties>({
+    padding: '0px',
+  });
+  const [scrollPosition, setScrollPosition] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
     if (readOnly) {
@@ -91,6 +97,69 @@ export function MarkdownField({
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange?.(e.target.value);
   };
+
+  const resolvedTextClassName = useMemo(() => {
+    if (textareaClassName) return textareaClassName;
+    if (className) return cn('font-mono text-sm leading-relaxed', className);
+    return 'font-mono text-sm leading-relaxed';
+  }, [textareaClassName, className]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const computedStyle = window.getComputedStyle(textarea);
+    const scrollHeight = Math.max(minHeight, textarea.scrollHeight);
+    const scrollWidth = Math.max(textarea.clientWidth, textarea.scrollWidth);
+
+    setMirrorStyle({
+      fontFamily: computedStyle.fontFamily,
+      fontSize: computedStyle.fontSize,
+      fontWeight: computedStyle.fontWeight,
+      fontStyle: computedStyle.fontStyle,
+      lineHeight: computedStyle.lineHeight,
+      letterSpacing: computedStyle.letterSpacing,
+      textTransform: computedStyle.textTransform,
+      textAlign: computedStyle.textAlign,
+      textIndent: computedStyle.textIndent,
+      whiteSpace: computedStyle.whiteSpace,
+      wordSpacing: computedStyle.wordSpacing,
+      padding: computedStyle.padding,
+      borderRadius: computedStyle.borderRadius,
+      boxSizing: computedStyle.boxSizing,
+      width: `${scrollWidth}px`,
+      minHeight: `${scrollHeight}px`,
+      height: `${scrollHeight}px`,
+    });
+  }, [
+    isFocused,
+    isEditing,
+    value,
+    minHeight,
+    textareaClassName,
+    className,
+    readOnly,
+  ]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const handleScroll = () => {
+      setScrollPosition({
+        top: textarea.scrollTop,
+        left: textarea.scrollLeft,
+      });
+    };
+
+    handleScroll();
+
+    textarea.addEventListener('scroll', handleScroll);
+    return () => {
+      textarea.removeEventListener('scroll', handleScroll);
+    };
+  }, [isFocused, isEditing]);
 
   /**
    * Handle text selection in textarea
@@ -118,19 +187,17 @@ export function MarkdownField({
       <div className="relative">
         {/* Highlight overlay (positioned behind textarea) */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-          <div
-            className="p-3"
+          <TextHighlight
+            text={value}
+            comments={comments}
+            activeCommentId={activeCommentId}
+            hoveredCommentId={hoveredCommentId}
+            className="w-full"
             style={{
-              minHeight: `${minHeight}px`,
+              ...mirrorStyle,
+              transform: `translate(${-scrollPosition.left}px, ${-scrollPosition.top}px)`,
             }}
-          >
-            <TextHighlight
-              text={value}
-              comments={comments}
-              activeCommentId={activeCommentId}
-              hoveredCommentId={hoveredCommentId}
-            />
-          </div>
+          />
         </div>
 
         {/* Textarea (foreground, transparent background to show highlights) */}
@@ -143,7 +210,8 @@ export function MarkdownField({
           onBlur={readOnly ? undefined : handleBlur}
           placeholder={placeholder}
           className={cn(
-            'font-mono text-sm leading-relaxed resize-none relative z-10',
+            resolvedTextClassName,
+            'resize-none relative z-10',
             'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
             'bg-transparent',
             className
