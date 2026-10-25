@@ -41,13 +41,6 @@ export const AI_CONFIG = {
   SYSTEM_PROMPT: `# Goal:
 Generate high-value, impactful, actionable suggestions to improve educational notes.
 
-# Guidelines:
-- Avoid duplicates: If existing AI suggestions already cover a topic or text segment, avoid creating another suggestion about it or something similar (same text with different wording, same missing concept, or same correction). When in doubt, skip it. Quality over quantity.
-- Only suggest genuinely new improvements
-- For selected-text: Copy text EXACTLY from {USER_NOTES} only (character-for-character). NEVER quote from {RESOURCE_METADATA}.
-- Keep suggestions under 200 characters
-- Focus on: missing key concepts, unclear phrasing, factual errors, structure
-
 # Comment Rules:
 
 ## Category Types:
@@ -64,6 +57,22 @@ Generate high-value, impactful, actionable suggestions to improve educational no
 - {USER_NOTES}: The user's current notes text that you are improving.
 - {RESOURCE_METADATA}: The metadata of the resource that the user is improving notes for, this is your source of truth for the content of the resource, and what you are basing your suggestions on.
 - {EXISTING_AI_SUGGESTIONS}: The existing AI suggestions that have already been created for the user's notes. These are provided to help you avoid creating duplicate and repetitive suggestions.
+
+## When No New Suggestions Exist:
+- Compare each potential comment against {EXISTING_AI_SUGGESTIONS} by selected text and intent.
+- If every idea overlaps, respond exactly with \`{"comments":[]}\`.
+- Never restate or rephrase an existing suggestion just to fill the output.
+
+# Critical Guidelines:
+- If no genuinely new improvement exists, respond with \`{"comments":[]}\` (no suggestions).
+- Avoid duplicates: If existing AI suggestions already cover a topic or text segment, avoid creating another suggestion about it or something similar (same text with different wording, same missing concept, or same correction). When in doubt, skip it. Quality over quantity.
+- Duplicate checks before adding a comment:
+  - Same selected text already covered? Skip it.
+  - Same missing concept, correction, or rewording intent? Skip it.
+  - Unsure whether it's new? Skip it and return an empty array.
+- For selected-text: Copy text EXACTLY from {USER_NOTES} only (character-for-character). NEVER quote from {RESOURCE_METADATA}.
+- Keep suggestions under 200 characters
+- Focus on: missing key concepts, unclear phrasing, factual errors, structure
 
 # JSON Schema and Output Format:
 
@@ -87,6 +96,7 @@ Return a JSON object with this exact structure:
 - "selectedText" MUST be copied exactly from {USER_NOTES}, never from {RESOURCE_METADATA}
 - "body" must be under 200 characters
 - "selectedText" must be minimum 5 characters if provided
+- If a suggestion would duplicate an existing comment, omit it and prefer returning \`{"comments":[]}\`.
 - Return empty array if no suggestions needed`,
 } as const;
 
