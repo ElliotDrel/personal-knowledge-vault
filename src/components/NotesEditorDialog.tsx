@@ -6,9 +6,8 @@
  * - WYSIWYG editing area with rich text formatting toolbar
  * - Comment system integration (create, reply, resolve)
  * - AI Notes Check tool for automated suggestions
- * - Silent auto-save with 1-second debounce and exponential retry
- * - Critical trigger flushes (AI check, dialog close, manual save)
  * - Unsaved changes protection with confirmation dialog
+ * - Explicit save action (no auto-save)
  * - Markdown storage format for AI compatibility
  *
  * Note: Inline comment highlights during editing will be added in Phase 3
@@ -27,19 +26,25 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { WYSIWYGEditor } from '@/components/ui/wysiwyg-editor';
-import { Save, Loader2, X, AlertCircle } from 'lucide-react';
+import { Save, Loader2 } from 'lucide-react';
 import { stripMarkdown } from '@/utils/stripMarkdown';
 
 // Comment system imports
 import type { CommentWithReplies } from '@/types/comments';
 import { useStorageAdapter } from '@/data/storageAdapter';
 import { useCommentTextTracking } from '@/hooks/use-comment-text-tracking';
-import { useAutoSave } from '@/hooks/useAutoSave';
-import { useNavigationBlocker } from '@/hooks/useNavigationBlocker';
-import { useUnloadProtection } from '@/hooks/useUnloadProtection';
 import { CommentToolbar } from '@/components/comments/CommentToolbar';
 import { CommentSidebar } from '@/components/comments/CommentSidebar';
 import { ResolvedCommentsModal } from '@/components/comments/ResolvedCommentsModal';
@@ -59,8 +64,6 @@ interface NotesEditorDialogProps {
   onCommentCountChange?: (count: number) => void;
 }
 
-const NOTE_AUTO_SAVE_INTERVAL_MS = 60_000;
-
 export function NotesEditorDialog({
   open,
   onOpenChange,
@@ -73,9 +76,7 @@ export function NotesEditorDialog({
 }: NotesEditorDialogProps) {
   // Internal editing state
   const [currentValue, setCurrentValue] = useState(initialValue);
-  const [isClosePending, setIsClosePending] = useState(false);
-  const [blockingError, setBlockingError] = useState<{ title: string; message: string } | null>(null);
-  const [isPreparingComment, setIsPreparingComment] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   // Comment system state
   const [comments, setComments] = useState<CommentWithReplies[]>([]);
@@ -101,84 +102,6 @@ export function NotesEditorDialog({
     debounceMs: 2000, // Update DB every 2 seconds
   });
 
-  // Auto-save for notes content
-  const {
-    isDirty: isNotesDirty,
-    isSaving: isNotesSaving,
-    saveError: notesSaveError,
-    retryCount: notesRetryCount,
-    flushPendingUpdates: flushNotesAutoSave,
-    clearError: clearNotesSaveError,
-  } = useAutoSave({
-    value: currentValue,
-    onSave: async (value) => {
-      // Flush comment tracking first, then save notes
-      await flushPendingUpdates();
-      await onSave(value);
-    },
-    debounceMs: NOTE_AUTO_SAVE_INTERVAL_MS,
-    maxRetries: 5,
-    enabled: open, // Only auto-save while dialog is open
-  });
-
-  // Navigation protection: block navigation while dirty to flush auto-save
-  useNavigationBlocker({
-    when: isNotesDirty && open,
-    onBlock: flushNotesAutoSave,
-  });
-
-  // Browser unload protection: prevent tab close during active save
-  useUnloadProtection({
-    when: isNotesSaving,
-  });
-
-  const requireFreshNotes = useCallback(
-    async (context: string, title?: string): Promise<boolean> => {
-      console.log(`[NotesEditorDialog] Syncing latest notes before ${context}...`);
-      try {
-        await flushNotesAutoSave();
-        await flushPendingUpdates();
-        console.log(`[NotesEditorDialog] Sync completed for ${context}.`);
-        return true;
-      } catch (error) {
-        console.error(`[NotesEditorDialog] Failed to sync before ${context}:`, error);
-        setBlockingError({
-          title: title ?? 'Unable to sync your notes',
-          message: `We couldn't save your latest edits, so we can't finish ${context} yet. Please check your network connection and try again.`,
-        });
-        return false;
-      }
-    },
-    [flushNotesAutoSave, flushPendingUpdates]
-  );
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    if (typeof document === 'undefined' || typeof window === 'undefined') {
-      return;
-    }
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        void requireFreshNotes('switching tabs');
-      }
-    };
-
-    const handlePageHide = () => {
-      void requireFreshNotes('leaving the page');
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pagehide', handlePageHide);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pagehide', handlePageHide);
-    };
-  }, [open, requireFreshNotes]);
-
   const commentCountChangeRef = useRef(onCommentCountChange);
 
   useEffect(() => {
@@ -192,17 +115,18 @@ export function NotesEditorDialog({
     }
   }, [open, initialValue]);
 
+  // Check if content has been modified
+  const isDirty = currentValue !== initialValue;
+
   // Surface dirty state to parent so it can coordinate sync behaviour
   useEffect(() => {
-    onDirtyChange?.(isNotesDirty);
-  }, [isNotesDirty, onDirtyChange]);
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
-  // Reset any close error state when dialog visibility changes
+  // Ensure confirmation dialog is reset when the editor closes externally
   useEffect(() => {
-    if (open) {
-      setBlockingError(null);
-      setIsClosePending(false);
-      setIsPreparingComment(false);
+    if (!open) {
+      setShowConfirmation(false);
     }
   }, [open]);
 
@@ -242,31 +166,20 @@ export function NotesEditorDialog({
    */
   const aiCheckMutation = useMutation({
     mutationFn: async () => {
-      try {
-        setAiCheckState('processing');
-        // Brief delay for UX (shows processing state)
-        await new Promise((resolve) => setTimeout(resolve, 500));
+      setAiCheckState('processing');
+      // Brief delay for UX (shows processing state)
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // CRITICAL: Flush auto-save first to ensure AI reads latest content
-        await flushNotesAutoSave();
+      // Ensure any pending text sync completes so AI reads the latest notes
+      await flushPendingUpdates();
 
-        // Then flush comment tracking
-        await flushPendingUpdates();
-
-        const result = await storageAdapter.runAINotesCheck(resourceId);
-
-        if (!result.success) {
-          throw new Error(result.error?.message || 'AI processing failed');
-        }
-
-        return result;
-      } catch (error) {
-        // If auto-save flush fails, block AI with descriptive error
-        setAiCheckState('error');
-        throw error instanceof Error
-          ? error
-          : new Error('Cannot start AI analysis - please check your network connection and try again');
+      const result = await storageAdapter.runAINotesCheck(resourceId);
+      
+      if (!result.success) {
+        throw new Error(result.error?.message || 'AI processing failed');
       }
+      
+      return result;
     },
     onSuccess: (result) => {
       setAiCheckState('complete');
@@ -296,7 +209,6 @@ export function NotesEditorDialog({
    */
   const handleAICheck = useCallback(() => {
     if (aiCheckState !== 'idle') return;
-    console.log('[NotesEditorDialog] AI Notes Check requested.');
     aiCheckMutation.mutate();
   }, [aiCheckState, aiCheckMutation]);
 
@@ -309,54 +221,38 @@ export function NotesEditorDialog({
       return;
     }
 
-    if (isPreparingComment) {
+    // Validate selection range
+    if (selectionRange.start < 0 || selectionRange.end <= selectionRange.start) {
+      console.warn('[NotesEditorDialog] Invalid selection range:', selectionRange);
       return;
     }
 
-    const selectionSnapshot = { ...selectionRange };
+    // Check if selection is not just whitespace
+    const plainText = stripMarkdown(currentValue);
 
-    const beginCreation = async () => {
-      console.log('[NotesEditorDialog] Preparing to add comment for current selection...');
-      setIsPreparingComment(true);
-      const synced = await requireFreshNotes('starting a comment', 'Unable to start comment');
-      setIsPreparingComment(false);
-      if (!synced) {
-        return;
-      }
+    if (selectionRange.start < 0 || selectionRange.end > plainText.length) {
+      console.warn('[NotesEditorDialog] Selection range out of bounds for plain text:', {
+        range: selectionRange,
+        plainTextLength: plainText.length,
+      });
+      return;
+    }
 
-      if (selectionSnapshot.start < 0 || selectionSnapshot.end <= selectionSnapshot.start) {
-        console.warn('[NotesEditorDialog] Invalid selection range:', selectionSnapshot);
-        return;
-      }
+    const selectedText = plainText.slice(selectionRange.start, selectionRange.end);
 
-      const plainText = stripMarkdown(currentValue);
-
-      if (selectionSnapshot.start < 0 || selectionSnapshot.end > plainText.length) {
-        console.warn('[NotesEditorDialog] Selection range out of bounds for plain text:', {
-          range: selectionSnapshot,
+    if (!selectedText.trim()) {
+      console.warn(
+        '[NotesEditorDialog] Plain text slice for selection is empty. Aborting comment creation.',
+        {
+          selectionRange,
           plainTextLength: plainText.length,
-        });
-        return;
-      }
+          originalSelectionText: selectionRange.text,
+        }
+      );
+      return;
+    }
 
-      const selectedText = plainText.slice(selectionSnapshot.start, selectionSnapshot.end);
-
-      if (!selectedText.trim()) {
-        console.warn(
-          '[NotesEditorDialog] Plain text slice for selection is empty. Aborting comment creation.',
-          {
-            selectionRange: selectionSnapshot,
-            plainTextLength: plainText.length,
-            originalSelectionText: selectionSnapshot.text,
-          }
-        );
-        return;
-      }
-
-      setIsCreatingComment(true);
-    };
-
-    void beginCreation();
+    setIsCreatingComment(true);
   };
 
   /**
@@ -537,43 +433,44 @@ export function NotesEditorDialog({
     handleTextChange(oldValue, newValue, comments, setComments);
   };
 
-  // Handle save action (triggers auto-save flush)
+  // Handle save action
   const handleSave = async () => {
-    if (isClosePending) {
-      return;
-    }
-
-    const synced = await requireFreshNotes('saving your changes');
-    if (synced) {
+    try {
+      await flushPendingUpdates();
+      await onSave(currentValue);
+      // Close dialog on successful save
       onOpenChange(false);
+    } catch (error) {
+      // Error handling done by parent (ResourceDetail)
+      // Keep dialog open so user can retry
+      console.error('NotesEditorDialog: Save failed', error);
     }
   };
 
   // Handle close attempts (X button, ESC, backdrop click)
-  const handleClose = useCallback(() => {
-    if (isClosePending) {
-      return;
+  const handleClose = () => {
+    void flushPendingUpdates();
+    if (isDirty) {
+      // Show confirmation if there are unsaved changes
+      setShowConfirmation(true);
+    } else {
+      // Close immediately if no changes
+      onOpenChange(false);
     }
+  };
 
-    const flushAndClose = async () => {
-      console.log('[NotesEditorDialog] Close requested – syncing latest notes before exit...');
-      setBlockingError(null);
-      setIsClosePending(true);
+  // Handle discard action
+  const handleDiscard = () => {
+    setCurrentValue(initialValue);
+    setShowConfirmation(false);
+    onOpenChange(false);
+  };
 
-      try {
-        const synced = await requireFreshNotes('closing the notes editor', 'Unable to close yet');
-        if (synced) {
-          onOpenChange(false);
-        }
-      } finally {
-        setIsClosePending(false);
-      }
-    };
-
-    void flushAndClose();
-  }, [isClosePending, onOpenChange, requireFreshNotes]);
-
-  const canStartComment = selectionRange !== null && !isPreparingComment;
+  // Handle save from confirmation dialog
+  const handleConfirmSave = async () => {
+    setShowConfirmation(false);
+    await handleSave();
+  };
 
   return (
     <>
@@ -593,46 +490,9 @@ export function NotesEditorDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Error notification after retry exhaustion */}
-          {notesSaveError && notesRetryCount >= 5 && (
-            <Alert variant="destructive" className="relative">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Unable to save your notes</AlertTitle>
-              <AlertDescription>
-                Please check your network connection and try again. Your changes are still in the editor.
-              </AlertDescription>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2 h-6 w-6 p-0"
-                onClick={clearNotesSaveError}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </Alert>
-          )}
-
-          {blockingError && (
-            <Alert variant="destructive" className="relative">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>{blockingError.title}</AlertTitle>
-              <AlertDescription>
-                {blockingError.message}
-              </AlertDescription>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2 h-6 w-6 p-0"
-                onClick={() => setBlockingError(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </Alert>
-          )}
-
           {/* Comment Toolbar */}
           <CommentToolbar
-            hasSelection={canStartComment}
+            hasSelection={selectionRange !== null}
             onCreateComment={handleStartCommentCreation}
             onViewResolved={() => setShowResolvedComments(true)}
             unresolvedCount={comments.filter((c) => c.status === 'active').length}
@@ -692,10 +552,10 @@ export function NotesEditorDialog({
           <DialogFooter className="border-t pt-4 mt-4">
             <Button
               onClick={handleSave}
-              disabled={isNotesSaving || isClosePending}
+              disabled={isLoading}
               className="ml-auto"
             >
-              {isNotesSaving ? (
+              {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Saving...
@@ -710,6 +570,26 @@ export function NotesEditorDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation dialog for unsaved changes */}
+      <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Do you want to save them before closing?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDiscard}>
+              Discard Changes
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSave}>
+              Save Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Resolved comments modal */}
       <ResolvedCommentsModal

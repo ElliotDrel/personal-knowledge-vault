@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthProvider";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 
 const Landing = lazy(() => import("./pages/Landing"));
@@ -20,85 +20,63 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <Landing />,
-  },
-  {
-    path: "/auth",
-    element: <Auth />,
-  },
-  {
-    path: "/dashboard",
-    element: (
-      <RequireAuth>
-        <Dashboard />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: "/dashboard/resources",
-    element: (
-      <RequireAuth>
-        <Resources />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: "/dashboard/resources/new",
-    element: (
-      <RequireAuth>
-        <NewResource />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: "/dashboard/resources/process",
-    element: (
-      <RequireAuth>
-        <ProcessVideo />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: "/dashboard/resource/:id",
-    element: (
-      <RequireAuth>
-        <ResourceDetail />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: "/dashboard/settings",
-    element: (
-      <RequireAuth>
-        <Settings />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: "*",
-    element: <NotFound />,
-  },
-]);
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <Suspense
-          fallback={
-            <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-              Loading...
-            </div>
-          }
-        >
-          <RouterProvider router={router} />
-        </Suspense>
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <Suspense
+            fallback={
+              <div className="flex min-h-screen items-center justify-center text-muted-foreground">
+                Loading...
+              </div>
+            }
+          >
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Landing />} />
+              <Route path="/auth" element={<Auth />} />
+
+              {/* Protected routes - Dashboard */}
+              <Route path="/dashboard" element={
+                <RequireAuth>
+                  <Dashboard />
+                </RequireAuth>
+              } />
+              <Route path="/dashboard/resources" element={
+                <RequireAuth>
+                  <Resources />
+                </RequireAuth>
+              } />
+              <Route path="/dashboard/resources/new" element={
+                <RequireAuth>
+                  <NewResource />
+                </RequireAuth>
+              } />
+              <Route path="/dashboard/resources/process" element={
+                <RequireAuth>
+                  <ProcessVideo />
+                </RequireAuth>
+              } />
+              <Route path="/dashboard/resource/:id" element={
+                <RequireAuth>
+                  <ResourceDetail />
+                </RequireAuth>
+              } />
+              <Route path="/dashboard/settings" element={
+                <RequireAuth>
+                  <Settings />
+                </RequireAuth>
+              } />
+
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </AuthProvider>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
