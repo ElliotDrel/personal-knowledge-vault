@@ -1,23 +1,6 @@
 /**
  * Shared types for short-form video processing Edge Function
- *
- * ⚠️ SYNC WARNING ⚠️
- * ==================
- * This file contains COPIES of configs from the frontend.
- * DO NOT EDIT THESE DIRECTLY - they are synced from frontend source of truth.
- *
- * Duplicated configs:
- * - PLATFORM_CONFIGS (synced from src/types/shortFormApi.ts)
- * - POLLING_CONFIG (synced from src/types/shortFormApi.ts)
- *
- * SOURCE OF TRUTH: src/types/shortFormApi.ts
- * THIS FILE IS:    Copy (supabase/functions/short-form/types.ts)
- *
- * WHY: Edge Functions cannot import from src/ directory (Deno runtime limitation)
- *
- * AUTOMATED PROTECTION:
- * - Deployment blocked if configs are out of sync
- * - Always use `npm run deploy:edge:short-form` to deploy (auto-validates sync)
+ * This should stay in sync with src/types/shortFormApi.ts
  */
 
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -204,7 +187,6 @@ export interface ProcessingJobRecord {
 }
 
 // Platform configuration
-// ⚠️ DO NOT EDIT: This is synced from src/types/shortFormApi.ts
 export interface PlatformConfig {
   name: string;
   displayName: string;
@@ -299,7 +281,6 @@ export interface EdgeFunctionConfig {
 }
 
 // Constants
-// ⚠️ DO NOT EDIT: This is synced from src/types/shortFormApi.ts
 export const POLLING_CONFIG = {
   DEFAULT_INTERVAL_MS: 2000,
   MAX_INTERVAL_MS: 30000,
