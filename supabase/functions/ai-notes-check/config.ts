@@ -41,45 +41,39 @@ export const AI_CONFIG = {
 
   /**
    * System Prompt
-   * Defines AI role, task, constraints, and rules
+   * Defines AI role, task, constraints, rules, and JSON schema
    */
-  SYSTEM_PROMPT: `You are an expert analyst improving educational notes. Your focus: high-value, NON-DUPLICATE suggestions only.
+  SYSTEM_PROMPT: `# Goal:
+Generate high-value, impactful, actionable suggestions to improve educational notes.
 
-CRITICAL ANTI-DUPLICATION RULE (HIGHEST PRIORITY):
-If existing AI suggestions already cover a topic or text segment, DO NOT create another suggestion about it. This includes:
-- Same text with different wording (e.g., "Clarify X" vs "Add context for X" = DUPLICATE)
-- Same missing concept (e.g., "Add book Y" already suggested = DUPLICATE)
-- Same correction (e.g., "Fix author name" already suggested = DUPLICATE)
-When in doubt, skip it. Quality over quantity.
-
-Your workflow:
-1. Review ALL existing suggestions first - note what topics/text are already addressed
-2. Analyze notes vs source material
-3. For each potential suggestion, ask: "Does an existing suggestion already cover this topic or text?" If yes, SKIP IT.
-4. Only suggest genuinely new improvements
-
-Guidelines:
+# Guidelines:
+- Avoid duplicates: If existing AI suggestions already cover a topic or text segment, avoid creating another suggestion about it or something similar (same text with different wording, same missing concept, or same correction). When in doubt, skip it. Quality over quantity.
+- Only suggest genuinely new improvements
 - For selected-text: Copy text EXACTLY from notes (character-for-character)
 - Keep suggestions under 200 characters
 - Focus on: missing key concepts, unclear phrasing, factual errors, structure
 
-Suggestion Types:
-- missing_concept: Key topics from source not in notes
-- rewording: Clearer phrasing for existing text
-- factual_correction: Inaccuracies vs source
-- structural_suggestion: Better organization
+# Comment Rules:
 
-Category Types:
+## Category Types:
 - selected_text: Anchored to passage (exact quoted text, min 5 chars)
 - general: Broad observation not tied to specific text
 
-Output: Valid JSON only (no markdown fences).`,
+## Suggestion Types:
+- missing_concept: Key topics from source material not in notes (use selected_text if anchoring to where it should be added, or general if broadly applicable)
+- rewording: Clearer phrasing for existing text (must use selected_text category and quote the exact text to be reworded)
+- factual_correction: Inaccuracies vs source material (must use selected_text category and quote the exact inaccurate text)
+- structural_suggestion: Better organization or removing duplicate/redundant information from notes (use selected_text if pointing to specific section, or general for overall structure)
 
-  /**
-   * JSON Schema Instructions
-   * Specifies exact structure AI must return
-   */
-  JSON_SCHEMA_INSTRUCTIONS: `Return a JSON object with this exact structure:
+# Provided Content:
+- {USER_NOTES}: The user's current notes text that you are improving.
+- {RESOURCE_METADATA}: The metadata of the resource that the user is improving notes for, this is your source of truth for the content of the resource, and what you are basing your suggestions on.
+- {EXISTING_AI_SUGGESTIONS}: The existing AI suggestions that have already been created for the user's notes. These are provided to help you avoid creating duplicate and repetitive suggestions.
+
+# JSON Schema and Output Format:
+
+Analyze the user notes and provide improvement suggestions as JSON comments.
+Return a JSON object with this exact structure:
 
 {
   "comments": [
@@ -92,7 +86,7 @@ Output: Valid JSON only (no markdown fences).`,
   ]
 }
 
-RULES:
+## Schema Rules:
 - "selectedText" is required (non-null) if category is "selected_text"
 - "selectedText" must be null if category is "general"
 - "body" must be under 200 characters
@@ -107,18 +101,10 @@ RULES:
 export const AI_METADATA_CONFIG: Record<string, string[]> = {
   'short-video': [
     'description',
+    'transcript',
     'author',
     'creator',
     'channelName',
-    'handle',
-    'transcript',
-    'platform',
-    'url',
-    'normalizedUrl',
-    'duration',
-    'viewCount',
-    'likeCount',
-    'publishedAt',
   ],
   video: [
     'description',
@@ -126,41 +112,21 @@ export const AI_METADATA_CONFIG: Record<string, string[]> = {
     'author',
     'creator',
     'channelName',
-    'platform',
-    'duration',
-    'url',
-    'normalizedUrl',
-    'viewCount',
-    'likeCount',
-    'publishedAt',
   ],
   book: [
     'description',
     'author',
-    'year',
-    'publisher',
-    'isbn',
-    'pageCount',
     'url',
   ],
   article: [
-    'url',
-    'author',
-    'platform',
     'description',
-    'publishedAt',
-    'siteName',
+    'author',
+    'url',
   ],
   podcast: [
     'description',
-    'transcript',
-    'creator',
-    'platform',
-    'duration',
+    'author',
     'url',
-    'publishedAt',
-    'episodeNumber',
-    'showName',
   ],
 } as const;
 
