@@ -280,45 +280,49 @@ const Dashboard = () => {
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
           {/* Total Resources */}
-          <Card className="bg-gradient-card border-0 shadow-card">
-            <CardHeader className="pb-3">
-              <CardDescription>Total Resources</CardDescription>
-              <CardTitle className="text-3xl font-bold text-primary">
-                {isLoading ? (
-                  <span className="flex items-center gap-2 text-base text-muted-foreground">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Loading...
-                  </span>
-                ) : (
-                  summary.totalResources
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center text-sm text-muted-foreground">
-                <TrendingUp className="w-4 h-4 mr-1" />
-                Growing collection
-              </div>
-            </CardContent>
-          </Card>
+          <Link to="/resources">
+            <Card className="bg-gradient-card border-0 shadow-card cursor-pointer hover:shadow-knowledge transition-smooth">
+              <CardHeader className="pb-3">
+                <CardDescription>Total Resources</CardDescription>
+                <CardTitle className="text-3xl font-bold text-primary">
+                  {isLoading ? (
+                    <span className="flex items-center gap-2 text-base text-muted-foreground">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Loading...
+                    </span>
+                  ) : (
+                    summary.totalResources
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <TrendingUp className="w-4 h-4 mr-1" />
+                  Growing collection
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
 
           {/* Resource Type Stats */}
           {summary.statsByType.map(({ type, config, count }) => (
-            <Card key={type} className="bg-gradient-card border-0 shadow-card group hover:shadow-knowledge transition-smooth">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl">{config.icon}</span>
-                  <CardTitle className="text-2xl font-bold">
-                    {count}
-                  </CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <CardDescription className="group-hover:text-foreground transition-smooth">
-                  {config.label}
-                </CardDescription>
-              </CardContent>
-            </Card>
+            <Link key={type} to={`/resources?type=${type}`}>
+              <Card className="bg-gradient-card border-0 shadow-card cursor-pointer group hover:shadow-knowledge transition-smooth">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl">{config.icon}</span>
+                    <CardTitle className="text-2xl font-bold">
+                      {count}
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription className="group-hover:text-foreground transition-smooth">
+                    {config.label}
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
 
