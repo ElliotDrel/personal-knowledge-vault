@@ -199,14 +199,19 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 - ✅ Short-Video Type Refactor: First-class type, flat metadata, purple theme, platform filtering
 - ✅ YouTube Transcript Extraction: Auto-extract captions with English → auto-language fallback
 
-**Recent Enhancements (2025-10-05)**:
+**Recent Enhancements (2025-10-09)**:
+- **Cache Removal**: Dropped unique index on (user_id, normalized_url) - users can now reprocess same URL multiple times
+- Multiple jobs per URL fully supported (status endpoint returns most recent)
+- Removed forceRefresh API flag and force_refresh DB column
+- Simplified handler: always creates new job (85+ lines of dead code removed)
+
+**Previous Enhancements (2025-10-05)**:
 - YouTube transcript extraction implemented (youtube-caption-extractor library)
 - Language fallback: English → auto-selected → none (graceful degradation)
 - Transcript section now shows for `type='short-video'` in UI
 - Feature flag controlled (default enabled, can disable via env var)
-- Job caching temporarily disabled for testing (comment indicates temporary status)
 
-**Previous Enhancements (2025-10-02)**:
+**Earlier Enhancements (2025-10-02)**:
 - Short-videos are now `type='short-video'` (not nested under `type='video'`)
 - Flat metadata structure (channelName, handle, viewCount at top level)
 - Platform filtering (YouTube Shorts, TikTok, Instagram Reels)
@@ -214,8 +219,8 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 - Partial index on platform for performance
 
 **Limitations**:
-- ⚠️ Job caching temporarily disabled (for testing transcript feature)
 - ⏳ TikTok/Instagram transcript extraction not yet implemented
+- ⏳ No automatic cleanup of old processing jobs (manual cleanup function exists)
 
 ## Vercel Deployment
 
