@@ -77,24 +77,22 @@ export function checkCommentStale(
   }
 
   // Safety checks
-  if (
-    startOffset === undefined ||
-    endOffset === undefined ||
-    !quotedText
-  ) {
+  if (startOffset === undefined || endOffset === undefined) {
+    return { isStale: false, currentText: '' };
+  }
+
+  if (!quotedText && !originalQuotedText) {
+    // No baseline text available; cannot evaluate staleness
     return { isStale: false, currentText: '' };
   }
 
   // Strip markdown from full text to work with plain text
   const plainText = stripMarkdown(text);
 
-  // Extract current text at offset range from plain text
-  const currentText = plainText.slice(startOffset, endOffset);
-
-  // Use originalQuotedText as baseline if available (better accuracy)
-  // Falls back to quotedText for backwards compatibility
-  // NOTE: These should already be plain text (no markdown), but strip to be safe
-  const referenceText = stripMarkdown(originalQuotedText || quotedText);
+  const referenceText = stripMarkdown(originalQuotedText || quotedText || '');
+  const desiredEnd = Math.max(endOffset, startOffset + referenceText.length);
+  const safeEnd = Math.min(plainText.length, desiredEnd);
+  const currentText = plainText.slice(startOffset, safeEnd);
 
   // If identical to reference, definitely not stale
   if (currentText === referenceText) {
@@ -148,7 +146,12 @@ export function updateCommentOffsets(
     }
 
     // Guard against invalid offsets
-    if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) {
+    if (startOffset < 0 || endOffset < 0) {
+      console.warn('[commentTextTracking] Invalid comment offsets:', { startOffset, endOffset });
+      return comment;
+    }
+
+    if (startOffset > endOffset) {
       console.warn('[commentTextTracking] Invalid comment offsets:', { startOffset, endOffset });
       return comment;
     }
@@ -175,10 +178,18 @@ export function updateCommentOffsets(
     // Example: Comment at [10-30], user types at position 15, length +3
     // Result: Extend end offset by 3 -> [10-33]
     // Boundary case: User types at position 10 -> comment expands to include new text
-    if (changeStart >= startOffset && changeStart < endOffset) {
+    if (changeStart >= startOffset && changeStart <= endOffset) {
+      if (comment.isStale) {
+        return {
+          ...comment,
+          endOffset: Math.max(startOffset, Math.min(endOffset, startOffset)),
+        };
+      }
+
+      const nextEnd = endOffset + changeLength;
       return {
         ...comment,
-        endOffset: Math.max(startOffset + 1, endOffset + changeLength),
+        endOffset: Math.max(startOffset, nextEnd),
       };
     }
 
@@ -267,11 +278,16 @@ export function updateCommentsForTextChange(
         ...comment,
         isStale: false,
         quotedText: currentText,
+        endOffset: comment.startOffset !== undefined ? comment.startOffset + currentText.length : comment.endOffset,
       };
     }
 
     // Update quoted text even if not stale (keeps in sync)
-    if (comment.commentType === 'selected-text' && currentText !== comment.quotedText) {
+    if (
+      comment.commentType === 'selected-text' &&
+      !comment.isStale &&
+      currentText !== comment.quotedText
+    ) {
       return {
         ...comment,
         quotedText: currentText, // Plain text
