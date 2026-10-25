@@ -34,6 +34,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MarkdownField } from '@/components/ui/markdown-field';
+import { NotesEditorDialog } from '@/components/NotesEditorDialog';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
 import {
@@ -70,7 +71,7 @@ const ResourceDetail = () => {
   const [resourceTypeConfig, setResourceTypeConfig] = useState<ResourceTypeConfig | null>(null);
   const [notes, setNotes] = useState('');
   const [transcript, setTranscript] = useState('');
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,16 +150,15 @@ const ResourceDetail = () => {
 
     const resourceTimestamp = parseTimestamp(resource.updatedAt);
 
-    if (!isEditingNotes) {
-      const notesSavedTimestamp = parseTimestamp(notesLastSavedAt);
-      const shouldSyncNotes =
-        resourceTimestamp === null ||
-        notesSavedTimestamp === null ||
-        resourceTimestamp >= notesSavedTimestamp;
+    // Always sync notes from resource (dialog manages its own state)
+    const notesSavedTimestamp = parseTimestamp(notesLastSavedAt);
+    const shouldSyncNotes =
+      resourceTimestamp === null ||
+      notesSavedTimestamp === null ||
+      resourceTimestamp >= notesSavedTimestamp;
 
-      if (shouldSyncNotes) {
-        setNotes(resource.notes || '');
-      }
+    if (shouldSyncNotes) {
+      setNotes(resource.notes || '');
     }
 
     if (!isEditingTranscript) {
@@ -202,7 +202,6 @@ const ResourceDetail = () => {
     resource,
     isEditingTranscript,
     isEditingMetadata,
-    isEditingNotes,
     transcript,
     notes,
     lastSavedAt,
@@ -232,7 +231,7 @@ const ResourceDetail = () => {
 
   const config = resourceTypeConfig[resource.type];
 
-  const handleSaveNotes = async () => {
+  const handleSaveNotes = async (value: string) => {
     if (!resource) {
       return;
     }
@@ -240,14 +239,14 @@ const ResourceDetail = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await storageAdapter.updateResource(resource.id, { notes });
+      const result = await storageAdapter.updateResource(resource.id, { notes: value });
       setNotes(result.notes || '');
       setNotesLastSavedAt(result.updatedAt ?? new Date().toISOString());
       upsertResource(result);
-      setIsEditingNotes(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveNotes: Error saving notes:', err);
       setError('Failed to save notes');
+      throw err; // Re-throw so dialog knows save failed
     } finally {
       setLoading(false);
     }
@@ -796,33 +795,11 @@ const ResourceDetail = () => {
               </div>
               <Button
                 size="sm"
-                variant={isEditingNotes ? "default" : "outline"}
-                onClick={() => {
-                  if (isEditingNotes) {
-                    handleSaveNotes();
-                  } else {
-                    setNotesLastSavedAt(resource?.updatedAt ?? null);
-                    setIsEditingNotes(true);
-                  }
-                }}
-                disabled={loading}
+                variant="outline"
+                onClick={() => setIsNotesDialogOpen(true)}
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : isEditingNotes ? (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    Save
-                  </>
-                ) : (
-                  <>
-                    <Edit className="w-4 h-4 mr-2" />
-                    Edit
-                  </>
-                )}
+                <Edit className="w-4 h-4 mr-2" />
+                Edit
               </Button>
             </div>
             <CardDescription>
@@ -832,15 +809,22 @@ const ResourceDetail = () => {
           <CardContent>
             <MarkdownField
               value={notes}
-              onChange={(value) => setNotes(value)}
               placeholder="Click Edit to start writing... Use markdown formatting."
               minHeight={400}
               className="font-reading text-base leading-relaxed"
-              isEditing={isEditingNotes}
               readOnly={true}
             />
           </CardContent>
         </Card>
+
+        {/* Notes Editor Dialog */}
+        <NotesEditorDialog
+          open={isNotesDialogOpen}
+          onOpenChange={setIsNotesDialogOpen}
+          initialValue={notes}
+          onSave={handleSaveNotes}
+          isLoading={loading}
+        />
 
         {/* Transcript Section (for videos/podcasts/short-videos) */}
         {(resource.type === 'video' || resource.type === 'podcast' || resource.type === 'short-video') && (
