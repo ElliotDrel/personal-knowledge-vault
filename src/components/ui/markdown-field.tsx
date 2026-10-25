@@ -38,6 +38,9 @@ interface MarkdownFieldProps {
   isEditing?: boolean;
   onEditingChange?: (editing: boolean) => void;
   readOnly?: boolean; // When true, disables auto-toggle (use with Edit/Save buttons)
+
+  /** Callback when user selects text (character offsets) */
+  onSelectionChange?: (range: { start: number; end: number } | null) => void;
 }
 
 export function MarkdownField({
@@ -48,7 +51,8 @@ export function MarkdownField({
   minHeight = 300,
   isEditing = false,
   onEditingChange,
-  readOnly = false
+  readOnly = false,
+  onSelectionChange
 }: MarkdownFieldProps) {
   const [isFocused, setIsFocused] = useState(isEditing);
 
@@ -76,12 +80,33 @@ export function MarkdownField({
     onChange?.(e.target.value);
   };
 
+  /**
+   * Handle text selection in textarea
+   * Fires when user selects text with mouse or keyboard
+   */
+  const handleSelect = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    if (!onSelectionChange) return;
+
+    const target = e.target as HTMLTextAreaElement;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+
+    // Only fire if there's an actual selection (not just cursor position)
+    if (start !== end) {
+      onSelectionChange({ start, end });
+    } else {
+      // Selection cleared (collapsed to cursor)
+      onSelectionChange(null);
+    }
+  };
+
   // Show textarea when editing (focused or controlled via isEditing)
   if (isFocused || isEditing) {
     return (
       <Textarea
         value={value}
         onChange={handleChange}
+        onSelect={handleSelect}
         onFocus={handleFocus}
         onBlur={readOnly ? undefined : handleBlur}
         placeholder={placeholder}
