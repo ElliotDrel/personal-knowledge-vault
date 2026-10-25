@@ -47,6 +47,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - **Why**: Choosing wrong model requires refactoring migrations, types, storage adapter, AND components. Asking 2 questions upfront saves 2+ hours of rework.
 
 14. **WATCH GENERATED TYPES AFTER MIGRATIONS** (NEW): After running `npx supabase gen types typescript --linked`, ALWAYS read the generated types to verify they match your implementation. If user modified migrations, the generated types will show fields you may have missed (e.g., `thread_root_id`, `body`). Proactively update implementation to match schema.
+15. **STABILIZE CALLBACK PROPS** (NEW): When parent callbacks are optional or likely to re-create on every render, mirror them into a `useRef` and read from the ref inside memoized callbacks/effects. This keeps dependency arrays minimal while always using the latest handler.
+16. **FLUSH DEBOUNCED WORK ON EXIT** (NEW): Whenever debouncing persistence (e.g., `useDebouncedCallback`), expose a flush helper. Await it before saves/closures and trigger it in effect cleanup. Log flush errors so dropped updates never fail silently.
 
 ### Supabase CLI-Only Workflow
 
