@@ -6,6 +6,7 @@ import { marked } from 'marked';
 import TurndownService from 'turndown';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { stripMarkdown } from '@/utils/stripMarkdown';
 import {
   Bold,
   Italic,
@@ -136,28 +137,36 @@ export function WYSIWYGEditor({
         return;
       }
 
-      // Get selected text from editor
+      // Get selected text from editor (plain text, no formatting)
       const selectedText = editor.state.doc.textBetween(from, to);
 
-      // Convert current content to markdown to get accurate offsets
+      // Convert current content to markdown
       const html = editor.getHTML();
       const markdown = turndownService.turndown(html);
 
-      // Find the selected text in the markdown
-      // This is approximate but works for basic selection tracking
-      const markdownStartIndex = markdown.indexOf(selectedText);
+      // Strip markdown formatting to get plain text version
+      // This removes ** for bold, * for italic, etc.
+      const plainText = stripMarkdown(markdown);
 
-      if (markdownStartIndex >= 0) {
+      // Find the selected text in the plain text version
+      // This works reliably because both selectedText and plainText have no formatting
+      const plainTextStartIndex = plainText.indexOf(selectedText);
+
+      if (plainTextStartIndex >= 0) {
+        // Found the selection in plain text - use these offsets
         onSelectionChange({
-          text: selectedText,
-          start: markdownStartIndex,
-          end: markdownStartIndex + selectedText.length,
+          text: selectedText, // Plain text without markdown syntax
+          start: plainTextStartIndex,
+          end: plainTextStartIndex + selectedText.length,
         });
       } else {
-        // If exact match not found, use text content positions
-        const textContent = editor.state.doc.textContent;
-        const textFrom = editor.state.doc.textBetween(0, from).length;
-        const textTo = textFrom + selectedText.length;
+        // Fallback: use text content positions from editor
+        // This should rarely happen now that we're using stripped text
+        const textBeforeSelection = editor.state.doc.textBetween(0, from);
+        const textThroughSelection = editor.state.doc.textBetween(0, to);
+
+        const textFrom = stripMarkdown(textBeforeSelection).length;
+        const textTo = stripMarkdown(textThroughSelection).length;
 
         onSelectionChange({
           text: selectedText,

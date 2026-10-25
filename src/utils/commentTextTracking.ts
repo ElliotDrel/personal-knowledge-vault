@@ -3,9 +3,13 @@
  *
  * Handles character offset calculations, text similarity detection,
  * and stale comment identification when underlying text changes.
+ *
+ * NOTE: All text comparisons use PLAIN TEXT (markdown stripped) to avoid
+ * issues with markdown formatting changes affecting staleness detection.
  */
 
 import type { Comment } from '@/types/comments';
+import { stripMarkdown } from './stripMarkdown';
 
 /**
  * Calculate simple character-based similarity between two strings
@@ -40,9 +44,12 @@ export function calculateSimilarity(str1: string, str2: string): number {
 /**
  * Check if comment text has changed enough to mark as stale
  *
- * @param text - Current full text content
+ * @param text - Current full text content (markdown)
  * @param comment - Comment to check
  * @returns Object with isStale flag and current text at offset range
+ *
+ * NOTE: Uses PLAIN TEXT comparison (markdown stripped) to avoid false positives
+ * from formatting changes like **bold** to *italic*
  */
 export function checkCommentStale(
   text: string,
@@ -64,19 +71,23 @@ export function checkCommentStale(
     return { isStale: false, currentText: '' };
   }
 
-  // Extract current text at offset range
-  const currentText = text.slice(startOffset, endOffset);
+  // Strip markdown from full text to work with plain text
+  const plainText = stripMarkdown(text);
+
+  // Extract current text at offset range from plain text
+  const currentText = plainText.slice(startOffset, endOffset);
 
   // Use originalQuotedText as baseline if available (better accuracy)
   // Falls back to quotedText for backwards compatibility
-  const referenceText = originalQuotedText || quotedText;
+  // NOTE: These should already be plain text (no markdown), but strip to be safe
+  const referenceText = stripMarkdown(originalQuotedText || quotedText);
 
   // If identical to reference, definitely not stale
   if (currentText === referenceText) {
     return { isStale: false, currentText };
   }
 
-  // Calculate similarity against original text
+  // Calculate similarity against original text (plain text comparison)
   const similarity = calculateSimilarity(currentText, referenceText);
 
   // Threshold: 50% similarity
@@ -199,24 +210,31 @@ export function calculateChangeLength(oldText: string, newText: string): number 
  * Combines offset update and stale detection in one pass
  *
  * @param comments - Comments to update
- * @param oldText - Previous full text
- * @param newText - Current full text
+ * @param oldText - Previous full text (markdown)
+ * @param newText - Current full text (markdown)
  * @returns Updated comments with new offsets and stale flags
+ *
+ * NOTE: Works with PLAIN TEXT (markdown stripped) for accurate offset tracking
  */
 export function updateCommentsForTextChange(
   comments: Comment[],
   oldText: string,
   newText: string
 ): Comment[] {
-  // Find where change occurred
-  const changeStart = findChangeStart(oldText, newText);
-  const changeLength = calculateChangeLength(oldText, newText);
+  // Strip markdown to work with plain text for accurate offset calculation
+  const oldPlainText = stripMarkdown(oldText);
+  const newPlainText = stripMarkdown(newText);
 
-  // Update offsets
+  // Find where change occurred in plain text
+  const changeStart = findChangeStart(oldPlainText, newPlainText);
+  const changeLength = calculateChangeLength(oldPlainText, newPlainText);
+
+  // Update offsets (these are plain text offsets)
   let updatedComments = updateCommentOffsets(comments, changeStart, changeLength);
 
-  // Check for stale comments
+  // Check for stale comments using plain text comparison
   updatedComments = updatedComments.map((comment) => {
+    // Pass the original markdown text, checkCommentStale will strip it internally
     const { isStale, currentText } = checkCommentStale(newText, comment);
 
     // Only update if stale status changed
@@ -225,7 +243,7 @@ export function updateCommentsForTextChange(
         ...comment,
         isStale: true,
         originalQuotedText: comment.originalQuotedText || comment.quotedText,
-        quotedText: currentText,
+        quotedText: currentText, // Plain text from checkCommentStale
       };
     }
 
@@ -242,7 +260,7 @@ export function updateCommentsForTextChange(
     if (comment.commentType === 'selected-text' && currentText !== comment.quotedText) {
       return {
         ...comment,
-        quotedText: currentText,
+        quotedText: currentText, // Plain text
       };
     }
 
