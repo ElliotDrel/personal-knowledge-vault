@@ -96,8 +96,6 @@ export const useResources = () => {
     let timeoutId: NodeJS.Timeout | null = null;
 
     const unsubscribe = storageAdapter.subscribeToResourceChanges(() => {
-      console.log('[useResources] Real-time subscription fired, debouncing refetch...');
-
       // Clear any pending refetch
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -106,7 +104,6 @@ export const useResources = () => {
       // Wait 500ms before refetching to allow database replication
       // This prevents reading stale data from read replicas
       timeoutId = setTimeout(() => {
-        console.log('[useResources] Executing delayed refetch after real-time event');
         loadResources();
       }, 500);
     });

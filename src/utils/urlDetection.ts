@@ -66,11 +66,8 @@ const FRONTEND_PLATFORM_CONFIGS: Record<ShortFormPlatform, PlatformInfo> = {
 export function detectShortFormVideo(url: string): UrlDetectionResult {
   const trimmedUrl = url.trim()
 
-  console.log('🔍 [URL Detection] Starting detection:', { originalUrl: url })
-
   // Basic URL validation
   if (!trimmedUrl) {
-    console.log('❌ [URL Detection] Empty URL')
     return {
       isShortFormVideo: false,
       platform: null,
@@ -83,7 +80,6 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
   }
 
   if (!isValidUrl(trimmedUrl)) {
-    console.log('❌ [URL Detection] Invalid URL format')
     return {
       isShortFormVideo: false,
       platform: null,
@@ -99,14 +95,8 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
   let normalizedUrl: string
   try {
     normalizedUrl = normalizeUrl(trimmedUrl)
-    console.log('🔄 [URL Detection] Normalized:', {
-      from: trimmedUrl,
-      to: normalizedUrl
-    })
   } catch (error) {
-    // Handle validation errors (e.g., invalid video IDs)
     const errorMessage = error instanceof Error ? error.message : 'Invalid URL'
-    console.log('❌ [URL Detection] Validation failed:', errorMessage)
     return {
       isShortFormVideo: false,
       platform: null,
@@ -114,7 +104,7 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
       originalUrl: url,
       isValid: false,
       platformInfo: null,
-      errorMessage
+      errorMessage,
     }
   }
 
@@ -122,7 +112,6 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
   const platform = detectPlatform(normalizedUrl)
 
   if (!platform) {
-    console.log('⚠️ [URL Detection] Platform not recognized:', { normalizedUrl })
     return {
       isShortFormVideo: false,
       platform: null,
@@ -134,22 +123,15 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
     }
   }
 
-  console.log('✅ [URL Detection] Platform detected:', {
-    platform,
-    normalizedUrl,
-    displayName: FRONTEND_PLATFORM_CONFIGS[platform].displayName
-  })
-
   return {
     isShortFormVideo: true,
     platform,
     normalizedUrl,
     originalUrl: url,
     isValid: true,
-    platformInfo: FRONTEND_PLATFORM_CONFIGS[platform]
+    platformInfo: FRONTEND_PLATFORM_CONFIGS[platform],
   }
 }
-
 /**
  * Validates if a string is a valid URL
  */
@@ -213,12 +195,12 @@ export function normalizeUrl(url: string): string {
     // If it's a validation error (e.g., invalid video ID), re-throw it
     // so the caller can handle it appropriately
     if (error instanceof Error && error.message.includes('Invalid YouTube video ID')) {
-      console.warn('Invalid YouTube URL detected:', error.message)
+      // Re-throw validation errors so the caller can handle them appropriately
       throw error
     }
 
     // For other errors, log and return original URL
-    console.warn('Failed to normalize URL, returning original:', error)
+    console.error('Failed to normalize URL, returning original:', error)
     return url
   }
 }
@@ -321,7 +303,7 @@ export function detectPlatform(normalizedUrl: string): ShortFormPlatform | null 
     return null
 
   } catch (error) {
-    console.warn('Error detecting platform:', error)
+    console.error('Error detecting platform:', error)
     return null
   }
 }
@@ -386,7 +368,7 @@ export function extractVideoId(url: string, platform: ShortFormPlatform): string
     }
 
   } catch (error) {
-    console.warn('Error extracting video ID:', error)
+    console.error('Error extracting video ID:', error)
     return null
   }
 }

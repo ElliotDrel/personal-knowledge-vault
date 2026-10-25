@@ -39,19 +39,7 @@ const Dashboard = () => {
   const existingResource = useMemo(() => {
     if (!urlResult?.normalizedUrl || !urlResult.isValid) return null;
 
-    console.log('🔍 [Duplicate Check] Checking for duplicates:', {
-      normalizedUrl: urlResult.normalizedUrl,
-      totalResources: resources.length,
-      resourcesWithUrls: resources.filter(r => r.url).length
-    });
-
     const found = findDuplicateResourceByNormalizedUrl(resources, urlResult.normalizedUrl);
-
-    if (found) {
-      console.log('✅ [Duplicate Check] Found duplicate:', found.title);
-    } else {
-      console.log('❌ [Duplicate Check] No duplicate found');
-    }
 
     return found;
   }, [urlResult?.normalizedUrl, urlResult?.isValid, resources]);
