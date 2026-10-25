@@ -3,15 +3,9 @@
  *
  * Handles character offset calculations, text similarity detection,
  * and stale comment identification when underlying text changes.
- *
- * NOTE: All text comparisons use PLAIN TEXT (markdown stripped) to avoid
- * issues with markdown formatting changes affecting staleness detection.
  */
 
 import type { Comment } from '@/types/comments';
-import { stripMarkdown } from './stripMarkdown';
-
-let hasWarnedLegacyFallback = false;
 
 /**
  * Calculate simple character-based similarity between two strings
@@ -46,12 +40,9 @@ export function calculateSimilarity(str1: string, str2: string): number {
 /**
  * Check if comment text has changed enough to mark as stale
  *
- * @param text - Current full text content (markdown)
+ * @param text - Current full text content
  * @param comment - Comment to check
  * @returns Object with isStale flag and current text at offset range
- *
- * NOTE: Uses PLAIN TEXT comparison (markdown stripped) to avoid false positives
- * from formatting changes like **bold** to *italic*
  */
 export function checkCommentStale(
   text: string,
@@ -62,45 +53,27 @@ export function checkCommentStale(
     return { isStale: false, currentText: '' };
   }
 
-  const { startOffset, endOffset, quotedText, originalQuotedText } = comment;
-
-  if (
-    import.meta.env.DEV &&
-    !originalQuotedText &&
-    quotedText &&
-    !hasWarnedLegacyFallback
-  ) {
-    console.warn(
-      '[CommentTextTracking] Falling back to quotedText for staleness detection. Consider backfilling originalQuotedText for legacy comments.'
-    );
-    hasWarnedLegacyFallback = true;
-  }
+  const { startOffset, endOffset, quotedText } = comment;
 
   // Safety checks
-  if (startOffset === undefined || endOffset === undefined) {
+  if (
+    startOffset === undefined ||
+    endOffset === undefined ||
+    !quotedText
+  ) {
     return { isStale: false, currentText: '' };
   }
 
-  if (!quotedText && !originalQuotedText) {
-    // No baseline text available; cannot evaluate staleness
-    return { isStale: false, currentText: '' };
-  }
+  // Extract current text at offset range
+  const currentText = text.slice(startOffset, endOffset);
 
-  // Strip markdown from full text to work with plain text
-  const plainText = stripMarkdown(text);
-
-  const referenceText = stripMarkdown(originalQuotedText || quotedText || '');
-  const desiredEnd = Math.max(endOffset, startOffset + referenceText.length);
-  const safeEnd = Math.min(plainText.length, desiredEnd);
-  const currentText = plainText.slice(startOffset, safeEnd);
-
-  // If identical to reference, definitely not stale
-  if (currentText === referenceText) {
+  // If identical, definitely not stale
+  if (currentText === quotedText) {
     return { isStale: false, currentText };
   }
 
-  // Calculate similarity against original text (plain text comparison)
-  const similarity = calculateSimilarity(currentText, referenceText);
+  // Calculate similarity
+  const similarity = calculateSimilarity(currentText, quotedText);
 
   // Threshold: 50% similarity
   // If less than 50% of characters match, consider stale
@@ -146,12 +119,7 @@ export function updateCommentOffsets(
     }
 
     // Guard against invalid offsets
-    if (startOffset < 0 || endOffset < 0) {
-      console.warn('[commentTextTracking] Invalid comment offsets:', { startOffset, endOffset });
-      return comment;
-    }
-
-    if (startOffset > endOffset) {
+    if (startOffset < 0 || endOffset < 0 || startOffset >= endOffset) {
       console.warn('[commentTextTracking] Invalid comment offsets:', { startOffset, endOffset });
       return comment;
     }
@@ -178,23 +146,10 @@ export function updateCommentOffsets(
     // Example: Comment at [10-30], user types at position 15, length +3
     // Result: Extend end offset by 3 -> [10-33]
     // Boundary case: User types at position 10 -> comment expands to include new text
-    if (changeStart >= startOffset && changeStart <= endOffset) {
-      if (comment.isStale) {
-        const adjustedEnd = Math.max(
-          startOffset,
-          Math.min(endOffset, endOffset + changeLength)
-        );
-
-        return {
-          ...comment,
-          endOffset: adjustedEnd,
-        };
-      }
-
-      const nextEnd = endOffset + changeLength;
+    if (changeStart >= startOffset && changeStart < endOffset) {
       return {
         ...comment,
-        endOffset: Math.max(startOffset, nextEnd),
+        endOffset: Math.max(startOffset + 1, endOffset + changeLength),
       };
     }
 
@@ -240,31 +195,24 @@ export function calculateChangeLength(oldText: string, newText: string): number 
  * Combines offset update and stale detection in one pass
  *
  * @param comments - Comments to update
- * @param oldText - Previous full text (markdown)
- * @param newText - Current full text (markdown)
+ * @param oldText - Previous full text
+ * @param newText - Current full text
  * @returns Updated comments with new offsets and stale flags
- *
- * NOTE: Works with PLAIN TEXT (markdown stripped) for accurate offset tracking
  */
 export function updateCommentsForTextChange(
   comments: Comment[],
   oldText: string,
   newText: string
 ): Comment[] {
-  // Strip markdown to work with plain text for accurate offset calculation
-  const oldPlainText = stripMarkdown(oldText);
-  const newPlainText = stripMarkdown(newText);
+  // Find where change occurred
+  const changeStart = findChangeStart(oldText, newText);
+  const changeLength = calculateChangeLength(oldText, newText);
 
-  // Find where change occurred in plain text
-  const changeStart = findChangeStart(oldPlainText, newPlainText);
-  const changeLength = calculateChangeLength(oldPlainText, newPlainText);
-
-  // Update offsets (these are plain text offsets)
+  // Update offsets
   let updatedComments = updateCommentOffsets(comments, changeStart, changeLength);
 
-  // Check for stale comments using plain text comparison
+  // Check for stale comments
   updatedComments = updatedComments.map((comment) => {
-    // Pass the original markdown text, checkCommentStale will strip it internally
     const { isStale, currentText } = checkCommentStale(newText, comment);
 
     // Only update if stale status changed
@@ -273,7 +221,7 @@ export function updateCommentsForTextChange(
         ...comment,
         isStale: true,
         originalQuotedText: comment.originalQuotedText || comment.quotedText,
-        quotedText: currentText, // Plain text from checkCommentStale
+        quotedText: currentText,
       };
     }
 
@@ -283,19 +231,14 @@ export function updateCommentsForTextChange(
         ...comment,
         isStale: false,
         quotedText: currentText,
-        endOffset: comment.startOffset !== undefined ? comment.startOffset + currentText.length : comment.endOffset,
       };
     }
 
     // Update quoted text even if not stale (keeps in sync)
-    if (
-      comment.commentType === 'selected-text' &&
-      !comment.isStale &&
-      currentText !== comment.quotedText
-    ) {
+    if (comment.commentType === 'selected-text' && currentText !== comment.quotedText) {
       return {
         ...comment,
-        quotedText: currentText, // Plain text
+        quotedText: currentText,
       };
     }
 

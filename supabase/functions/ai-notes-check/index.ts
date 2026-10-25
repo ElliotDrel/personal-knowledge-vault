@@ -13,7 +13,6 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
-import { stripMarkdown } from '../_shared/stripMarkdown.ts';
 import type {
   AINotesCheckRequest,
   AINotesCheckResponse,
@@ -419,29 +418,13 @@ async function callAnthropicAPI(prompt: string): Promise<{
 /**
  * Find exact text match in notes
  * Returns match details or error reason
- *
- * CRITICAL: This function strips markdown from BOTH inputs before matching.
- * This ensures AI-generated comments use the same plain text coordinate system
- * as user-created comments, enabling consistent staleness detection.
- *
- * Flow:
- * 1. AI receives markdown notes in prompt: "**bold** text"
- * 2. AI quotes from markdown: may return "**bold**" or "bold"
- * 3. We strip both: notes → "bold text", selectedText → "bold"
- * 4. Match in plain text and calculate offsets in plain text space
- * 5. Store plain text offsets (matching frontend behavior)
  */
 function findExactTextMatch(
   notes: string,
   selectedText: string
 ): { match: { start: number; end: number } | null; error: string | null } {
-  // Strip markdown from BOTH inputs to work in plain text coordinate space
-  // This matches the frontend behavior when users create comments
-  const plainNotes = stripMarkdown(notes);
-  const plainSelectedText = stripMarkdown(selectedText);
-
-  // Find first occurrence in plain text
-  const index = plainNotes.indexOf(plainSelectedText);
+  // Find first occurrence
+  const index = notes.indexOf(selectedText);
 
   if (index === -1) {
     // Text not found
@@ -452,7 +435,7 @@ function findExactTextMatch(
   }
 
   // Check for multiple occurrences (ambiguous)
-  const secondOccurrence = plainNotes.indexOf(plainSelectedText, index + 1);
+  const secondOccurrence = notes.indexOf(selectedText, index + 1);
 
   if (secondOccurrence !== -1) {
     // Text appears multiple times - ambiguous
@@ -462,11 +445,11 @@ function findExactTextMatch(
     };
   }
 
-  // Unique match found - return plain text offsets
+  // Unique match found
   return {
     match: {
       start: index,
-      end: index + plainSelectedText.length,
+      end: index + selectedText.length,
     },
     error: null,
   };
@@ -502,13 +485,7 @@ async function processCommentWithRetry(
 
       startOffset = result.match.start;
       endOffset = result.match.end;
-
-      // CRITICAL: Extract the actual plain text at these offsets
-      // Do NOT use AI's raw selectedText (may contain markdown)
-      // This ensures quoted_text exactly matches the plain text at the offsets
-      // matching frontend behavior (NotesEditorDialog.tsx does the same)
-      const plainNotes = stripMarkdown(context.notes);
-      quotedText = plainNotes.slice(startOffset, endOffset);
+      quotedText = suggestion.selectedText;
     }
 
     // Create the comment in the database
@@ -523,7 +500,6 @@ async function processCommentWithRetry(
         start_offset: startOffset,
         end_offset: endOffset,
         quoted_text: quotedText,
-        original_quoted_text: quotedText, // Baseline for staleness detection (matches frontend pattern)
         is_stale: false,
         created_by_ai: true,
         ai_comment_category: suggestion.category,
@@ -779,8 +755,7 @@ Deno.serve(async (req: Request) => {
           status: 'failed',
           input_data: {
             prompt, // Full prompt that was attempted
-            notesMarkdownLength: resource.notes.length,
-            notesPlainTextLength: stripMarkdown(resource.notes).length,
+            notesLength: resource.notes.length,
             metadataFields: Object.keys(metadata),
           },
           error_details: {
@@ -818,8 +793,7 @@ Deno.serve(async (req: Request) => {
           input_data: {
             systemPrompt: AI_CONFIG.SYSTEM_PROMPT,
             prompt,
-            notesMarkdownLength: resource.notes.length,
-            notesPlainTextLength: stripMarkdown(resource.notes).length,
+            notesLength: resource.notes.length,
             transcriptLength: resource.transcript?.length || 0,
             metadataFields: Object.keys(metadata),
             existingAIComments: existingComments.length,
@@ -893,8 +867,7 @@ Deno.serve(async (req: Request) => {
         input_data: {
           systemPrompt: AI_CONFIG.SYSTEM_PROMPT, // System prompt sent to Claude
           prompt, // User message prompt sent to Claude
-          notesMarkdownLength: resource.notes.length,
-          notesPlainTextLength: stripMarkdown(resource.notes).length,
+          notesLength: resource.notes.length,
           transcriptLength: resource.transcript?.length || 0,
           metadataFields: Object.keys(metadata), // Which fields were included in prompt
           existingAIComments: existingComments.length,
