@@ -94,6 +94,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Update CLAUDE.md with the prevention pattern after learning
    - **Why**: Quick fixes often miss the root cause and failures repeat
 
+25. **Syncing controlled editors:** Use a `useRef` to store the last value you sent to a controlled editor. On local edits, update both the ref and parent. When receiving new props, only overwrite editor state if the value doesn't match your ref. This prevents cursor jumps and editor resets from redundant updates.
+
+26. **Third-party UI libraries:** Always read the docs, especially about required CSS, "Getting Started", and extension/plugin setup. Test a basic version of the component before adding features. Watch for non-standard state management patterns (e.g., controlled vs. uncontrolled) that differ from typical React forms.
+
+27. **Inline error handling:** If a component performs an action (save, submit, delete), show error messages inside that component, near the action button. Keep the UI open so users can retry, and clear errors on new user input or success.
+
+28. **Memoizing expensive configs:** Use `useMemo` for large config objects (like TipTap extensions, Monaco options, chart configs). Only recreate these when actual dependencies change, to avoid unnecessary reinitialization and performance issues.
+
 ### Supabase CLI-Only Workflow
 
 **CRITICAL RULE**: This project uses the Supabase CLI **EXCLUSIVELY** against the deployed Supabase project. **NO local Docker setup.**
@@ -289,8 +297,14 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 ### Implementation Discipline
 - Keep React hooks ordered (`useState` -> data fetching -> memoization -> effects), wrap async work in `useCallback`, and initialize state where it lives.
-- Test incrementally: after meaningful changes run `npm run build`/`npm run lint` and open the browser instead of batching fixes at the end.
+- Test incrementally: after meaningful changes run `npm run build`/`npm run lint` and open the browser instead of batching fixes at the end. Never batch all testing to the end.
 - For overlays or markdown, mirror styles with `getComputedStyle`, sync scroll positions, and transform the rendered AST (rehype) rather than splitting source text.
+- For TipTap-based editors, track the last synced markdown in a ref and only call `setContent` when the upstream markdown actually changes; comparing raw HTML causes cursor resets.
+- When styling ProseMirror placeholders, add the `@tiptap/extension-placeholder` extension (with matching `emptyEditorClass`) so the CSS selector is triggered.
+- Surface save failures inside modal dialogs (e.g., inline alert state) so the user sees the error even while the dialog remains open.
+- For third-party UI libraries (TipTap, Monaco, Leaflet), read docs for required CSS imports and extension architecture; test component in isolation before integration.
+- When syncing bidirectional state (parent <-> child), use ref to track "last value I sent" to prevent feedback loops and cursor resets.
+- Memoize expensive library configurations (TipTap extensions, chart options) with `useMemo` to prevent unnecessary re-initializations.
 - Do root-cause analysis when something fails; do not patch symptoms without understanding them.
 
 ### Prompt & Backend Work
