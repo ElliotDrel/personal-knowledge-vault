@@ -1,22 +1,6 @@
 /**
  * Frontend URL detection utilities for short-form video processing
  * Handles URL validation, normalization, and platform detection
- *
- * ⚠️ SYNC WARNING ⚠️
- * ==================
- * The normalizeUrl() function in this file is DUPLICATED and must be synced.
- *
- * SOURCE OF TRUTH: src/utils/urlDetection.ts (this file)
- * MUST SYNC TO:    supabase/functions/short-form/utils/urlUtils.ts
- *
- * WHY: Edge Functions cannot import from src/ directory (Deno runtime limitation)
- *
- * AUTOMATED PROTECTION:
- * - Run `npm run check-sync:all` to validate sync
- * - Deployment blocked automatically if out of sync
- * - After editing: `npm run deploy:edge:short-form` (checks sync first)
- *
- * NOTE: Logging differences are OK (console.error vs logWarn)
  */
 
 import { ShortFormPlatform, PLATFORM_CONFIGS } from '@/types/shortFormApi'
@@ -82,8 +66,11 @@ const FRONTEND_PLATFORM_CONFIGS: Record<ShortFormPlatform, PlatformInfo> = {
 export function detectShortFormVideo(url: string): UrlDetectionResult {
   const trimmedUrl = url.trim()
 
+  console.log('🔍 [URL Detection] Starting detection:', { originalUrl: url })
+
   // Basic URL validation
   if (!trimmedUrl) {
+    console.log('❌ [URL Detection] Empty URL')
     return {
       isShortFormVideo: false,
       platform: null,
@@ -96,6 +83,7 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
   }
 
   if (!isValidUrl(trimmedUrl)) {
+    console.log('❌ [URL Detection] Invalid URL format')
     return {
       isShortFormVideo: false,
       platform: null,
@@ -108,26 +96,17 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
   }
 
   // Normalize URL
-  let normalizedUrl: string
-  try {
-    normalizedUrl = normalizeUrl(trimmedUrl)
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Invalid URL'
-    return {
-      isShortFormVideo: false,
-      platform: null,
-      normalizedUrl: trimmedUrl,
-      originalUrl: url,
-      isValid: false,
-      platformInfo: null,
-      errorMessage,
-    }
-  }
+  const normalizedUrl = normalizeUrl(trimmedUrl)
+  console.log('🔄 [URL Detection] Normalized:', {
+    from: trimmedUrl,
+    to: normalizedUrl
+  })
 
   // Detect platform
   const platform = detectPlatform(normalizedUrl)
 
   if (!platform) {
+    console.log('⚠️ [URL Detection] Platform not recognized:', { normalizedUrl })
     return {
       isShortFormVideo: false,
       platform: null,
@@ -139,15 +118,22 @@ export function detectShortFormVideo(url: string): UrlDetectionResult {
     }
   }
 
+  console.log('✅ [URL Detection] Platform detected:', {
+    platform,
+    normalizedUrl,
+    displayName: FRONTEND_PLATFORM_CONFIGS[platform].displayName
+  })
+
   return {
     isShortFormVideo: true,
     platform,
     normalizedUrl,
     originalUrl: url,
     isValid: true,
-    platformInfo: FRONTEND_PLATFORM_CONFIGS[platform],
+    platformInfo: FRONTEND_PLATFORM_CONFIGS[platform]
   }
 }
+
 /**
  * Validates if a string is a valid URL
  */
@@ -163,7 +149,6 @@ export function isValidUrl(url: string): boolean {
 /**
  * Normalizes a URL to a canonical form
  * This should match the backend normalization logic
- * Throws error if URL contains invalid platform-specific data (e.g., malformed video IDs)
  */
 export function normalizeUrl(url: string): string {
   try {
@@ -182,7 +167,7 @@ export function normalizeUrl(url: string): string {
 
     // Handle platform-specific normalizations
     if (hostname === 'youtube.com' || hostname === 'youtu.be') {
-      return normalizeYouTubeUrl(parsed) // May throw if video ID is invalid
+      return normalizeYouTubeUrl(parsed)
     } else if (hostname === 'tiktok.com' || hostname.includes('tiktok.com')) {
       return normalizeTikTokUrl(parsed)
     } else if (hostname === 'instagram.com') {
@@ -208,47 +193,20 @@ export function normalizeUrl(url: string): string {
     return parsed.toString()
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-
-    // If it's a validation error (e.g., invalid video ID), re-throw it
-    // so the caller can handle it appropriately
-    if (errorMessage.includes('Invalid YouTube video ID')) {
-      console.error('Invalid YouTube URL detected', { url, error: errorMessage })
-      throw error instanceof Error ? error : new Error(errorMessage)
-    }
-
-    // For other errors, log and return original URL
-    console.error('Failed to normalize URL, returning original', { url, error: errorMessage })
+    console.warn('Failed to normalize URL, returning original:', error)
     return url
   }
 }
 
 /**
- * Validates that a YouTube video ID is exactly 11 characters
- * YouTube video IDs are always 11 characters of [a-zA-Z0-9_-]
- */
-function validateYouTubeVideoId(videoId: string): void {
-  if (videoId.length !== 11) {
-    throw new Error(`Invalid YouTube video ID: must be exactly 11 characters, got ${videoId.length}`)
-  }
-  // Additional validation: check that it only contains valid characters
-  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
-    throw new Error(`Invalid YouTube video ID: contains invalid characters`)
-  }
-}
-
-/**
  * Normalizes YouTube URLs to a standard format
- * Throws error if video ID is invalid (not exactly 11 characters)
  */
 function normalizeYouTubeUrl(parsed: URL): string {
-  const originalHost = parsed.hostname.toLowerCase()
   parsed.hostname = 'youtube.com'
 
   // Handle /shorts/ URLs - PRESERVE the /shorts/ path for platform detection
   if (parsed.pathname.startsWith('/shorts/')) {
     const videoId = parsed.pathname.split('/shorts/')[1].split('?')[0].split('/')[0]
-    validateYouTubeVideoId(videoId)
     // Keep it as a shorts URL so detectPlatform can recognize it
     return `https://youtube.com/shorts/${videoId}`
   }
@@ -256,16 +214,14 @@ function normalizeYouTubeUrl(parsed: URL): string {
   // Handle youtu.be short URLs - convert to /watch format (NOT /shorts)
   // youtu.be is YouTube's generic short URL format used for BOTH regular videos and Shorts
   // Only explicit /shorts/ URLs should be treated as Shorts
-  if (originalHost === 'youtu.be') {
+  if (parsed.hostname === 'youtu.be') {
     const videoId = parsed.pathname.substring(1).split('?')[0].split('/')[0]
-    validateYouTubeVideoId(videoId)
     return `https://youtube.com/watch?v=${videoId}`
   }
 
   // Keep only essential parameters for regular watch URLs
   const videoId = parsed.searchParams.get('v')
   if (videoId) {
-    validateYouTubeVideoId(videoId)
     return `https://youtube.com/watch?v=${videoId}`
   }
 
@@ -321,7 +277,7 @@ export function detectPlatform(normalizedUrl: string): ShortFormPlatform | null 
     return null
 
   } catch (error) {
-    console.error('Error detecting platform:', error)
+    console.warn('Error detecting platform:', error)
     return null
   }
 }
@@ -386,7 +342,7 @@ export function extractVideoId(url: string, platform: ShortFormPlatform): string
     }
 
   } catch (error) {
-    console.error('Error extracting video ID:', error)
+    console.warn('Error extracting video ID:', error)
     return null
   }
 }

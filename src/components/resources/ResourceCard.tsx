@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Resource, resourceTypeConfig } from '@/data/mockData';
 import { Calendar, ExternalLink, User, Clock, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getResourceBadgeClasses } from '@/utils/resourceTypeStyles';
 
 const formatViewCount = (count: number): string => {
   if (count >= 1_000_000) {
@@ -52,7 +51,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
                 variant="secondary"
                 className={cn(
                   "text-xs font-medium",
-                  getResourceBadgeClasses(config.color)
+                  `bg-${config.color}/10 text-${config.color} border-${config.color}/20`
                 )}
               >
                 {config.label.slice(0, -1)}
@@ -68,20 +67,8 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
             )}
           </div>
           {resource.url && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="opacity-0 group-hover:opacity-100 transition-smooth"
-              asChild
-            >
-              <a
-                href={resource.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <ExternalLink className="w-3 h-3" />
-              </a>
+            <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 transition-smooth">
+              <ExternalLink className="w-3 h-3" />
             </Button>
           )}
         </div>
@@ -90,7 +77,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
           "line-clamp-2 group-hover:text-primary transition-smooth",
           isCompact ? "text-lg" : "text-xl"
         )}>
-          <Link to={`/dashboard/resource/${resource.id}`} className="hover:underline">
+          <Link to={`/resource/${resource.id}`} className="hover:underline">
             {resource.title}
           </Link>
         </CardTitle>
@@ -183,7 +170,7 @@ export const ResourceCard = ({ resource, variant = 'default' }: ResourceCardProp
             <span className="text-xs text-muted-foreground">
               Updated {new Date(resource.updatedAt).toLocaleDateString()}
             </span>
-            <Link to={`/dashboard/resource/${resource.id}`}>
+            <Link to={`/resource/${resource.id}`}>
               <Button size="sm" variant="ghost" className="group-hover:bg-primary group-hover:text-primary-foreground transition-smooth">
                 {isCompact ? 'View' : 'View Notes'}
               </Button>

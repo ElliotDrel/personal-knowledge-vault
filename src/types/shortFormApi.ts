@@ -1,22 +1,6 @@
 /**
  * Shared API contracts for short-form video processing
  * Used by both frontend client and Supabase Edge Functions
- *
- * ⚠️ SYNC WARNING ⚠️
- * ==================
- * This file contains duplicated configs that must be manually synced:
- * - PLATFORM_CONFIGS (lines 182-234)
- * - POLLING_CONFIG (lines 237-243)
- *
- * SOURCE OF TRUTH: src/types/shortFormApi.ts (this file)
- * MUST SYNC TO:    supabase/functions/short-form/types.ts
- *
- * WHY: Edge Functions cannot import from src/ directory (Deno runtime limitation)
- *
- * AUTOMATED PROTECTION:
- * - Run `npm run check-sync:all` to validate sync
- * - Deployment blocked automatically if out of sync
- * - After editing: `npm run deploy:edge:short-form` (checks sync first)
  */
 
 // Supported platforms for short-form video processing
@@ -60,6 +44,7 @@ export interface ProcessVideoRequest {
   url: string;
   options?: {
     includeTranscript?: boolean;  // Whether to attempt transcript extraction
+    forceRefresh?: boolean;       // Force reprocessing even if job exists
   };
 }
 
@@ -179,7 +164,6 @@ export function isJobStatusSuccess(response: JobStatusApiResponse): response is 
 }
 
 // Platform-specific configuration
-// ⚠️ SYNC WARNING: PLATFORM_CONFIGS below must be synced to supabase/functions/short-form/types.ts
 export interface PlatformConfig {
   name: string;
   displayName: string;
@@ -251,7 +235,6 @@ export const PLATFORM_CONFIGS: Record<ShortFormPlatform, PlatformConfig> = {
 };
 
 // Constants for polling behavior
-// ⚠️ SYNC WARNING: POLLING_CONFIG must be synced to supabase/functions/short-form/types.ts
 export const POLLING_CONFIG = {
   DEFAULT_INTERVAL_MS: 2000,      // 2 seconds
   MAX_INTERVAL_MS: 30000,         // 30 seconds
