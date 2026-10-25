@@ -14,6 +14,7 @@ interface CommentSidebarProps {
   comments: CommentWithReplies[];
   activeCommentId: string | null;
   onCommentClick: (id: string) => void;
+  onCommentHover?: (id: string | null) => void;
   onResolve: (id: string) => void;
   onAddReply: (commentId: string, text: string) => Promise<void>;
   onDeleteReply: (replyId: string) => Promise<void>;
@@ -26,6 +27,7 @@ export function CommentSidebar({
   comments,
   activeCommentId,
   onCommentClick,
+  onCommentHover,
   onResolve,
   onAddReply,
   onDeleteReply,
@@ -78,6 +80,8 @@ export function CommentSidebar({
         <div
           key={comment.id}
           ref={comment.id === activeCommentId ? activeCommentRef : null}
+          onMouseEnter={() => onCommentHover?.(comment.id)}
+          onMouseLeave={() => onCommentHover?.(null)}
         >
           <CommentCard
             comment={comment}
