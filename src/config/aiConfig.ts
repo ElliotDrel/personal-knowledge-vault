@@ -4,6 +4,21 @@
  *
  * This file contains all AI-related configuration including model settings,
  * limits, prompts, and type definitions. Single source of truth for AI behavior.
+ *
+ * ⚠️ SYNC WARNING ⚠️
+ * ==================
+ * This file is DUPLICATED in the Edge Function and must be manually synced.
+ *
+ * SOURCE OF TRUTH: src/config/aiConfig.ts (THIS FILE - edit here)
+ * MUST SYNC TO:    supabase/functions/ai-notes-check/config.ts
+ *
+ * WHY: Edge Functions cannot import from src/ directory (Deno runtime limitation)
+ *
+ * AFTER EDITING THIS FILE:
+ * 1. Manually copy AI_CONFIG changes to Edge Function config
+ * 2. Run: npm run deploy:edge (automated sync check will verify)
+ *
+ * FUTURE: Consider moving to database-backed config or build-time sync script
  */
 
 // ============================================================================
