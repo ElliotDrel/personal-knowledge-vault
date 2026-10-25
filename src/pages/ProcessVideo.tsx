@@ -215,6 +215,38 @@ export default function ProcessVideo() {
     setExistingJobChecked(true)
   }, [urlResult, toast, failureInfo])
 
+  // If URL is not recognized as a short-form video, show error UI
+  useEffect(() => {
+    // Only check after URL detection has run
+    if (!urlResult) return
+
+    // Only handle valid URLs that are not short-form videos
+    if (!urlResult.isValid) return
+    if (urlResult.isShortFormVideo) return
+
+    // Don't re-trigger if error is already shown
+    if (failureInfo) return
+
+    console.log('❌ [Validation] URL is not a supported short-form video:', urlResult.normalizedUrl)
+
+    // Show toast notification
+    toast({
+      title: 'Unsupported URL',
+      description: 'This URL is not recognized as a supported short-form video platform.',
+      variant: 'destructive'
+    })
+
+    // Set failure state to show error UI
+    setFailureInfo({
+      message: 'Unsupported short-form video URL',
+      details: `The URL "${urlResult.normalizedUrl}" is not recognized as a YouTube Short, TikTok, or Instagram Reel. Please check the URL and try again.`
+    })
+
+    // Prevent infinite loops - mark checks as complete
+    setAutoProcessAttempted(true)
+    setExistingJobChecked(true)
+  }, [urlResult, toast, failureInfo])
+
   // Check for existing job when URL is detected
   const checkExistingJobQuery = useQuery<JobStatusResponse | null, Error>({
     queryKey: ['existing-job', urlResult?.normalizedUrl ?? ''],
