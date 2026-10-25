@@ -18,6 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 7. **Cross-Reference Before Complete** (CRITICAL - Prevents Missing Requirements): Before marking ANY task complete, explicitly check ALL relevant patterns in this file. Create checklist: Search-First ✓, Cascading Fallbacks ✓, Security ✓, etc. Missing this step causes bugs that code review finds later.
 
+8. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
+
 ### Supabase CLI-Only Workflow
 
 **CRITICAL RULE**: This project uses the Supabase CLI **EXCLUSIVELY** against the deployed Supabase project. **NO local Docker setup.**
@@ -31,9 +33,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Rules**:
 1. All settings (`auth`, `db`, etc.) managed in `supabase/config.toml`
-2. Never use `supabase start` or Docker containers
+2. **NEVER** use `supabase start`, `supabase functions serve`, or Docker containers
 3. Never commit secrets - use Supabase secrets for API keys like `YOUTUBE_API_KEY`
 4. Never use `VITE_` prefix for server-side secrets (exposes to browser)
+
+### Edge Function Development & Testing
+
+**DEPLOY-FIRST WORKFLOW** (Not local-first):
+1. Make code changes to Edge Functions
+2. **Deploy immediately**: `npx supabase functions deploy <name>`
+3. Test via the running app against deployed function
+4. View logs in Supabase Dashboard (Functions → Logs tab)
+5. Iterate: fix → deploy → test
+
+**Critical Points**:
+- **NO CLI logs command**: `npx supabase functions logs` doesn't exist. Use Dashboard only.
+- **Library compatibility**: Not all npm packages work in Deno/Edge Runtime. Check documentation before full implementation.
 
 ### Database Migration Best Practices
 
@@ -81,9 +96,11 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 ### Full-Stack Features (Frontend + Backend)
 - [ ] Search for shared logic in BOTH `src/` and `supabase/functions/`
 - [ ] Update ALL occurrences before testing
+- [ ] **Check type-based conditional rendering**: If feature applies to specific resource types, verify UI conditionals include ALL relevant types (e.g., `type === 'video' || type === 'short-video'`)
+- [ ] **Test complete data flow**: Backend → Database → API Response → Frontend State → UI Display
 - [ ] Deploy frontend (auto on save) AND backend (`npx supabase functions deploy <name>`)
 - [ ] Test COMPLETE user flow end-to-end
-- [ ] Verify console logs on BOTH sides
+- [ ] Verify console logs AND database values on BOTH sides
 
 ## Critical Code Patterns
 
@@ -180,18 +197,25 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 - ✅ Short-Form Video Phase 5: YouTube integration, metadata extraction, dashboard UI, job recovery
 - ✅ URL Processing Refactor: Dashboard input, auto-processing, duplicate detection, front/back parity
 - ✅ Short-Video Type Refactor: First-class type, flat metadata, purple theme, platform filtering
+- ✅ YouTube Transcript Extraction: Auto-extract captions with English → auto-language fallback
 
-**Recent Enhancements (2025-10-02)**:
+**Recent Enhancements (2025-10-05)**:
+- YouTube transcript extraction implemented (youtube-caption-extractor library)
+- Language fallback: English → auto-selected → none (graceful degradation)
+- Transcript section now shows for `type='short-video'` in UI
+- Feature flag controlled (default enabled, can disable via env var)
+- Job caching temporarily disabled for testing (comment indicates temporary status)
+
+**Previous Enhancements (2025-10-02)**:
 - Short-videos are now `type='short-video'` (not nested under `type='video'`)
 - Flat metadata structure (channelName, handle, viewCount at top level)
 - Platform filtering (YouTube Shorts, TikTok, Instagram Reels)
 - Purple theme styling with light/dark mode support
 - Partial index on platform for performance
-- Database migrations deployed successfully (1 resource migrated)
 
 **Limitations**:
-- ⏳ Transcript extraction not yet implemented
-- ⏳ TikTok/Instagram require app approvals
+- ⚠️ Job caching temporarily disabled (for testing transcript feature)
+- ⏳ TikTok/Instagram transcript extraction not yet implemented
 
 ## Vercel Deployment
 
