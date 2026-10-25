@@ -74,6 +74,7 @@ const ResourceDetail = () => {
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [isNotesDialogDirty, setIsNotesDialogDirty] = useState(false);
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
+  const [commentCount, setCommentCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
@@ -811,9 +812,15 @@ const ResourceDetail = () => {
                 size="sm"
                 variant="outline"
                 onClick={() => handleNotesDialogOpenChange(true)}
+                className="gap-2"
               >
-                <Edit className="w-4 h-4 mr-2" />
+                <Edit className="w-4 h-4" />
                 Edit
+                {commentCount > 0 && (
+                  <Badge variant="secondary" className="ml-1">
+                    {commentCount}
+                  </Badge>
+                )}
               </Button>
             </div>
             <CardDescription>
@@ -839,6 +846,8 @@ const ResourceDetail = () => {
           onSave={handleSaveNotes}
           isLoading={loading}
           onDirtyChange={setIsNotesDialogDirty}
+          resourceId={resource.id}
+          onCommentCountChange={setCommentCount}
         />
 
         {/* Transcript Section (for videos/podcasts/short-videos) */}
