@@ -22,12 +22,15 @@
  * @component
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { TextHighlight } from '@/components/comments/TextHighlight';
+import { MarkdownHighlight } from '@/components/comments/MarkdownHighlight';
+import type { CommentWithReplies } from '@/types/comments';
 
 interface MarkdownFieldProps {
   value: string;
@@ -41,6 +44,11 @@ interface MarkdownFieldProps {
 
   /** Callback when user selects text (character offsets) */
   onSelectionChange?: (range: { start: number; end: number } | null) => void;
+
+  /** Comment highlighting props */
+  comments?: CommentWithReplies[];
+  activeCommentId?: string | null;
+  hoveredCommentId?: string | null;
 }
 
 export function MarkdownField({
@@ -52,9 +60,13 @@ export function MarkdownField({
   isEditing = false,
   onEditingChange,
   readOnly = false,
-  onSelectionChange
+  onSelectionChange,
+  comments = [],
+  activeCommentId = null,
+  hoveredCommentId = null,
 }: MarkdownFieldProps) {
   const [isFocused, setIsFocused] = useState(isEditing);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (readOnly) {
@@ -103,21 +115,43 @@ export function MarkdownField({
   // Show textarea when editing (focused or controlled via isEditing)
   if (isFocused || isEditing) {
     return (
-      <Textarea
-        value={value}
-        onChange={handleChange}
-        onSelect={handleSelect}
-        onFocus={handleFocus}
-        onBlur={readOnly ? undefined : handleBlur}
-        placeholder={placeholder}
-        className={cn(
-          'font-mono text-sm leading-relaxed resize-none',
-          'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
-          className
-        )}
-        style={{ minHeight: `${minHeight}px` }}
-        autoFocus={isEditing}
-      />
+      <div className="relative">
+        {/* Highlight overlay (positioned behind textarea) */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div
+            className="p-3"
+            style={{
+              minHeight: `${minHeight}px`,
+            }}
+          >
+            <TextHighlight
+              text={value}
+              comments={comments}
+              activeCommentId={activeCommentId}
+              hoveredCommentId={hoveredCommentId}
+            />
+          </div>
+        </div>
+
+        {/* Textarea (foreground, transparent background to show highlights) */}
+        <Textarea
+          ref={textareaRef}
+          value={value}
+          onChange={handleChange}
+          onSelect={handleSelect}
+          onFocus={handleFocus}
+          onBlur={readOnly ? undefined : handleBlur}
+          placeholder={placeholder}
+          className={cn(
+            'font-mono text-sm leading-relaxed resize-none relative z-10',
+            'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+            'bg-transparent',
+            className
+          )}
+          style={{ minHeight: `${minHeight}px` }}
+          autoFocus={isEditing}
+        />
+      </div>
     );
   }
 
@@ -135,14 +169,23 @@ export function MarkdownField({
       style={{ minHeight: `${minHeight}px` }}
     >
       {value ? (
-        <div className="prose prose-slate dark:prose-invert max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeSanitize]}
-          >
-            {value}
-          </ReactMarkdown>
-        </div>
+        comments.length > 0 ? (
+          <MarkdownHighlight
+            text={value}
+            comments={comments}
+            activeCommentId={activeCommentId}
+            hoveredCommentId={hoveredCommentId}
+          />
+        ) : (
+          <div className="prose prose-slate dark:prose-invert max-w-none">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[rehypeSanitize]}
+            >
+              {value}
+            </ReactMarkdown>
+          </div>
+        )
       ) : (
         <div className="text-muted-foreground italic">
           {placeholder}
