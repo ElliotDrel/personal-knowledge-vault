@@ -1,15 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useStorageAdapter, Resource } from '@/data/storageAdapter';
 import { useAuth } from '@/hooks/useAuth';
-
-const parseTimestamp = (value?: string) => {
-  if (!value) {
-    return null;
-  }
-
-  const time = Date.parse(value);
-  return Number.isNaN(time) ? null : time;
-};
+import { parseTimestamp } from '@/utils/timestamp';
 
 const mergeResources = (previous: Resource[], incoming: Resource[]) => {
   if (!previous.length) {
