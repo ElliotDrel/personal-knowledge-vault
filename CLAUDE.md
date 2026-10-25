@@ -133,9 +133,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 28. **Memoizing expensive configs:** Use `useMemo` for large config objects (like TipTap extensions, Monaco options, chart configs). Only recreate these when actual dependencies change, to avoid unnecessary reinitialization and performance issues.
 
-### Supabase CLI-Only Workflow
+### Supabase Workflow: MCP + CLI Hybrid
 
-**CRITICAL RULE**: This project uses the Supabase CLI **EXCLUSIVELY** against the deployed Supabase project. **NO local Docker setup.**
+**CRITICAL RULE**: This project uses **CLI for production** and **MCP for AI-assisted development**.
+
+#### Supabase MCP (Development & Exploration)
+
+**What It Is**: Model Context Protocol connects Claude to your Supabase project via natural language.
+
+**Authenticated Setup**: MCP server configured at `https://mcp.supabase.com/mcp?project_ref=<your-project-ref>`
+
+**Use MCP For** (Development Only):
+- Schema exploration: "Show me all tables with RLS policies"
+- Quick queries: "Find comments created in the last hour"
+- Migration drafting: "Draft a migration for user preferences table"
+- Debugging: "Show Edge Function logs for errors"
+- TypeScript type generation via natural language
+
+**MCP Limitations** (Why CLI Still Required):
+- ❌ **NOT for production deployments** (development/testing only)
+- ❌ Cannot manage secrets (`ANTHROPIC_API_KEY`, `YOUTUBE_API_KEY`)
+- ❌ No CI/CD pipeline integration
+- ❌ Limited migration validation capabilities
+
+#### Supabase CLI (Production & Deployment)
+
+**CRITICAL**: All production operations MUST use CLI. **NO local Docker setup.**
 
 **Common Commands**:
 - `npx supabase db push` - Deploy local migrations/config to remote
@@ -144,11 +167,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npx supabase secrets list` - View secrets (digests only)
 - `npx supabase secrets set KEY=value` - Set API key
 
-**Rules**:
+**CLI Rules**:
 1. All settings (`auth`, `db`, etc.) managed in `supabase/config.toml`
 2. **NEVER** use `supabase start`, `supabase functions serve`, or Docker containers
 3. Never commit secrets - use Supabase secrets for API keys like `YOUTUBE_API_KEY`
 4. Never use `VITE_` prefix for server-side secrets (exposes to browser)
+5. **Always verify MCP-drafted migrations via CLI** before pushing to production
 
 ### Edge Function Development & Testing
 
