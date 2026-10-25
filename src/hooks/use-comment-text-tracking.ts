@@ -3,14 +3,13 @@
  * Handles debounced database updates and real-time offset calculations
  */
 
-import { useCallback } from 'react';
-import { useDebouncedCallback } from 'use-debounce';
+import { useCallback, useEffect } from 'react';
+import { useDebouncedCallback, type DebouncedState } from 'use-debounce';
 import type { Comment, CommentWithReplies } from '@/types/comments';
 import { updateCommentsForTextChange } from '@/utils/commentTextTracking';
 import { useStorageAdapter } from '@/data/storageAdapter';
 
 interface UseCommentTextTrackingOptions {
-  resourceId: string;
   enabled: boolean;
   debounceMs?: number; // Default: 2000ms (2 seconds)
 }
@@ -20,7 +19,6 @@ interface UseCommentTextTrackingOptions {
  *
  * Usage:
  * const { handleTextChange } = useCommentTextTracking({
- *   resourceId: resource.id,
  *   enabled: true,
  * });
  *
@@ -28,34 +26,54 @@ interface UseCommentTextTrackingOptions {
  * handleTextChange(oldValue, newValue, localComments, setLocalComments);
  */
 export function useCommentTextTracking(options: UseCommentTextTrackingOptions) {
-  const { resourceId, enabled, debounceMs = 2000 } = options;
+  const { enabled, debounceMs = 2000 } = options;
   const storageAdapter = useStorageAdapter();
 
   /**
    * Debounced function to persist comment updates to database
    */
-  const persistCommentUpdates = useDebouncedCallback(
-    async (changedComments: Comment[]) => {
-      if (!enabled || changedComments.length === 0) return;
+  const persistCommentUpdates: DebouncedState<(changedComments: Comment[]) => Promise<void>> =
+    useDebouncedCallback(
+      async (changedComments: Comment[]) => {
+        if (!enabled || changedComments.length === 0) return;
 
-      await Promise.all(
-        changedComments.map(async (comment) => {
-          if (comment.commentType !== 'selected-text') return;
-          try {
-            await storageAdapter.updateComment(comment.id, {
-              quotedText: comment.quotedText,
-              isStale: comment.isStale,
-              originalQuotedText: comment.originalQuotedText,
-            });
-          } catch (error) {
-            console.error('[useCommentTextTracking] Error updating comment:', error);
-            // Continue with other updates
-          }
-        })
-      );
-    },
-    debounceMs
-  );
+        await Promise.all(
+          changedComments.map(async (comment) => {
+            if (comment.commentType !== 'selected-text') return;
+            try {
+              await storageAdapter.updateComment(comment.id, {
+                quotedText: comment.quotedText,
+                isStale: comment.isStale,
+                originalQuotedText: comment.originalQuotedText,
+              });
+            } catch (error) {
+              console.error('[useCommentTextTracking] Error updating comment:', error);
+              // Continue with other updates
+            }
+          })
+        );
+      },
+      debounceMs
+    );
+
+  useEffect(() => {
+    return () => {
+      const maybePromise = persistCommentUpdates.flush();
+      if (maybePromise) {
+        // Fire and forget in cleanup but surface unexpected errors
+        maybePromise.catch((error) => {
+          console.error('[useCommentTextTracking] Flush error during cleanup:', error);
+        });
+      }
+    };
+  }, [persistCommentUpdates]);
+
+  const flushPendingUpdates = useCallback(async () => {
+    const maybePromise = persistCommentUpdates.flush();
+    if (maybePromise) {
+      await maybePromise;
+    }
+  }, [persistCommentUpdates]);
 
   /**
    * Handle text changes and update comment offsets + stale status
@@ -107,5 +125,6 @@ export function useCommentTextTracking(options: UseCommentTextTrackingOptions) {
 
   return {
     handleTextChange,
+    flushPendingUpdates,
   };
 }
