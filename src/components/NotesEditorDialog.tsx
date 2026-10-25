@@ -238,11 +238,17 @@ export function NotesEditorDialog({
       return;
     }
 
-    const selectedText =
-      plainText.slice(selectionRange.start, selectionRange.end) || selectionRange.text;
+    const selectedText = plainText.slice(selectionRange.start, selectionRange.end);
 
     if (!selectedText.trim()) {
-      console.warn('[NotesEditorDialog] Cannot create comment on empty text selection');
+      console.warn(
+        '[NotesEditorDialog] Plain text slice for selection is empty. Aborting comment creation.',
+        {
+          selectionRange,
+          plainTextLength: plainText.length,
+          originalSelectionText: selectionRange.text,
+        }
+      );
       return;
     }
 
@@ -270,15 +276,18 @@ export function NotesEditorDialog({
     }
 
     try {
-      let quotedText = plainText.slice(selectionRange.start, selectionRange.end);
-
-      if (!quotedText && selectionRange.text) {
-        quotedText = selectionRange.text;
-      }
+      const quotedText = plainText.slice(selectionRange.start, selectionRange.end);
 
       // Final validation before creating comment
       if (!quotedText.trim()) {
-        console.error('[NotesEditorDialog] Cannot create comment with empty quoted text');
+        console.error(
+          '[NotesEditorDialog] Plain text slice for comment creation is empty after validation. Aborting.',
+          {
+            selectionRange,
+            plainTextLength: plainText.length,
+            originalSelectionText: selectionRange.text,
+          }
+        );
         return;
       }
 

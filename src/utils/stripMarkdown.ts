@@ -27,6 +27,35 @@
  * @param markdown - Markdown text to strip
  * @returns Plain text without markdown syntax
  */
+interface NormalizeOptions {
+  trimEdges?: boolean;
+}
+
+export function normalizePlainTextWhitespace(
+  text: string,
+  options: NormalizeOptions = {}
+): string {
+  if (!text) return '';
+
+  const { trimEdges = true } = options;
+
+  let normalized = text;
+
+  // Clean up extra whitespace (but preserve single spaces and newlines)
+  normalized = normalized.replace(/ {2,}/g, ' ');
+
+  // Remove leading/trailing whitespace from each line
+  normalized = normalized
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n');
+
+  // Remove multiple consecutive newlines (keep max 2)
+  normalized = normalized.replace(/\n{3,}/g, '\n\n');
+
+  return trimEdges ? normalized.trim() : normalized;
+}
+
 export function stripMarkdown(markdown: string): string {
   if (!markdown) return '';
 
@@ -36,8 +65,8 @@ export function stripMarkdown(markdown: string): string {
   // Match ```language\ncode``` or ```code```
   text = text.replace(/```[\s\S]*?```/g, '');
 
-  // Remove inline code (single backticks)
-  text = text.replace(/`([^`]+)`/g, '$1');
+  // Remove inline code (supports nested/variable backticks)
+  text = text.replace(/(`+)([\s\S]*?)\1/g, '$2');
 
   // Remove bold (** or __)
   text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
@@ -70,23 +99,7 @@ export function stripMarkdown(markdown: string): string {
   // Remove horizontal rules (---, ***, ___)
   text = text.replace(/^[-*_]{3,}$/gm, '');
 
-  // Clean up extra whitespace (but preserve single spaces and newlines)
-  // Remove multiple consecutive spaces
-  text = text.replace(/ {2,}/g, ' ');
-
-  // Remove leading/trailing whitespace from each line
-  text = text
-    .split('\n')
-    .map((line) => line.trim())
-    .join('\n');
-
-  // Remove multiple consecutive newlines (keep max 2)
-  text = text.replace(/\n{3,}/g, '\n\n');
-
-  // Trim final result
-  text = text.trim();
-
-  return text;
+  return normalizePlainTextWhitespace(text);
 }
 
 /**
