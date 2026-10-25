@@ -237,13 +237,18 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 **Build & Quality**: `npm run build` + `npm run lint` pass, `npm run dev` starts
 
+**Config Sync** (if editing duplicated configs):
+- Run `npm run check-sync:all` to verify all configs in sync
+- For Edge Function changes: use `npm run deploy:edge:short-form` (validates before deploying)
+- Never use raw `npx supabase functions deploy` - always use npm scripts with validation
+
 **End-to-End**: Navigate all routes → create resource → verify navigation/auth/loading/errors
 
 **Full-Stack**:
 - Search shared logic in BOTH `src/` + `supabase/functions/` → update ALL occurrences
 - Check type conditionals include ALL relevant types (`type === 'video' || type === 'short-video'`)
 - Test flow: Backend → DB → API → Frontend → UI
-- Deploy both: frontend (auto) + backend (`npx supabase functions deploy <name>`)
+- Deploy both: frontend (auto) + backend (via `npm run deploy:edge:*` with auto-validation)
 - Verify logs + DB values on both sides
 
 ## Critical Code Patterns
@@ -455,6 +460,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - Question duplication: grep for imports before keeping parallel configs or helpers, and delete dead code instead of letting it drift.
 - Validate external integrations against official docs and production logs instead of assuming a passing build means success.
 - **For Edge Functions: Deploy → Test → Verify pipeline is mandatory**. Never present "testing instructions" without deploying first. `npm run build` only builds frontend, not Edge Functions.
+- For duplicated configs between frontend and Edge Functions: use TypeScript AST parsing for semantic comparison (not fragile regex), normalize whitespace/comments, and block deployments with clear error messages showing exact source-of-truth files.
 
 ## Project Status (Updated 2025-10-17)
 
