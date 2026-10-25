@@ -255,8 +255,18 @@ async function callAnthropicAPI(prompt: string): Promise<AICommentsResponse> {
       throw new Error('No content in Anthropic response');
     }
 
-    const responseText = data.content[0].text;
+    let responseText = data.content[0].text;
     console.log('[ai-notes-check] Response text length:', responseText.length);
+
+    // Strip markdown code fences if present (e.g., ```json ... ```)
+    responseText = responseText.trim();
+    if (responseText.startsWith('```')) {
+      // Remove opening fence (```json or just ```)
+      responseText = responseText.replace(/^```(?:json)?\s*\n?/, '');
+      // Remove closing fence
+      responseText = responseText.replace(/\n?```\s*$/, '');
+      console.log('[ai-notes-check] Stripped markdown code fences from response');
+    }
 
     // Parse JSON response
     let parsedResponse: AICommentsResponse;
