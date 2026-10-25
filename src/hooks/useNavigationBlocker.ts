@@ -8,19 +8,14 @@
  * - Non-blocking: Allows navigation even if flush fails (fail-open approach)
  * - Transparent: No confirmation dialogs, just silent save before navigation
  * - Async-aware: Properly handles async flush operations
- * - Graceful degradation: Silently disabled if router doesn't support useBlocker
+ * - Graceful degradation: Silently disabled if router doesn't support blocking
  *
- * Note: useBlocker requires React Router v6.4+ with createBrowserRouter.
- * If using BrowserRouter (older setup), this hook will be disabled but won't error.
+ * Note: Requires React Router v6.19.0+ with createBrowserRouter.
+ * useBlocker became stable in v6.19.0 (removed unstable_ prefix).
  */
 
-import { useContext, useEffect, useRef } from 'react';
-import {
-  UNSAFE_DataRouterContext as DataRouterContext,
-  UNSAFE_NavigationContext as NavigationContext,
-} from 'react-router-dom';
-
-let hasWarnedMissingRouter = false;
+import { useEffect, useRef } from 'react';
+import { useBlocker } from 'react-router-dom';
 
 export interface UseNavigationBlockerOptions {
   /** Whether to block navigation (typically: isDirty && isOpen) */
@@ -40,65 +35,33 @@ export interface UseNavigationBlockerOptions {
  */
 export function useNavigationBlocker(options: UseNavigationBlockerOptions): void {
   const { when, onBlock } = options;
-  const dataRouterContext = useContext(DataRouterContext);
-  const navigationContext = useContext(NavigationContext);
-  const navigator = navigationContext?.navigator as
-    | { block?: (blocker: (tx: { retry: () => void }) => void) => () => void }
-    | undefined;
   const onBlockRef = useRef(onBlock);
 
+  // Keep onBlock ref up to date without triggering blocker re-creation
   useEffect(() => {
     onBlockRef.current = onBlock;
   }, [onBlock]);
 
+  // Use React Router's unstable_useBlocker hook
+  const blocker = useBlocker(when);
+
+  // Handle blocked navigation
   useEffect(() => {
-    if (when && !dataRouterContext && !hasWarnedMissingRouter) {
-      console.warn(
-        '[useNavigationBlocker] Navigation blocking requires createBrowserRouter / RouterProvider. ' +
-          'Current router does not expose Data Router context.',
-      );
-      hasWarnedMissingRouter = true;
-    }
-  }, [when, dataRouterContext]);
-
-  useEffect(() => {
-    if (when && !navigator?.block) {
-      console.warn(
-        '[useNavigationBlocker] Router navigator does not support blocking. ' +
-          'Ensure you are using react-router-dom v6.4+.',
-      );
-    }
-  }, [when, navigator]);
-
-  useEffect(() => {
-    if (!when || !navigator?.block) {
-      return;
-    }
-
-    const unblock = navigator.block((tx: { retry: () => void }) => {
-      const retry = () => {
-        unblock();
-        tx.retry();
-      };
-
-      const execute = async () => {
+    if (blocker.state === 'blocked') {
+      const proceed = async () => {
         try {
+          console.log('[useNavigationBlocker] Navigation blocked, flushing auto-save...');
           await onBlockRef.current();
-          retry();
+          console.log('[useNavigationBlocker] Auto-save flushed, proceeding with navigation');
+          blocker.proceed();
         } catch (error) {
           console.error('[useNavigationBlocker] Error during navigation block handler:', error);
+          // Even on error, allow navigation to proceed (fail-open)
+          blocker.proceed();
         }
       };
 
-      try {
-        void execute();
-      } catch (error) {
-        console.error('[useNavigationBlocker] Unexpected error scheduling blocker:', error);
-      }
-
-      return;
-    });
-
-    return unblock;
-  }, [navigator, when]);
+      void proceed();
+    }
+  }, [blocker]);
 }
