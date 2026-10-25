@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# Auto-sync AGENTS.md from CLAUDE.md before commit
-if git diff --cached --name-only | grep -q "^CLAUDE.md$"; then
-  node scripts/sync-agents.js
-  git add AGENTS.md
-fi
