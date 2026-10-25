@@ -11,10 +11,10 @@
  * @component
  */
 
-import { lazy, useEffect, useMemo, useState } from 'react';
+import { lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,6 +43,9 @@ import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import { useStorageAdapter, type ResourceTypeConfig } from '@/data/storageAdapter';
 import { useResources } from '@/hooks/use-resources';
+import { useAutoSave } from '@/hooks/useAutoSave';
+import { useNavigationBlocker } from '@/hooks/useNavigationBlocker';
+import { useUnloadProtection } from '@/hooks/useUnloadProtection';
 import {
   ArrowLeft,
   ExternalLink,
@@ -57,8 +60,12 @@ import {
   Save,
   AlertTriangle,
   Trash2,
-  Loader2
+  Loader2,
+  X,
+  AlertCircle
 } from 'lucide-react';
+
+const AUTO_SAVE_INTERVAL_MS = 60_000;
 import { cn } from '@/lib/utils';
 import { parseTimestamp } from '@/utils/timestamp';
 import { getResourceBadgeClasses } from '@/utils/resourceTypeStyles';
@@ -125,8 +132,109 @@ const ResourceDetail = () => {
     hashtags: ''
   });
 
+  // Validation: form is valid if title is not empty
+  const formIsValid = metadataForm.title.trim().length > 0;
+
+  // Auto-save for metadata (only when editing and form is valid)
+  const {
+    isDirty: isMetadataDirty,
+    isSaving: isMetadataSaving,
+    saveError: metadataSaveError,
+    flushPendingUpdates: flushMetadataAutoSave,
+    clearError: clearMetadataSaveError,
+  } = useAutoSave({
+    value: metadataForm,
+    serializeValue: (formData) => JSON.stringify(formData),
+    onSave: async (formData) => {
+      if (!resource) return;
+
+      const requestId = ++metadataSaveRequestIdRef.current;
+      // Process form data
+      const updatedData: Partial<typeof resource> = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+      };
+
+      // Add type-specific fields if they have values
+      if (formData.author) updatedData.author = formData.author.trim();
+      if (formData.creator) updatedData.creator = formData.creator.trim();
+      if (formData.platform) updatedData.platform = formData.platform.trim();
+      if (formData.year) updatedData.year = parseInt(formData.year);
+      if (formData.duration) updatedData.duration = formData.duration.trim();
+      if (formData.url) updatedData.url = formData.url.trim();
+
+      // Add short-video specific fields if they have values
+      if (formData.channelName) updatedData.channelName = formData.channelName.trim();
+      if (formData.handle) updatedData.handle = formData.handle.trim();
+      if (formData.viewCount) updatedData.viewCount = parseInt(formData.viewCount);
+      if (formData.hashtags) {
+        updatedData.hashtags = formData.hashtags.split(',').map(tag => tag.trim()).filter(Boolean);
+      }
+
+      try {
+        const result = await storageAdapter.updateResource(resource.id, updatedData);
+        if (requestId !== metadataSaveRequestIdRef.current) {
+          console.warn('[ResourceDetail] handleSaveMetadata: Ignoring stale response', {
+            requestId,
+            latestRequestId: metadataSaveRequestIdRef.current,
+          });
+          return;
+        }
+        const nextMetadataForm = {
+          title: result.title || '',
+          description: result.description || '',
+          tags: result.tags?.join(', ') || '',
+          author: result.author || '',
+          creator: result.creator || '',
+          platform: result.platform || '',
+          year: result.year ? result.year.toString() : '',
+          duration: result.duration || '',
+          url: result.url || '',
+          channelName: result.channelName || '',
+          handle: result.handle || '',
+          viewCount: typeof result.viewCount === 'number' ? result.viewCount.toString() : '',
+          hashtags: result.hashtags?.join(', ') || ''
+        };
+
+        setMetadataForm(nextMetadataForm);
+        setMetadataLastSavedAt(result.updatedAt ?? new Date().toISOString());
+        upsertResource(result);
+      } catch (error) {
+        if (requestId !== metadataSaveRequestIdRef.current) {
+          console.warn('[ResourceDetail] handleSaveMetadata: Ignoring stale error response', {
+            requestId,
+            latestRequestId: metadataSaveRequestIdRef.current,
+          });
+          return;
+        }
+        throw error;
+      }
+    },
+    debounceMs: AUTO_SAVE_INTERVAL_MS,
+    maxRetries: 5,
+    // Only auto-save when editing and form passes validation
+    enabled: isEditingMetadata && formIsValid,
+  });
+
+  // Navigation protection: block navigation while editing dirty metadata
+  useNavigationBlocker({
+    when: isMetadataDirty && isEditingMetadata,
+    onBlock: flushMetadataAutoSave,
+  });
+
+  // Browser unload protection: prevent tab close during active save
+  useUnloadProtection({
+    when: isMetadataSaving,
+  });
+
   // Description truncation state
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
+  // Track save generations to ignore stale Supabase responses
+  const notesSaveRequestIdRef = useRef(0);
+  const transcriptSaveRequestIdRef = useRef(0);
+  const metadataSaveRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (!resource) {
@@ -278,19 +386,36 @@ const ResourceDetail = () => {
       return;
     }
 
+    const requestId = ++notesSaveRequestIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const result = await storageAdapter.updateResource(resource.id, { notes: value });
+      if (requestId !== notesSaveRequestIdRef.current) {
+        console.warn('[ResourceDetail] handleSaveNotes: Ignoring stale response', {
+          requestId,
+          latestRequestId: notesSaveRequestIdRef.current,
+        });
+        return;
+      }
       setNotes(result.notes || '');
       setNotesLastSavedAt(result.updatedAt ?? new Date().toISOString());
       upsertResource(result);
     } catch (err) {
+      if (requestId !== notesSaveRequestIdRef.current) {
+        console.warn('[ResourceDetail] handleSaveNotes: Ignoring stale error response', {
+          requestId,
+          latestRequestId: notesSaveRequestIdRef.current,
+        });
+        return;
+      }
       console.error('[ResourceDetail] handleSaveNotes: Error saving notes:', err);
       setError('Failed to save notes');
       throw err; // Re-throw so dialog knows save failed
     } finally {
-      setLoading(false);
+      if (requestId === notesSaveRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -308,19 +433,36 @@ const ResourceDetail = () => {
       return;
     }
 
+    const requestId = ++transcriptSaveRequestIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const result = await storageAdapter.updateResource(resource.id, { transcript: value });
+      if (requestId !== transcriptSaveRequestIdRef.current) {
+        console.warn('[ResourceDetail] handleSaveTranscript: Ignoring stale response', {
+          requestId,
+          latestRequestId: transcriptSaveRequestIdRef.current,
+        });
+        return;
+      }
       setTranscript(result.transcript || '');
       setLastSavedAt(result.updatedAt ?? new Date().toISOString());
       upsertResource(result);
     } catch (err) {
+      if (requestId !== transcriptSaveRequestIdRef.current) {
+        console.warn('[ResourceDetail] handleSaveTranscript: Ignoring stale error response', {
+          requestId,
+          latestRequestId: transcriptSaveRequestIdRef.current,
+        });
+        return;
+      }
       console.error('[ResourceDetail] handleSaveTranscript: Error saving transcript:', err);
       setError('Failed to save transcript');
       throw err; // Re-throw so dialog can handle error state
     } finally {
-      setLoading(false);
+      if (requestId === transcriptSaveRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -342,49 +484,9 @@ const ResourceDetail = () => {
     setLoading(true);
     setError(null);
     try {
-      // Process form data
-      const updatedData: Partial<typeof resource> = {
-        title: metadataForm.title.trim(),
-        description: metadataForm.description.trim(),
-        tags: metadataForm.tags.split(',').map(tag => tag.trim()).filter(Boolean),
-      };
-
-      // Add type-specific fields if they have values
-      if (metadataForm.author) updatedData.author = metadataForm.author.trim();
-      if (metadataForm.creator) updatedData.creator = metadataForm.creator.trim();
-      if (metadataForm.platform) updatedData.platform = metadataForm.platform.trim();
-      if (metadataForm.year) updatedData.year = parseInt(metadataForm.year);
-      if (metadataForm.duration) updatedData.duration = metadataForm.duration.trim();
-      if (metadataForm.url) updatedData.url = metadataForm.url.trim();
-
-      // Add short-video specific fields if they have values
-      if (metadataForm.channelName) updatedData.channelName = metadataForm.channelName.trim();
-      if (metadataForm.handle) updatedData.handle = metadataForm.handle.trim();
-      if (metadataForm.viewCount) updatedData.viewCount = parseInt(metadataForm.viewCount);
-      if (metadataForm.hashtags) {
-        updatedData.hashtags = metadataForm.hashtags.split(',').map(tag => tag.trim()).filter(Boolean);
-      }
-
-      const result = await storageAdapter.updateResource(resource.id, updatedData);
-      const nextMetadataForm = {
-        title: result.title || '',
-        description: result.description || '',
-        tags: result.tags?.join(', ') || '',
-        author: result.author || '',
-        creator: result.creator || '',
-        platform: result.platform || '',
-        year: result.year ? result.year.toString() : '',
-        duration: result.duration || '',
-        url: result.url || '',
-        channelName: result.channelName || '',
-        handle: result.handle || '',
-        viewCount: typeof result.viewCount === 'number' ? result.viewCount.toString() : '',
-        hashtags: result.hashtags?.join(', ') || ''
-      };
-
-      setMetadataForm(nextMetadataForm);
-      setMetadataLastSavedAt(result.updatedAt ?? new Date().toISOString());
-      upsertResource(result);
+      // Flush auto-save to ensure latest changes are saved
+      await flushMetadataAutoSave();
+      // Exit edit mode
       setIsEditingMetadata(false);
     } catch (err) {
       console.error('[ResourceDetail] handleSaveMetadata: Error saving metadata:', err);
@@ -477,6 +579,7 @@ const ResourceDetail = () => {
                 <Button
                   size="sm"
                   variant={isEditingMetadata ? "default" : "outline"}
+                  disabled={isMetadataSaving}
                 onClick={() => {
                   if (isEditingMetadata) {
                     handleSaveMetadata();
@@ -487,10 +590,17 @@ const ResourceDetail = () => {
                 }}
                 >
                   {isEditingMetadata ? (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save
-                    </>
+                    isMetadataSaving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        Save
+                      </>
+                    )
                   ) : (
                     <>
                       <Edit className="w-4 h-4 mr-2" />
@@ -507,6 +617,25 @@ const ResourceDetail = () => {
               {isEditingMetadata ? (
                 // Edit mode - Form fields
                 <div className="space-y-4">
+                  {/* Error notification after retry exhaustion */}
+                  {metadataSaveError && (
+                    <Alert variant="destructive" className="relative">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Unable to save metadata</AlertTitle>
+                      <AlertDescription>
+                        Please check your network connection and try again. Your changes are still in the form.
+                      </AlertDescription>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-2 right-2 h-6 w-6 p-0"
+                        onClick={clearMetadataSaveError}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </Alert>
+                  )}
+
                   {/* First row: Title & Platform */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Title - always shown */}
