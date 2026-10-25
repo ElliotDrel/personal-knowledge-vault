@@ -15,6 +15,7 @@ export interface AINotesCheckResponse {
   commentsCreated?: number;
   commentsFailed?: number;
   processingLogId?: string;
+  noCommentsMessage?: string | null;
   error?: {
     code: string;
     message: string;
@@ -104,6 +105,7 @@ export interface AICommentSuggestion {
 
 export interface AICommentsResponse {
   comments: AICommentSuggestion[];
+  no_comments_message?: string;
 }
 
 // ============================================================================

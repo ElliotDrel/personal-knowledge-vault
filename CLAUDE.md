@@ -10,7 +10,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 3. **DOCUMENTATION-FIRST**: Always check official documentation for Supabase, Vercel, and complex libraries before coding. Use the **Context7 MCP** tools for library docs. For external libraries: check version/changelog for breaking changes, then test minimal example in isolation BEFORE full integration.
 
-4. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**: Before creating ANY utility function OR component, search for existing ones first: `rg "normalize" --type ts` or `rg "useMutation" --type tsx` or `rg "Progress" --type tsx`. Reuse existing patterns (functions, hooks, components, styling patterns). Update ALL occurrences in both `src/` and `supabase/functions/` simultaneously. **This applies to**: utilities, components, hooks, type definitions, and UI patterns.
+4. **SEARCH-FIRST PATTERN (Prevents 90% of Integration Bugs)**:
+
+   **Before ADDING** - Search for existing patterns:
+   - Creating utility? `rg "normalize" --type ts`
+   - Creating component? `rg "Progress" --type tsx`
+   - Creating hook? `rg "useMutation" --type tsx`
+   - Reuse existing patterns and update ALL occurrences in both `src/` and `supabase/functions/`
+
+   **Before REMOVING** - Search for ALL references:
+   - Removing function? `rg "functionName"` AND `rg "functionName\("`
+   - Removing React state? `rg "variableName"` AND `rg "setVariableName"` (SEPARATE searches!)
+   - Remove ALL references found in BOTH searches
+   - Test in browser after (build doesn't catch runtime errors)
+
+   **This applies to**: utilities, components, hooks, state, props, type definitions, and UI patterns.
 
 5. **Use Storage Adapter Only**: Always `import { useStorageAdapter } from '@/data/storageAdapter'`. Never import `storage.ts` or `supabaseStorage.ts` directly.
 
@@ -25,20 +39,53 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - [ ] Checked hook ordering: useState → useQuery → useCallback/useMemo → useEffect
    - [ ] Any async function used in useEffect is wrapped in useCallback
    - [ ] State initialized where it's owned (not lazily by child components)
+   - [ ] **For state/prop/function removal: Searched for BOTH variable AND setter (if state), removed ALL references, tested in browser**
    - [ ] For textarea overlays: Used `getComputedStyle()` mirroring + scroll sync + transparent text
    - [ ] For markdown processing: Used rehype plugin (not source splitting)
    - [ ] For multi-element components: Provided granular className props
-   - [ ] Tested in browser after each integration point (not just at end)
+   - [ ] **Tested in browser after EACH integration point (build passing ≠ app working)**
    - [ ] `npm run build` passes
    - [ ] `npm run lint` passes
+   - [ ] **For Edge Function changes: Deployed via CLI (`npx supabase functions deploy <name>`), tested in app, verified in database (not just build)**
+   - [ ] For prompt changes: User tested with actual AI call and confirmed behavior in logs
+   - [ ] For duplication: Grepped for imports to verify both copies are actually used
 
 9. **Clarify Before Destructive Changes**: When user says "disable it", "remove it", or "change it" in context of discussing multiple features, ALWAYS ask which one. Never assume. Communication mistakes are harder to fix than code mistakes.
 
-10. **Incremental Testing**: After EACH significant change, run `npm run build` and test in browser.
+10. **Incremental Testing (Layer-by-Layer)**: After EACH layer of implementation, verify that layer works before proceeding:
+   - **After creating utility**: Test utility in isolation with console.log or unit test
+   - **After updating component**: Test component behavior in browser (not just build)
+   - **After integration**: Test end-to-end flow and verify data reaches destination correctly
+   - **After database write**: Query database to confirm stored format matches expectations
+   - **After Edge Function changes**: Deploy immediately (`npx supabase functions deploy <name>`), trigger via app, query database to verify stored data format
+   - **Red flag**: If you're "done" but haven't opened the browser or checked the database, you're not done
+   - **Why**: Build passing only means "TypeScript compiles" - it says nothing about runtime behavior or data correctness
+
+   **CRITICAL for Edge Functions**: `npm run build` does NOT deploy Edge Functions. You MUST:
+   1. Deploy: `npx supabase functions deploy <name>`
+   2. Test: Trigger via the running app
+   3. Verify: Query database to confirm stored data format
+   4. Never present "testing instructions" without completing steps 1-3 first
 
 11. **Mirror Target Styles for Overlays (NEW)**: For highlight overlays, ghost inputs, or mirror divs, read `getComputedStyle` from the real control, apply font/line-height/padding/border radius/box sizing to the overlay, and sync scroll offsets. Always set overlay text color to transparent so only the background shows. Never rely on Tailwind class duplication—drifted highlights mean you skipped this rule.
 
-12. **Systematic Refactoring** (NEW): When removing state variables, functions, or props: use IDE "Find All References" + search string literals (`rg "isEditingNotes"`), update ALL references, then test immediately to catch "undefined" errors.
+12. **Systematic Refactoring - Complete the Circle** (CRITICAL): When removing state variables, functions, or props, follow the COMPLETE refactoring circle:
+
+   **For React State Removal:**
+   1. Search for variable: `rg "variableName"`
+   2. **Search for setter SEPARATELY**: `rg "setVariableName"` (CRITICAL - different references!)
+   3. Remove/update ALL references from BOTH searches
+   4. Run `npm run build` to catch TypeScript errors
+   5. **Test in browser** - navigate to affected component and verify it works
+   6. Only then mark complete
+
+   **For Functions/Props:**
+   1. Search for declaration: `rg "functionName"`
+   2. Search for all call sites: `rg "functionName\("`
+   3. Remove/update ALL references
+   4. Build + browser test
+
+   **Why**: State setters and variables have separate reference points. Removing only one causes runtime errors that build doesn't catch. Browser testing is the ONLY way to verify removal is complete.
 
 13. **CLARIFY DATA MODELS BEFORE SCHEMA** (NEW - Prevents Major Rework): When implementing database tables with relationships (comments/replies, threads, hierarchies), ALWAYS ask specific questions about the data model BEFORE creating migrations:
    - "Should this be separate tables or a self-referential table?"
@@ -51,9 +98,87 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 15. **STABILIZE CALLBACK PROPS** (NEW): When parent callbacks are optional or likely to re-create on every render, mirror them into a `useRef` and read from the ref inside memoized callbacks/effects. This keeps dependency arrays minimal while always using the latest handler.
 16. **FLUSH DEBOUNCED WORK ON EXIT** (NEW): Whenever debouncing persistence (e.g., `useDebouncedCallback`), expose a flush helper. Await it before saves/closures and trigger it in effect cleanup. Log flush errors so dropped updates never fail silently.
 
-### Supabase CLI-Only Workflow
+17. **VERIFY EXTERNAL API DETAILS FIRST** (NEW - Prevents Integration Failures): Before implementing ANY external API integration (Anthropic, OpenAI, Stripe, etc.), VERIFY against official documentation:
+   - Exact model names/endpoint URLs (don't assume formats)
+   - Authentication method and header format
+   - Request/response structure and data types
+   - Rate limits and error codes
+   - **Example**: For Anthropic, check docs.anthropic.com/models for exact model IDs before writing config
+   - **Why**: Assumptions about API details cause 404s, 400s, and authentication failures that waste debugging time
 
-**CRITICAL RULE**: This project uses the Supabase CLI **EXCLUSIVELY** against the deployed Supabase project. **NO local Docker setup.**
+18. **DEFENSIVE API RESPONSE PARSING** (NEW - Handles AI Output Variability): AI models (Claude, GPT, etc.) may return JSON wrapped in markdown code fences or other formatting. Always parse defensively:
+   - Strip markdown fences before JSON.parse: `text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')`
+   - Validate response structure after parsing
+   - Log both raw and cleaned responses for debugging
+   - **Why**: AI outputs are non-deterministic; one run succeeds, next run wraps in markdown
+
+19. **PURPOSE-DRIVEN DATA DESIGN** (NEW - Prevents Table Pollution): Before adding ANY field to a database table, ask "What is this table's PURPOSE?" Only include data that serves that specific purpose.
+   - **Example**: `ai_processing_logs` is for troubleshooting AI interactions → only save data going TO or FROM the AI
+   - Don't add analytics data (resource type, title) to debugging tables
+   - Don't add debugging data to business logic tables
+   - **Why**: Mixed-purpose tables become confusing and hard to query
+
+20. **NEVER TRUNCATE SOURCE MATERIAL** (NEW - Preserves Analysis Quality): When sending data to AI for analysis, NEVER truncate the source material (transcripts, documents, descriptions). Truncate metadata summaries if needed, but preserve complete source content.
+   - **Example**: Full transcript (1000+ chars) → keep all, Description summary → can truncate
+   - **Why**: AI needs complete source material to identify missing concepts and give quality suggestions
+
+23. **BACKEND CHANGES NEED PRODUCTION VERIFICATION** (NEW - Build Passing ≠ Feature Working): For backend/Edge Function changes, verify behavior in production logs/database, not just build success:
+   - Prompt changes: Run actual AI call, check `ai_processing_logs` table for new structure
+   - Config changes: Verify new fields are actually being sent (check `input_data` in logs)
+   - Edge Function changes: Check Supabase Dashboard logs for actual behavior
+   - Database changes: Query actual data, don't just trust migration ran
+   - **Pre-deployment verification**: Provide SQL query user can run to confirm expected behavior
+   - **Why**: Build passing only means "code compiles" - not "feature works as intended"
+
+24. **ROOT CAUSE ANALYSIS BEFORE FIXES** (NEW - Prevents Symptom Whack-a-Mole): When a feature fails, analyze the actual failure case before proposing fixes:
+   - Look at failed examples: What specifically went wrong?
+   - Ask "what would have prevented this?"
+   - Don't just fix symptoms - fix the underlying cause
+   - **Example**: Duplicate suggestions meant Claude wasn't comparing to existing - fix was forcing explicit comparison FIRST
+   - Update CLAUDE.md with the prevention pattern after learning
+   - **Why**: Quick fixes often miss the root cause and failures repeat
+
+25. **Syncing controlled editors:** Use a `useRef` to store the last value you sent to a controlled editor. On local edits, update both the ref and parent. When receiving new props, only overwrite editor state if the value doesn't match your ref. This prevents cursor jumps and editor resets from redundant updates.
+
+26. **Third-party UI libraries:** Always read the docs, especially about required CSS, "Getting Started", and extension/plugin setup. Test a basic version of the component before adding features. Watch for non-standard state management patterns (e.g., controlled vs. uncontrolled) that differ from typical React forms.
+
+27. **Inline error handling:** If a component performs an action (save, submit, delete), show error messages inside that component, near the action button. Keep the UI open so users can retry, and clear errors on new user input or success.
+
+28. **Memoizing expensive configs:** Use `useMemo` for large config objects (like TipTap extensions, Monaco options, chart configs). Only recreate these when actual dependencies change, to avoid unnecessary reinitialization and performance issues.
+
+29. **AGENTS.md Sync is Mandatory** (NEW): After ANY edit to CLAUDE.md, immediately run `npm run sync:agents`. CI validates sync on every PR and will fail if files are out of sync.
+
+30. **CI/CD Workflow Assumptions** (NEW): Before configuring GitHub Actions workflows:
+   - Check if `package-lock.json` exists. If missing, use `npm install` not `npm ci`
+   - Set timeouts: validation 5min, AI/Claude 10min, complex builds 15-30min
+   - New workflows added in PR can't run until merged to main (GitHub security) - this is EXPECTED
+
+### Supabase Workflow: MCP + CLI Hybrid
+
+**CRITICAL RULE**: This project uses **CLI for production** and **MCP for AI-assisted development**.
+
+#### Supabase MCP (Development & Exploration)
+
+**What It Is**: Model Context Protocol connects Claude to your Supabase project via natural language.
+
+**Authenticated Setup**: MCP server configured at `https://mcp.supabase.com/mcp?project_ref=<your-project-ref>`
+
+**Use MCP For** (Development Only):
+- Schema exploration: "Show me all tables with RLS policies"
+- Quick queries: "Find comments created in the last hour"
+- Migration drafting: "Draft a migration for user preferences table"
+- Debugging: "Show Edge Function logs for errors"
+- TypeScript type generation via natural language
+
+**MCP Limitations** (Why CLI Still Required):
+- ❌ **NOT for production deployments** (development/testing only)
+- ❌ Cannot manage secrets (`ANTHROPIC_API_KEY`, `YOUTUBE_API_KEY`)
+- ❌ No CI/CD pipeline integration
+- ❌ Limited migration validation capabilities
+
+#### Supabase CLI (Production & Deployment)
+
+**CRITICAL**: All production operations MUST use CLI. **NO local Docker setup.**
 
 **Common Commands**:
 - `npx supabase db push` - Deploy local migrations/config to remote
@@ -62,11 +187,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npx supabase secrets list` - View secrets (digests only)
 - `npx supabase secrets set KEY=value` - Set API key
 
-**Rules**:
+**CLI Rules**:
 1. All settings (`auth`, `db`, etc.) managed in `supabase/config.toml`
 2. **NEVER** use `supabase start`, `supabase functions serve`, or Docker containers
 3. Never commit secrets - use Supabase secrets for API keys like `YOUTUBE_API_KEY`
 4. Never use `VITE_` prefix for server-side secrets (exposes to browser)
+5. **Always verify MCP-drafted migrations via CLI** before pushing to production
 
 ### Edge Function Development & Testing
 
@@ -87,15 +213,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 *   Use modern PostgreSQL functions: `gen_random_uuid()` instead of `uuid_generate_v4()`.
 *   Handle Unicode/emojis carefully in your application code when storing them in JSONB.
 *   Never delete old migration files.
+*   **CRITICAL: Save full baseline data for comparison, not truncated versions**. When saving baseline data (e.g., `original_quoted_text`) that will be used for staleness/change detection, save the FULL value, not a truncated preview. Truncation creates blind spots where changes after the truncation point are invisible to detection logic. The database column is TEXT (unlimited), so use it.
+*   **Validation scripts must be read-only**. Validation SQL files should NEVER contain `COMMENT ON`, `ALTER`, `INSERT`, `UPDATE`, or `DELETE` statements. They should only contain `SELECT` and `EXPLAIN` queries. Mutating statements permanently modify the database and defeat the purpose of validation.
 
 ### Post-Migration Validation (MANDATORY)
 
 After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 1. **Check NOTICE logs** - Migration output shows counts/warnings
-2. **If needed run validation queries and verify indexes created** - Use queries from migration comments:
-3. **Query sample data** - Confirm data structure matches expectations
-4. **Document findings** - State "Verified: X resources migrated, Y indexes created"
+2. **Run validation script** - Execute `psql -f validate-ai-migrations.sql` (repo root) to confirm schema, indexes, and RLS policies
+3. **Run additional targeted queries if needed** - Use snippets from migration comments when digging into specific tables
+4. **Query sample data** - Confirm data structure matches expectations
+5. **Document findings** - State "Verified: X resources migrated, Y indexes created"
 
 **CRITICAL**: NOTICE logs show execution, not correctness. Always query actual data.
 
@@ -115,41 +244,103 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 
 **Build & Quality**: `npm run build` + `npm run lint` pass, `npm run dev` starts
 
+**Config Sync** (if editing duplicated configs):
+- Run `npm run check-sync:all` to verify all configs in sync
+- For Edge Function changes: use `npm run deploy:edge:short-form` (validates before deploying)
+- Never use raw `npx supabase functions deploy` - always use npm scripts with validation
+
 **End-to-End**: Navigate all routes → create resource → verify navigation/auth/loading/errors
 
 **Full-Stack**:
 - Search shared logic in BOTH `src/` + `supabase/functions/` → update ALL occurrences
 - Check type conditionals include ALL relevant types (`type === 'video' || type === 'short-video'`)
 - Test flow: Backend → DB → API → Frontend → UI
-- Deploy both: frontend (auto) + backend (`npx supabase functions deploy <name>`)
+- Deploy both: frontend (auto) + backend (via `npm run deploy:edge:*` with auto-validation)
 - Verify logs + DB values on both sides
 
 ## Critical Code Patterns
 
-### Configuration File Synchronization (MANDATORY)
+### AI Configuration (Single Source of Truth)
 
-**SYNC WARNING**: The following configuration files are DUPLICATED between frontend and Edge Function and MUST be manually synchronized:
+**AI configuration lives ONLY in the Edge Function**: `supabase/functions/ai-notes-check/config.ts`
 
-| Source of Truth (Edit This) | Must Sync To (Don't Edit Directly) | Deployment Command |
-|------------------------------|-------------------------------------|-------------------|
-| `src/config/aiConfig.ts` | `supabase/functions/ai-notes-check/config.ts` | `npm run deploy:edge` |
+This file contains:
+- `SYSTEM_PROMPT`: Complete system prompt with goals, guidelines, comment rules, and JSON schema
+- `AI_METADATA_CONFIG`: Which metadata fields to send to Claude per resource type
+- `MAX_COMMENTS_PER_RUN`: Limit to prevent excessive API costs
 
-**WHY**: Edge Functions run in Deno and cannot import from the `src/` directory. The config must be duplicated.
+**WHY NO FRONTEND CONFIG?**
+- Frontend just calls the Edge Function with `resourceId` - it doesn't need prompts or config
+- Edge Functions can't import from `src/`, so config must live in the function
+- TypeScript types for AI responses live in `src/types/comments.ts` (shared between frontend and storage adapter)
 
 **WORKFLOW**:
-1. Edit `src/config/aiConfig.ts` (frontend source of truth)
-2. Manually copy `AI_CONFIG` changes to Edge Function config
-3. Run `npm run deploy:edge` - automated sync check will verify before deploying
-4. If sync check fails, deployment is blocked until configs match
+1. Edit `supabase/functions/ai-notes-check/config.ts` directly
+2. Run `npm run deploy:edge` to deploy changes
+3. No sync needed - there's only ONE config file!
 
-**AUTOMATED PROTECTION**: The `check-sync` script compares both files and blocks deployment if they differ. You'll see:
-```
-❌ SYNC ERROR: Config files are out of sync!
-   Source of truth: src/config/aiConfig.ts
-   Out of sync:     supabase/functions/ai-notes-check/config.ts
+---
+
+### Configuration File Synchronization (AUTOMATED)
+
+**Problem**: Edge Functions run in Deno and cannot import from `src/` directory, forcing config/utility duplication between frontend and Edge Functions.
+
+**Solution**: Automated sync validation scripts that block deployments when configs are out of sync.
+
+#### Duplicated Configs (Short-Form Video Processing)
+
+| Config/Utility | Frontend Source | Edge Function Copy | Validation Script |
+|----------------|-----------------|-------------------|-------------------|
+| `PLATFORM_CONFIGS` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:all` (auto-detects) |
+| `POLLING_CONFIG` | `src/types/shortFormApi.ts` | `supabase/functions/short-form/types.ts` | `check-sync:all` (auto-detects) |
+| `normalizeUrl()` | `src/utils/urlDetection.ts` | `supabase/functions/short-form/utils/urlUtils.ts` | `check-sync:all` (auto-detects) |
+
+#### Workflow (When Editing Duplicated Configs)
+
+1. **Edit the frontend source of truth** (e.g., `src/types/shortFormApi.ts`)
+2. **Manually copy changes** to Edge Function file (e.g., `supabase/functions/short-form/types.ts`)
+3. **Validate sync**: `npm run check-sync:all`
+4. **Deploy with validation**: `npm run deploy:edge:short-form` (auto-validates before deploying)
+
+#### Available Commands
+
+**Primary check command**:
+```bash
+npm run check-sync:all  # Validates all duplicated configs before deploy
 ```
 
-**FUTURE IMPROVEMENT**: Consider implementing database-backed config (see Options discussion in git history) or build-time sync script for zero-duplication solution.
+**Deployment commands** (with validation):
+```bash
+npm run deploy:edge:short-form  # Validates sync, then deploys short-form function
+npm run deploy:edge:all         # Validates all, then deploys all Edge Functions
+```
+
+**Quality gates**:
+```bash
+npm run pre-deploy  # Typecheck + lint + sync validation
+npm run ci          # Full CI suite (includes build)
+```
+
+#### Automated Protection
+
+- **Deployment blocked** if configs are out of sync
+- **Clear error messages** showing which file to sync
+- **Exit code 1** stops deployment pipeline
+- **Fail-fast** behavior (stops on first mismatch)
+
+#### File Warnings
+
+All duplicated files have `⚠️ SYNC WARNING` comments at the top:
+- **Source files**: "SOURCE OF TRUTH - edit this, sync to Edge Function"
+- **Copy files**: "DO NOT EDIT DIRECTLY - synced from frontend"
+
+#### Future Improvements
+
+Consider migrating to **database-backed config** to eliminate duplication entirely:
+- Store configs in `app_config` table
+- Manage via admin dashboard
+- No sync needed, no deployment required for config changes
+- Suitable for A/B testing and feature flags
 
 ---
 
@@ -217,156 +408,85 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 
 ## Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| **Config out of sync / Edge Function outdated** | Copy changes from `src/config/aiConfig.ts` to Edge config, run `npm run deploy:edge` |
-| **"Cannot access before initialization"** | Define useCallback BEFORE useEffect that uses it (see Hook Ordering) |
-| **Infinite re-render loop** | Wrap async functions in useCallback if used in useEffect dependencies |
-| **State flag never sets (query.onSettled)** | Set state in useEffect with query.isFetched dependency instead |
-| **Badge/count not showing** | Initialize state where it's owned, not in child callback (see State Ownership) |
-| **Type mismatch runtime error** | Verify actual TypeScript types before implementing (not just plan docs) |
-| **URL comparison fails (duplicate detection)** | Use same `normalizeUrl()` function for both sides of comparison |
-| **404 Table Not Found** | Run `npx supabase db push` to deploy migrations |
-| **Frontend/Backend Mismatch** | Search-first: `rg "normalizeUrl" --type ts` → update ALL files |
-| **Hooks Order Error** | Order: useState → useQuery → useCallback/useMemo → derived state → useEffect |
-| **Background Polling Noise** | Hard refresh: `Ctrl+Shift+R` (Win) / `Cmd+Shift+R` (Mac) |
-| **React Query Side Effects** | Never set state in `queryFn`; use effects with query.isFetched |
-| **Missing useCallback deps** | Include ALL captured variables; wrap function before useEffect that uses it |
-| **Textarea overlay misaligned** | Use `getComputedStyle()` to mirror ALL font/spacing props, sync scroll position |
-| **Markdown highlighting breaks syntax** | Use rehype plugin to transform AST, don't split source text |
-| **Component styling inflexible** | Provide multiple className props (container, input, etc.) for granular control |
+| Issue | Fix |
+|-------|-----|
+| White screen after refactoring / "X is not defined" | Search for ALL references to removed item - for React state, search BOTH `variableName` AND `setVariableName` separately. Remove all uses, then test in browser. |
+| AI prompt/config changes not working | Edit `supabase/functions/ai-notes-check/config.ts` and redeploy with `npm run deploy:edge`. |
+| "Cannot access before initialization" | Declare `useCallback` before the `useEffect` that depends on it and keep the documented hook order. |
+| Infinite re-render loops | Wrap async effect logic in `useCallback`, reference it inside `useEffect`, and audit dependency arrays. |
+| Loading flags never flip | Read React Query state via `useEffect` watching `query.isFetched` or `query.status` instead of relying on `onSettled`. |
+| Runtime type mismatches | Inspect the actual TypeScript definitions before implementing; align inputs and outputs exactly. |
+| Duplicate detection misses | Normalize both stored and incoming URLs with the shared `normalizeUrl()` helper before comparison. |
+| Missing tables after migrations | Run `npx supabase db push` and confirm the schema in Supabase. |
+| Edge or external API 404s | Verify model IDs and endpoints against official docs before deployment. |
+| AI JSON parsing failures | Strip markdown code fences and guard JSON parsing with try/catch plus logging. |
+| New fields not persisting | Update every CRUD path (create/read/update/delete) and regenerate types whenever a schema field is added. |
+| Background polling noise | Hard refresh the browser (`Ctrl+Shift+R` / `Cmd+Shift+R`) after Supabase config changes. |
+| React Query side effects | Keep `queryFn` pure; move side effects into `onSuccess` or `useEffect`. |
+| Missing useCallback deps | Wrap the function first, then include every captured value in the dependency array. |
+| Textarea overlay misaligned | Mirror `getComputedStyle`, sync scroll offsets, and render text transparent. |
+| Markdown highlighting breaks syntax | Modify the rendered markdown AST with a rehype plugin instead of splitting source text. |
+| Component styling inflexible | Expose container/input className props so callers can match layout needs. |
+| AI suggestions degrade | Confirm transcripts and descriptions stay intact; never reapply truncation helpers. |
+| Table data pollution | Revalidate the table's purpose before adding fields and update migrations plus types. |
+| Prompt changes deployed but not working | Check `ai_processing_logs.input_data->>'systemPrompt'` to verify new prompt is actually being sent. |
+| AI generating duplicate suggestions | Put anti-duplication rules FIRST with visual emphasis; use domain-specific examples; force sequential workflow (list covered → propose new → filter). |
+| Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
+| Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
+| Config out of sync / Edge Function outdated | Run `npm run check-sync:all` to identify mismatches; copy changes from frontend source to Edge Function; always use `npm run deploy:edge:short-form` to auto-validate before deployment. |
+| Deployment blocked by sync check | Sync validation scripts detected config mismatch - copy changes from source of truth (frontend) to Edge Function copy; see file warnings for exact sync instructions. |
+| AGENTS.md out of sync with CLAUDE.md | Run `npm run sync:agents` to update AGENTS.md from CLAUDE.md. Always run this after modifying CLAUDE.md before committing. |
+| GitHub Actions `npm ci` failing | Check if `package-lock.json` exists in repo. If missing, change workflow to use `npm install` instead of `npm ci`. |
+| New GitHub Actions workflow not running on PR | Expected behavior - workflows added in a PR cannot run until merged to main branch (GitHub security model). Merge PR first, future PRs will work. |
+| CI workflow timing out | Adjust timeout-minutes: validation jobs 5min, AI/Claude jobs 10min, complex builds 15-30min. Add `timeout-minutes` to job configuration. |
+| Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
+| Edge Function changes not working | Deploy immediately after code changes: `npx supabase functions deploy <name>`. Don't wait for user to discover it's not deployed. `npm run build` does NOT deploy Edge Functions. |
 
 ## Lessons Learned
 
-### Comments System Implementation (2025-10-10)
-**Key Mistakes**:
-1. **Wrong Data Model**: Created separate `comment_replies` table instead of self-referential `comments` table with threading fields
-2. **Missing Fields**: Didn't include `body` field for comment text
-3. **Ignored Generated Types**: Didn't read generated types after migrations to sync implementation
-4. **Overcomplicated Types**: Created separate `CommentReply` type instead of using discriminator field
-5. **Boundary Condition Bug**: Left `changeStart <= startOffset` in offset recalculation, so edits at the anchor boundary shifted the highlight instead of expanding it.
+### Core Habits
+- Clarify requirements with concrete scenarios before choosing libraries or data models.
+- Search the codebase before writing new utilities or components; reuse or update shared patterns across frontend and backend.
+- Default to standardization: extend existing utilities/components/hooks instead of creating new variants, and only add net-new code when reuse is impossible and documented.
+- Read official docs and regenerate types before coding, and confirm the schema design with the user before creating migrations.
 
-**Key Takeaway**: **Data model clarity is MORE critical than algorithm optimization**. Ask about threading model BEFORE creating schema. After porting algorithms, explicitly test boundary cases (≤, ≥, equal) to avoid regressions like offset shifting.
+### Implementation Discipline
+- Keep React hooks ordered (`useState` -> data fetching -> memoization -> effects), wrap async work in `useCallback`, and initialize state where it lives.
+- Test incrementally: after EACH layer (utility → component → integration → storage), verify that layer in isolation before proceeding. Never batch all testing to the end.
+- **Verify stored data format**: For any persistence feature, query the database to confirm stored format. Build passing means "compiles", not "stores correctly".
+- **Standardize transformations**: When same transformation happens in multiple places (markdown→plain, encode/decode, format), create ONE utility and use everywhere. Red flag: data "fixes itself later" via background sync means transformation isn't applied at all entry points.
+- For overlays or markdown, mirror styles with `getComputedStyle`, sync scroll positions, and transform the rendered AST (rehype) rather than splitting source text.
+- When persistence relies on transformed text offsets (e.g., stripped markdown), store anchors using that same plain-text string and keep a cached selection from the editor so formatting markers never hit the database. Trace full pipeline: selection → storage → database.
+- For TipTap-based editors, track the last synced markdown in a ref and only call `setContent` when the upstream markdown actually changes; comparing raw HTML causes cursor resets.
+- When styling ProseMirror placeholders, add the `@tiptap/extension-placeholder` extension (with matching `emptyEditorClass`) so the CSS selector is triggered.
+- Surface save failures inside modal dialogs (e.g., inline alert state) so the user sees the error even while the dialog remains open.
+- For third-party UI libraries (TipTap, Monaco, Leaflet), read docs for required CSS imports and extension architecture; test component in isolation before integration.
+- When syncing bidirectional state (parent <-> child), use ref to track "last value I sent" to prevent feedback loops and cursor resets.
+- Memoize expensive library configurations (TipTap extensions, chart options) with `useMemo` to prevent unnecessary re-initializations.
+- Do root-cause analysis when something fails; do not patch symptoms without understanding them.
 
-### Markdown Editor Refactor (2025-10-10)
-**Key Mistakes**:
-1. **Requirements Misunderstanding**: Implemented Novel (WYSIWYG) when user wanted Obsidian-style toggle
-2. **Library API Misuse**: Used empty `extensions={[]}` causing "Schema missing top node type" error
-3. **No Incremental Testing**: Made multiple changes before testing
-4. **API Changes**: Used deprecated `className` prop in react-markdown v10+
-5. **Leftover Code**: Removed state but forgot to remove all references
+### Prompt & Backend Work
+- Treat prompt text, runtime parsers, and shared TypeScript types as a single unit--ship updates together and replay a real request immediately.
+- Use domain-specific examples and force sequential reasoning in prompts; verify results in `ai_processing_logs` before calling a change "done."
+- Question duplication: grep for imports before keeping parallel configs or helpers, and delete dead code instead of letting it drift.
+- Validate external integrations against official docs and production logs instead of assuming a passing build means success.
+- **For Edge Functions: Deploy → Test → Verify pipeline is mandatory**. Never present "testing instructions" without deploying first. `npm run build` only builds frontend, not Edge Functions.
+- For duplicated configs between frontend and Edge Functions: use TypeScript AST parsing for semantic comparison (not fragile regex), normalize whitespace/comments, and block deployments with clear error messages showing exact source-of-truth files.
 
-**Key Takeaway**: **Clarification BEFORE coding prevents wasted work**. One minute asking questions saves hours implementing wrong solution.
+### CI/CD & Infrastructure
+- Validate repository state before configuring workflows - check for package-lock.json, understand expected vs. actual setup.
+- Distinguish expected failures (new workflow security model) from bugs when explaining CI errors to users.
 
-### Comments Integration (Phases 4-7, 2025-10-11)
-**Key Mistakes**:
-1. **Hook Ordering Violation**: Put useEffect before useCallback, causing "Cannot access before initialization" even though CLAUDE.md documented this pattern
-2. **Type Mismatch**: Passed `initialReplyText` instead of `body` by following plan docs without verifying actual TypeScript types
-3. **State Ownership**: Added `commentCount` state to ResourceDetail but initialized it from child component's callback, causing badge to show nothing until dialog opened
-4. **useCallback Inconsistency**: Used useCallback for `loadComments` but not `loadResolvedComments`, inconsistent pattern application
+## Project Status (Updated 2025-10-17)
 
-**Key Takeaway**: **Having patterns documented isn't enough—need enforcement via pre-completion checklist**. Before marking ANY task complete:
-- ✓ Verify hook order: useState → useQuery → useCallback → useEffect
-- ✓ Check actual types match (not just plan assumptions)
-- ✓ Verify state initialized where owned (not by children)
-- ✓ Ensure async functions in useEffect are useCallback-wrapped
-- ✓ Run `npm run build` + `npm run lint`
+**Latest Update (2025-10-17) - AI Notes Check System**:
+- Phases 0-4 shipped: RLS-backed logging schema, shared config modules, Edge Function pipeline with defensive Anthropic integration, storage adapter APIs, and editor surface via `AINotesCheckTool`.
+- Phase 7 hardening: corrected model identifier, stripped markdown fences before JSON parsing, removed transcript truncation, ensured `input_data` persists, and expanded metadata sync.
+- Current focus: finish end-to-end validation, wire retry/error telemetry, and document handoff criteria before production flag.
 
-### Visual Highlighting Implementation (Phase 8, 2025-10-14)
-**Key Mistakes**:
-1. **Incomplete CSS Overlay**: Created TextHighlight without `getComputedStyle()` mirroring, scroll sync, or transparent text color - user had to add these after
-2. **Wrong Markdown Approach**: Split markdown source into segments and rendered each separately, breaking syntax across boundaries (e.g., splitting `**bo|ld**`)
-3. **Inflexible Component API**: Provided only one `className` prop when MarkdownField has both container and textarea elements - user added `textareaClassName`
-4. **No Incremental Testing**: Built all components and wired them up before testing in browser - user caught CSS issues after the fact
-
-**Root Causes**:
-- Didn't think through textarea overlay requirements (exact font/padding/spacing synchronization)
-- Didn't understand markdown parsers deeply (need to transform OUTPUT, not INPUT)
-- Didn't follow shadcn/ui pattern of multiple className props for complex components
-- Skipped browser testing until the end instead of testing each integration point
-
-**Key Takeaway**: **Test integration points immediately, not after all wiring is complete**. For components requiring precise CSS synchronization or DOM structure:
-1. Implement complete version with all CSS synchronization (not minimal MVP)
-2. Integrate into parent component
-3. **Test in browser immediately** - don't wait for build/lint
-4. For textarea overlays: ALWAYS use `getComputedStyle()` + scroll sync + transparent text
-5. For markdown processing: Transform the rendered AST (rehype plugin), never split source text
-6. For multi-element components: Provide granular className props from the start
-
-### Key Patterns
-- **Data Model First**: Clarify threading/relationship model BEFORE creating schema
-- **Generated Types = Truth**: Read generated types after migrations, sync implementation
-- **Type Verification**: Check actual TypeScript types BEFORE implementing (not plan docs)
-- **Discriminated Unions**: Use single type with discriminator over separate types
-- **Self-Referential Tables**: Prefer single table with foreign keys when parent/child are same type
-- **Hooks Order**: useState → useQuery → useCallback/useMemo → derived state → useEffect (ALWAYS)
-- **useCallback Pattern**: Async function + useEffect dependency = MUST wrap in useCallback
-- **State Ownership**: Initialize state where it's owned, not lazily by child components
-- **Callback Stability**: Never pass inline callbacks to custom hooks
-- **Pattern Consistency**: If you use a pattern correctly once, apply it EVERYWHERE
-- **Search-First**: Update ALL occurrences (frontend + backend) when changing shared logic
-- **Security**: Filter at query level BEFORE `.single()`
-- **Pre-Completion Checklist**: Use the mandatory checklist BEFORE marking ANY task complete
-- **Textarea Overlays**: Use `getComputedStyle()` to mirror ALL font/spacing props, sync scroll position, transparent text color
-- **Markdown Processing**: Use rehype plugins to transform AST, never split source text
-- **Component API Design**: Provide multiple className props for complex components (containerClassName, inputClassName, etc.)
-- **Incremental Testing**: Test each integration point in browser immediately after wiring, don't wait for end
-
-## Project Status (Updated 2025-10-11)
-
-**Latest Update (2025-10-11)**:
-- **Notes Commenting System** (Phases 0-5 Complete):
-  - **Phase 0-3** (Infrastructure):
-    - Database: Self-referential comments table with threading support
-    - Text anchoring: Character offset tracking with automatic stale detection (>50% text change)
-    - Storage adapter: Full CRUD operations with RLS security
-    - Text tracking: Debounced persistence (2s), real-time offset recalculation
-    - UI components: CommentToolbar, CommentCard (with threaded replies), CommentSidebar
-  - **Phase 4** (NotesEditorDialog Integration - COMPLETE):
-    - Dialog layout updated with toolbar and sidebar (1800px width)
-    - Comment state management with loading, creation, and activation
-    - Handler functions for create, reply, resolve, and delete operations
-    - Text tracking hook integrated for automatic offset updates
-    - ResourceDetail passes resourceId prop for comment loading
-  - **Phase 5** (Text Selection - COMPLETE):
-    - Text selection capture in MarkdownField (onSelect event)
-    - Character offset tracking (selectionStart/selectionEnd)
-    - "Add Comment" button enables when text selected
-    - Comment cards display quoted text as visual reference
-    - **Note**: In-editor visual highlighting deferred (architectural complexity)
-  - **Phase 6** (Resolution Modal - COMPLETE):
-    - ResolvedCommentsModal component for viewing archived comments
-    - Unresolve action to restore comments to active status
-    - Permanent delete with confirmation dialog
-    - Wired to "View Resolved" button in CommentToolbar
-  - **Phase 7** (ResourceDetail Badges - COMPLETE):
-    - Comment count badge on "Edit Notes" button
-    - Shows count of unresolved comments (e.g., "Edit [3]")
-    - Updates dynamically via onCommentCountChange callback
-    - Only displays when count > 0 (no clutter)
-  - **Phase 8** (Visual Highlighting - COMPLETE):
-    - In-editor visual highlights that sync with comment selection
-    - Highlight regions based on character offsets (startOffset/endOffset)
-    - Active state: Highlight selected comment's text region (blue)
-    - Hover state: Preview highlight when hovering comment card (lighter blue)
-    - Multiple highlights: Show all comment regions simultaneously (darker when overlapping)
-    - Handle edge cases: Stale comments filtered out (no visual highlight)
-    - Support both raw markdown and preview modes
-    - Implementation:
-      - TextHighlight component: Segment-based highlighting for raw markdown mode
-      - MarkdownHighlight component: Integrated highlighting for preview mode
-      - Mirror computed textarea styles + scroll offsets (`getComputedStyle`) so overlay highlights stay pixel-aligned; set overlay text color transparent to avoid "double text"
-      - Markdown preview highlighting uses a rehype plugin (`unist-util-visit`) instead of splitting markdown, preserving list/paragraph structure
-      - Hover events wired through CommentSidebar to trigger highlight previews
-      - Layered opacity system for overlapping comment regions
-  - **Remaining**: Phase 9-10 (Testing & validation, Polish)
-
-- **Markdown Editor Upgrade**: Replaced split-view editor with Obsidian-style toggle (raw markdown ↔ formatted preview)
-  - Uses react-markdown + remark-gfm + rehype-sanitize
-  - 60% smaller bundle size (976 KB → 389 KB vendor.js)
-  - Single field, click to edit → raw markdown visible, blur/save → formatted output
-  - GitHub Flavored Markdown support (tables, task lists, strikethrough)
-  - Tailwind Typography plugin for proper heading/list/blockquote styling
+**Earlier Highlights**:
+- 2025-10-11 - Notes Commenting System: self-referential schema with offset tracking, storage adapter CRUD, NotesEditorDialog integration, resolution modal, badges, and highlight overlays; Phase 9-10 polish/testing still pending.
+- 2025-10-11 - Markdown Editor Upgrade: Obsidian-style toggle using react-markdown + remark-gfm + rehype-sanitize, bundle shrink, and GitHub-flavored markdown styling via Tailwind Typography.
 
 **Core Features**:
 - ✅ React 18 + Vite + TypeScript + Tailwind + shadcn/ui
@@ -398,3 +518,7 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 ---
 
 **Remember**: Search-first, security-first, test end-to-end, no placeholders.
+
+
+
+

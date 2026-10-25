@@ -1,3 +1,6 @@
+/// <reference types="https://deno.land/std@0.208.0/types.d.ts" />
+/// <reference types="https://esm.sh/v135/@supabase/supabase-js@2/index.d.ts" />
+
 /**
  * Supabase Edge Function: AI Notes Check
  *
@@ -10,6 +13,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { stripMarkdown } from '../_shared/stripMarkdown.ts';
 import type {
   AINotesCheckRequest,
   AINotesCheckResponse,
@@ -81,8 +85,6 @@ async function getUserFromJWT(authHeader: string): Promise<User | null> {
  */
 async function fetchResourceData(resourceId: string, userId: string): Promise<Resource | null> {
   try {
-    console.log('[ai-notes-check] Fetching resource:', resourceId, 'for user:', userId);
-
     const { data, error } = await supabase
       .from('resources')
       .select('*')
@@ -100,12 +102,6 @@ async function fetchResourceData(resourceId: string, userId: string): Promise<Re
       return null;
     }
 
-    console.log('[ai-notes-check] Resource fetched successfully:', {
-      type: data.type,
-      notesLength: data.notes?.length || 0,
-      transcriptLength: data.transcript?.length || 0,
-    });
-
     return data as Resource;
   } catch (error) {
     console.error('[ai-notes-check] Exception fetching resource:', error);
@@ -118,8 +114,6 @@ async function fetchResourceData(resourceId: string, userId: string): Promise<Re
  */
 async function fetchExistingAIComments(resourceId: string, userId: string): Promise<Comment[]> {
   try {
-    console.log('[ai-notes-check] Fetching existing AI comments for resource:', resourceId);
-
     const { data, error } = await supabase
       .from('comments')
       .select('*')
@@ -133,8 +127,6 @@ async function fetchExistingAIComments(resourceId: string, userId: string): Prom
       console.error('[ai-notes-check] Error fetching AI comments:', error.message);
       return [];
     }
-
-    console.log('[ai-notes-check] Found', data?.length || 0, 'existing AI comments');
 
     return (data as Comment[]) || [];
   } catch (error) {
@@ -156,50 +148,55 @@ function buildPrompt(
 
   // Section 1: User Notes
   sections.push('# User Notes\n');
+  sections.push(
+    "- Reminder: The user's notes text is provided to you as a source of truth for the content of the resource, and what you are basing your suggestions on.\n"
+  );
+  sections.push('<user_notes>');
   if (notes && notes.trim().length > 0) {
     sections.push(notes);
   } else {
-    sections.push('(No notes provided yet)');
+    sections.push('(No notes provided yet, return some general comments about potential notes to add)');
   }
-  sections.push('\n');
+  sections.push('</user_notes>\n\n');
 
   // Section 2: Resource Metadata
   if (Object.keys(metadata).length > 0) {
     sections.push('# Resource Metadata\n');
+    sections.push(
+      '- Reminder: The resource metadata is provided to you as a source of truth for the content of the resource, and what you are basing your suggestions on.\n'
+    );
+    sections.push('<resource_metadata>\n');
     for (const [key, value] of Object.entries(metadata)) {
       if (value !== null && value !== undefined && value !== '') {
         // Include full metadata (especially transcripts - AI needs complete source material)
         sections.push(`**${key}**: ${String(value)}\n`);
       }
     }
-    sections.push('\n');
+    sections.push('</resource_metadata>\n\n');
   }
 
-  // Section 3: Existing AI Comments (to prevent duplicates)
+  // Section 3: Existing AI Comments (conditional)
   if (existingComments.length > 0) {
-    sections.push('# Existing AI Suggestions (Do NOT Duplicate)\n');
+    sections.push('# Existing AI Suggestions\n');
+    sections.push(
+      '- Reminder: The existing AI suggestions are provided to you to help you avoid creating duplicate and repetitive suggestions.\n'
+    );
+    sections.push('<existing_ai_suggestions>\n');
     existingComments.forEach((comment, index) => {
-      sections.push(`${index + 1}. ${comment.body}\n`);
+      const commentData = {
+        category: comment.ai_comment_category,
+        suggestionType: comment.ai_suggestion_type,
+        commentType: comment.comment_type,
+        body: comment.body,
+        quotedText: comment.quoted_text || null,
+        isStale: comment.is_stale || false,
+      };
+      sections.push(`${index + 1}. ${JSON.stringify(commentData, null, 2)}\n`);
     });
-    sections.push('\n');
+    sections.push('</existing_ai_suggestions>\n\n');
   }
-
-  // Section 4: Instructions
-  sections.push('# Task\n');
-  sections.push('Analyze the user notes and provide improvement suggestions as JSON comments.\n');
-  sections.push(`${AI_CONFIG.JSON_SCHEMA_INSTRUCTIONS}\n`);
 
   const prompt = sections.join('');
-
-  console.log('[ai-notes-check] Built prompt:', {
-    totalLength: prompt.length,
-    notesLength: notes.length,
-    metadataFields: Object.keys(metadata).length,
-    existingCommentsCount: existingComments.length,
-  });
-
-  // Log full prompt for debugging (can be disabled in production)
-  console.log('[ai-notes-check] Full prompt:\n', prompt);
 
   return prompt;
 }
@@ -219,8 +216,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
   };
 }> {
   try {
-    console.log('[ai-notes-check] Calling Anthropic API...');
-
     const requestBody: AnthropicRequest = {
       model: AI_CONFIG.MODEL,
       max_tokens: 4096,
@@ -229,6 +224,10 @@ async function callAnthropicAPI(prompt: string): Promise<{
         {
           role: 'user',
           content: prompt,
+        },
+        {
+          role: 'assistant',
+          content: '{',
         },
       ],
       temperature: 0.7,
@@ -252,13 +251,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
 
     const data: AnthropicResponse = await response.json();
 
-    console.log('[ai-notes-check] Anthropic API response received:', {
-      model: data.model,
-      stopReason: data.stop_reason,
-      inputTokens: data.usage.input_tokens,
-      outputTokens: data.usage.output_tokens,
-    });
-
     // Extract text from response
     if (!data.content || data.content.length === 0) {
       console.error('[ai-notes-check] No content in Anthropic response');
@@ -266,10 +258,6 @@ async function callAnthropicAPI(prompt: string): Promise<{
     }
 
     let responseText = data.content[0].text;
-    console.log('[ai-notes-check] Response text length:', responseText.length);
-
-    // Log full response for debugging (can be disabled in production)
-    console.log('[ai-notes-check] Full AI response:\n', responseText);
 
     // Strip markdown code fences if present (e.g., ```json ... ```)
     responseText = responseText.trim();
@@ -278,30 +266,73 @@ async function callAnthropicAPI(prompt: string): Promise<{
       responseText = responseText.replace(/^```(?:json)?\s*\n?/, '');
       // Remove closing fence
       responseText = responseText.replace(/\n?```\s*$/, '');
-      console.log('[ai-notes-check] Stripped markdown code fences from response');
     }
 
-    // Log cleaned response
-    console.log('[ai-notes-check] Cleaned response for parsing:\n', responseText);
+    responseText = responseText.trim();
+
+    if (responseText.length === 0) {
+      console.error('[ai-notes-check] AI response empty after removing markdown fences');
+      throw new Error('AI response empty after cleaning');
+    }
+
+    if (!responseText.startsWith('{')) {
+      responseText = '{' + responseText;
+    }
+
+    const firstBraceIndex = responseText.indexOf('{');
+    const lastBraceIndex = responseText.lastIndexOf('}');
+
+    if (firstBraceIndex === -1 || lastBraceIndex === -1 || firstBraceIndex > lastBraceIndex) {
+      console.error('[ai-notes-check] Could not locate JSON object in AI response');
+      throw new Error('AI response missing JSON object');
+    }
+
+    const prefixText = responseText.slice(0, firstBraceIndex).trim();
+    const suffixText = responseText.slice(lastBraceIndex + 1).trim();
+
+    if (prefixText.length > 0 || suffixText.length > 0) {
+      const issues: string[] = [];
+      if (prefixText.length > 0) {
+        issues.push('text before the JSON object');
+      }
+      if (suffixText.length > 0) {
+        issues.push('text after the JSON object');
+      }
+      console.error('[ai-notes-check] AI response contains extra text around JSON:', {
+        prefixSnippet: prefixText.slice(0, 100),
+        suffixSnippet: suffixText.slice(0, 100),
+      });
+      throw new Error(`AI response contains ${issues.join(' and ')}`);
+    }
+
+    const jsonPayload = responseText.slice(firstBraceIndex, lastBraceIndex + 1);
 
     // Parse JSON response
     let parsedResponse: AICommentsResponse;
     try {
-      parsedResponse = JSON.parse(responseText);
+      parsedResponse = JSON.parse(jsonPayload);
     } catch (parseError) {
       console.error('[ai-notes-check] Failed to parse AI response as JSON:', parseError);
-      console.error('[ai-notes-check] Response text:', responseText.substring(0, 200));
+      console.error('[ai-notes-check] Response text:', jsonPayload);
       throw new Error('AI returned invalid JSON');
     }
 
-    // Validate response structure
-    if (!parsedResponse.comments || !Array.isArray(parsedResponse.comments)) {
-      console.error('[ai-notes-check] Invalid response structure - missing comments array');
-      throw new Error('Invalid AI response structure');
-    }
+    const responseComments = Array.isArray(parsedResponse.comments)
+      ? parsedResponse.comments
+      : (() => {
+          if (parsedResponse.comments !== undefined && parsedResponse.comments !== null) {
+            console.warn('[ai-notes-check] Comments field was not an array; coercing to empty array.');
+          }
+          return [];
+        })();
+
+    const noCommentsMessage =
+      typeof parsedResponse.no_comments_message === 'string'
+        ? parsedResponse.no_comments_message
+        : undefined;
 
     // Validate and filter comments
-    const validComments = parsedResponse.comments.filter((comment) => {
+    const validComments = responseComments.filter((comment) => {
       // Check required fields
       if (!comment.category || !comment.suggestionType || !comment.body) {
         console.warn('[ai-notes-check] Skipping comment with missing fields:', comment);
@@ -333,6 +364,14 @@ async function callAnthropicAPI(prompt: string): Promise<{
           console.warn('[ai-notes-check] Skipping selected_text comment with invalid selectedText');
           return false;
         }
+
+        if (comment.selectedText.length > AI_CONFIG.MAX_SELECTED_TEXT_LENGTH) {
+          console.warn(
+            '[ai-notes-check] Skipping selected_text comment with overly long selectedText:',
+            comment.selectedText.length
+          );
+          return false;
+        }
       } else {
         // General comments should have null selectedText
         comment.selectedText = null;
@@ -341,18 +380,28 @@ async function callAnthropicAPI(prompt: string): Promise<{
       return true;
     });
 
-    console.log('[ai-notes-check] Validated', validComments.length, 'of', parsedResponse.comments.length, 'comments');
-
     // Limit to MAX_COMMENTS_PER_RUN
     const limitedComments = validComments.slice(0, AI_CONFIG.MAX_COMMENTS_PER_RUN);
 
-    if (limitedComments.length < validComments.length) {
-      console.log('[ai-notes-check] Limited comments from', validComments.length, 'to', AI_CONFIG.MAX_COMMENTS_PER_RUN);
+    let normalizedNoCommentsMessage: string | undefined;
+    if (limitedComments.length === 0) {
+      if (noCommentsMessage && noCommentsMessage !== 'No new suggestions to add.') {
+        console.warn('[ai-notes-check] Unexpected no_comments_message value:', noCommentsMessage);
+      }
+      normalizedNoCommentsMessage = 'No new suggestions to add.';
+    } else {
+      if (noCommentsMessage) {
+        console.warn('[ai-notes-check] Ignoring no_comments_message because comments array is not empty:', noCommentsMessage);
+      }
+      normalizedNoCommentsMessage = undefined;
     }
 
     // Return both response and metadata for logging
     return {
-      response: { comments: limitedComments },
+      response: {
+        comments: limitedComments,
+        no_comments_message: normalizedNoCommentsMessage,
+      },
       metadata: {
         model: data.model,
         inputTokens: data.usage.input_tokens,
@@ -369,30 +418,57 @@ async function callAnthropicAPI(prompt: string): Promise<{
 
 /**
  * Find exact text match in notes
+ * Returns match details or error reason
+ *
+ * CRITICAL: This function strips markdown from BOTH inputs before matching.
+ * This ensures AI-generated comments use the same plain text coordinate system
+ * as user-created comments, enabling consistent staleness detection.
+ *
+ * Flow:
+ * 1. AI receives markdown notes in prompt: "**bold** text"
+ * 2. AI quotes from markdown: may return "**bold**" or "bold"
+ * 3. We strip both: notes → "bold text", selectedText → "bold"
+ * 4. Match in plain text and calculate offsets in plain text space
+ * 5. Store plain text offsets (matching frontend behavior)
  */
-function findExactTextMatch(notes: string, selectedText: string): { start: number; end: number } | null {
-  // Find first occurrence
-  const index = notes.indexOf(selectedText);
+function findExactTextMatch(
+  notes: string,
+  selectedText: string
+): { match: { start: number; end: number } | null; error: string | null } {
+  // Strip markdown from BOTH inputs to work in plain text coordinate space
+  // This matches the frontend behavior when users create comments
+  const plainNotes = stripMarkdown(notes);
+  const plainSelectedText = stripMarkdown(selectedText);
+
+  // Find first occurrence in plain text
+  const index = plainNotes.indexOf(plainSelectedText);
 
   if (index === -1) {
     // Text not found
-    console.log('[ai-notes-check] Text not found in notes');
-    return null;
+    return {
+      match: null,
+      error: 'Text not found in current notes (may have been edited during AI processing)',
+    };
   }
 
   // Check for multiple occurrences (ambiguous)
-  const secondOccurrence = notes.indexOf(selectedText, index + 1);
+  const secondOccurrence = plainNotes.indexOf(plainSelectedText, index + 1);
 
   if (secondOccurrence !== -1) {
     // Text appears multiple times - ambiguous
-    console.log('[ai-notes-check] Text appears multiple times in notes (ambiguous)');
-    return null;
+    return {
+      match: null,
+      error: 'Text appears multiple times in notes (ambiguous - need longer selection for unique match)',
+    };
   }
 
-  // Unique match found
+  // Unique match found - return plain text offsets
   return {
-    start: index,
-    end: index + selectedText.length,
+    match: {
+      start: index,
+      end: index + plainSelectedText.length,
+    },
+    error: null,
   };
 }
 
@@ -405,37 +481,34 @@ async function processCommentWithRetry(
   attemptNumber: number
 ): Promise<{ success: boolean; commentId?: string; error?: string }> {
   try {
-    console.log('[ai-notes-check] Processing comment:', {
-      category: suggestion.category,
-      suggestionType: suggestion.suggestionType,
-      attemptNumber,
-    });
-
     let startOffset: number | null = null;
     let endOffset: number | null = null;
     let quotedText: string | null = null;
 
     // Handle selected-text comments
     if (suggestion.category === 'selected_text' && suggestion.selectedText) {
-      const match = findExactTextMatch(context.notes, suggestion.selectedText);
+      const result = findExactTextMatch(context.notes, suggestion.selectedText);
 
-      if (!match) {
+      if (!result.match) {
         // Text matching failed
-        if (attemptNumber < AI_CONFIG.MAX_RETRY_ATTEMPTS) {
-          console.log('[ai-notes-check] Text match failed, would retry, but retry with AI feedback not yet implemented');
-          // TODO: In a future enhancement, we could call the AI again with feedback
-          // For now, we'll just fail this comment
-        }
+        // TODO: In a future enhancement, we could call the AI again with feedback
+        // For now, we'll just fail this comment
 
         return {
           success: false,
-          error: 'text_match_failed',
+          error: result.error || 'text_match_failed',
         };
       }
 
-      startOffset = match.start;
-      endOffset = match.end;
-      quotedText = suggestion.selectedText;
+      startOffset = result.match.start;
+      endOffset = result.match.end;
+
+      // CRITICAL: Extract the actual plain text at these offsets
+      // Do NOT use AI's raw selectedText (may contain markdown)
+      // This ensures quoted_text exactly matches the plain text at the offsets
+      // matching frontend behavior (NotesEditorDialog.tsx does the same)
+      const plainNotes = stripMarkdown(context.notes);
+      quotedText = plainNotes.slice(startOffset, endOffset);
     }
 
     // Create the comment in the database
@@ -450,6 +523,7 @@ async function processCommentWithRetry(
         start_offset: startOffset,
         end_offset: endOffset,
         quoted_text: quotedText,
+        original_quoted_text: quotedText, // Baseline for staleness detection (matches frontend pattern)
         is_stale: false,
         created_by_ai: true,
         ai_comment_category: suggestion.category,
@@ -467,8 +541,6 @@ async function processCommentWithRetry(
         error: error.message,
       };
     }
-
-    console.log('[ai-notes-check] Comment created successfully:', data.id);
 
     return {
       success: true,
@@ -488,8 +560,6 @@ async function processCommentWithRetry(
  */
 async function createProcessingLog(log: Partial<AIProcessingLog>): Promise<string> {
   try {
-    console.log('[ai-notes-check] Creating processing log');
-
     const { data, error } = await supabase
       .from('ai_processing_logs')
       .insert({
@@ -514,7 +584,6 @@ async function createProcessingLog(log: Partial<AIProcessingLog>): Promise<strin
       return 'log-error-' + Date.now();
     }
 
-    console.log('[ai-notes-check] Processing log created:', data.id);
     return data.id;
   } catch (error) {
     console.error('[ai-notes-check] Exception creating processing log:', error);
@@ -529,11 +598,8 @@ async function updateProcessingLog(logId: string, updates: Partial<AIProcessingL
   try {
     // Skip if this is a placeholder ID from a failed log creation
     if (logId.startsWith('log-error-') || logId.startsWith('log-exception-')) {
-      console.log('[ai-notes-check] Skipping update for placeholder log ID');
       return;
     }
-
-    console.log('[ai-notes-check] Updating processing log:', logId);
 
     const { error } = await supabase
       .from('ai_processing_logs')
@@ -549,8 +615,6 @@ async function updateProcessingLog(logId: string, updates: Partial<AIProcessingL
     if (error) {
       console.error('[ai-notes-check] Error updating processing log:', error.message);
       // Don't throw - logging failures shouldn't fail the operation
-    } else {
-      console.log('[ai-notes-check] Processing log updated successfully');
     }
   } catch (error) {
     console.error('[ai-notes-check] Exception updating processing log:', error);
@@ -582,6 +646,7 @@ Deno.serve(async (req: Request) => {
             code: 'unauthorized',
             message: 'Authorization required',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 401,
@@ -600,6 +665,7 @@ Deno.serve(async (req: Request) => {
             code: 'unauthorized',
             message: 'Invalid or expired token',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 401,
@@ -607,8 +673,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    console.log('[ai-notes-check] Authenticated user:', user.id);
 
     // 2. Parse request
     let body: AINotesCheckRequest;
@@ -623,6 +687,7 @@ Deno.serve(async (req: Request) => {
             code: 'invalid_request',
             message: 'Invalid JSON body',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 400,
@@ -640,6 +705,7 @@ Deno.serve(async (req: Request) => {
             code: 'invalid_request',
             message: 'Missing resourceId',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 400,
@@ -647,8 +713,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    console.log('[ai-notes-check] Processing resource:', body.resourceId);
 
     // 3. Create processing log
     const processingLogId = await createProcessingLog({
@@ -678,6 +742,7 @@ Deno.serve(async (req: Request) => {
               code: 'resource_not_found',
               message: 'Resource not found or you do not have access to it',
             },
+            noCommentsMessage: null,
           } as AINotesCheckResponse,
           {
             status: 404,
@@ -686,42 +751,13 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      // 5. Check if notes are empty
-      if (!resource.notes || resource.notes.trim().length === 0) {
-        await updateProcessingLog(processingLogId, {
-          status: 'failed',
-          error_details: { message: 'Notes are empty' },
-          processing_time_ms: Date.now() - startTime,
-        });
-
-        return Response.json(
-          {
-            success: false,
-            error: {
-              code: 'empty_notes',
-              message: 'Cannot analyze empty notes. Please add some notes first.',
-            },
-          } as AINotesCheckResponse,
-          {
-            status: 400,
-            headers: corsHeaders,
-          }
-        );
-      }
-
-      // 6. Fetch existing AI comments (to prevent duplicates)
+      // 5. Fetch existing AI comments (to prevent duplicates)
       const existingComments = await fetchExistingAIComments(body.resourceId, user.id);
 
-      // 7. Extract relevant metadata
+      // 6. Extract relevant metadata
       const metadata = getAIMetadataForResource(resource);
 
-      console.log('[ai-notes-check] Context gathered:', {
-        notesLength: resource.notes.length,
-        metadataFields: Object.keys(metadata).length,
-        existingComments: existingComments.length,
-      });
-
-      // 8. Build prompt and call Anthropic API
+      // 7. Build prompt and call Anthropic API
       const prompt = buildPrompt(resource.notes, metadata, existingComments);
 
       let aiResult: {
@@ -743,7 +779,8 @@ Deno.serve(async (req: Request) => {
           status: 'failed',
           input_data: {
             prompt, // Full prompt that was attempted
-            notesLength: resource.notes.length,
+            notesMarkdownLength: resource.notes.length,
+            notesPlainTextLength: stripMarkdown(resource.notes).length,
             metadataFields: Object.keys(metadata),
           },
           error_details: {
@@ -760,6 +797,7 @@ Deno.serve(async (req: Request) => {
               code: 'ai_api_error',
               message: 'Failed to get suggestions from AI. Please try again later.',
             },
+            noCommentsMessage: null,
           } as AINotesCheckResponse,
           {
             status: 500,
@@ -769,9 +807,54 @@ Deno.serve(async (req: Request) => {
       }
 
       const aiResponse = aiResult.response;
-      console.log('[ai-notes-check] Received', aiResponse.comments.length, 'suggestions from AI');
 
-      // 9. Process each suggestion and create comments
+      // 9. Handle no-comments case (completed run without new suggestions)
+      if (aiResponse.comments.length === 0) {
+        const processingTimeMs = Date.now() - startTime;
+        const noCommentsMessage = aiResponse.no_comments_message ?? 'No new suggestions to add.';
+
+        await updateProcessingLog(processingLogId, {
+          status: 'completed',
+          input_data: {
+            systemPrompt: AI_CONFIG.SYSTEM_PROMPT,
+            prompt,
+            notesMarkdownLength: resource.notes.length,
+            notesPlainTextLength: stripMarkdown(resource.notes).length,
+            transcriptLength: resource.transcript?.length || 0,
+            metadataFields: Object.keys(metadata),
+            existingAIComments: existingComments.length,
+          },
+          output_data: {
+            commentsCreated: 0,
+            commentsFailed: 0,
+            totalSuggestions: 0,
+            noCommentsMessage,
+            failedComments: [],
+            model: aiResult.metadata.model,
+            inputTokens: aiResult.metadata.inputTokens,
+            outputTokens: aiResult.metadata.outputTokens,
+            stopReason: aiResult.metadata.stopReason,
+            rawResponse: aiResult.metadata.rawResponse,
+          },
+          processing_time_ms: processingTimeMs,
+        });
+
+        return Response.json(
+          {
+            success: true,
+            commentsCreated: 0,
+            commentsFailed: 0,
+            noCommentsMessage,
+            processingLogId,
+          } as AINotesCheckResponse,
+          {
+            status: 200,
+            headers: corsHeaders,
+          }
+        );
+      }
+
+      // 10. Process each suggestion and create comments
       let commentsCreated = 0;
       let commentsFailed = 0;
       const failedComments: Array<{ suggestion: AICommentSuggestion; error: string }> = [];
@@ -796,12 +879,7 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      console.log('[ai-notes-check] Processing complete:', {
-        commentsCreated,
-        commentsFailed,
-      });
-
-      // 10. Update processing log with results
+      // 11. Update processing log with results
       const processingTimeMs = Date.now() - startTime;
       const finalStatus: 'completed' | 'partial_success' | 'failed' =
         commentsCreated > 0 && commentsFailed === 0
@@ -813,8 +891,10 @@ Deno.serve(async (req: Request) => {
       await updateProcessingLog(processingLogId, {
         status: finalStatus,
         input_data: {
-          prompt, // Full prompt sent to Claude
-          notesLength: resource.notes.length,
+          systemPrompt: AI_CONFIG.SYSTEM_PROMPT, // System prompt sent to Claude
+          prompt, // User message prompt sent to Claude
+          notesMarkdownLength: resource.notes.length,
+          notesPlainTextLength: stripMarkdown(resource.notes).length,
           transcriptLength: resource.transcript?.length || 0,
           metadataFields: Object.keys(metadata), // Which fields were included in prompt
           existingAIComments: existingComments.length,
@@ -823,7 +903,14 @@ Deno.serve(async (req: Request) => {
           commentsCreated,
           commentsFailed,
           totalSuggestions: aiResponse.comments.length,
-          failedReasons: failedComments.map((fc) => fc.error),
+          noCommentsMessage: aiResponse.no_comments_message ?? null,
+          failedComments: failedComments.map((fc) => ({
+            category: fc.suggestion.category,
+            suggestionType: fc.suggestion.suggestionType,
+            body: fc.suggestion.body,
+            selectedText: fc.suggestion.selectedText || null,
+            error: fc.error,
+          })),
           model: aiResult.metadata.model,
           inputTokens: aiResult.metadata.inputTokens,
           outputTokens: aiResult.metadata.outputTokens,
@@ -833,12 +920,13 @@ Deno.serve(async (req: Request) => {
         processing_time_ms: processingTimeMs,
       });
 
-      // 11. Return success response
+      // 12. Return success response
       return Response.json(
         {
           success: true,
           commentsCreated,
           commentsFailed,
+          noCommentsMessage: aiResponse.no_comments_message ?? null,
           processingLogId,
         } as AINotesCheckResponse,
         {
@@ -867,6 +955,7 @@ Deno.serve(async (req: Request) => {
             code: 'processing_error',
             message: 'An error occurred while processing your notes. Please try again.',
           },
+          noCommentsMessage: null,
         } as AINotesCheckResponse,
         {
           status: 500,
@@ -886,6 +975,7 @@ Deno.serve(async (req: Request) => {
           code: 'internal_error',
           message: 'An unexpected error occurred',
         },
+        noCommentsMessage: null,
       } as AINotesCheckResponse,
       {
         status: 500,
@@ -894,5 +984,3 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
-
-console.log('[ai-notes-check] Edge Function initialized');
