@@ -1,9 +1,13 @@
 import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 const NotFound = () => {
   const location = useLocation();
+  const { user } = useAuth();
+  const targetPath = user ? "/dashboard" : "/";
+  const buttonLabel = user ? "Return to Dashboard" : "Return to Home";
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
@@ -17,9 +21,9 @@ const NotFound = () => {
         </div>
         <h1 className="text-4xl font-bold mb-4 bg-gradient-knowledge bg-clip-text text-transparent">404</h1>
         <p className="text-xl text-muted-foreground mb-8">This page doesn't exist in your knowledge vault</p>
-        <Link to="/dashboard">
+        <Link to={targetPath}>
           <Button className="bg-gradient-primary hover:shadow-knowledge transition-smooth">
-            Return to Dashboard
+            {buttonLabel}
           </Button>
         </Link>
       </div>
