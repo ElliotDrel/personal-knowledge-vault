@@ -90,7 +90,7 @@ After running `npx supabase db push`, ALWAYS verify migrations succeeded:
 ### End-to-End Workflow
 - [ ] Navigate to all routes: `/`, `/resources`, `/resources/new`, `/resource/:id`, `/settings`
 - [ ] Create resource → verify navigation to detail page
-- [ ] Test both authenticated (Supabase) and unauthenticated (localStorage) modes
+- [ ] Test authenticated mode with Supabase (all users must be authenticated)
 - [ ] Verify loading states and error handling
 
 ### Full-Stack Features (Frontend + Backend)
@@ -193,7 +193,7 @@ Wrap each case in `{ }` braces to scope `const` declarations: `case 'video': { c
 ## Project Status (Updated 2025-10-02)
 
 **Completed**:
-- ✅ Phases 1-6: Core frontend, authentication, hybrid storage (Supabase + localStorage)
+- ✅ Phases 1-6: Core frontend, authentication, Supabase-only storage (localStorage removed)
 - ✅ Short-Form Video Phase 5: YouTube integration, metadata extraction, dashboard UI, job recovery
 - ✅ URL Processing Refactor: Dashboard input, auto-processing, duplicate detection, front/back parity
 - ✅ Short-Video Type Refactor: First-class type, flat metadata, purple theme, platform filtering
