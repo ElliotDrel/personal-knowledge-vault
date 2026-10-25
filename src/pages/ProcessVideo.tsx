@@ -304,7 +304,7 @@ export default function ProcessVideo() {
         body: JSON.stringify({
           url: videoUrl,
           options: {
-            includeTranscript: false
+            includeTranscript: true
           }
         } satisfies ProcessVideoRequest)
       })
