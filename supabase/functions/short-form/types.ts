@@ -53,7 +53,6 @@ export interface ProcessVideoRequest {
   url: string;
   options?: {
     includeTranscript?: boolean;
-    forceRefresh?: boolean;
   };
 }
 
@@ -185,7 +184,6 @@ export interface ProcessingJobRecord {
   updated_at: string;
   completed_at?: string;
   include_transcript: boolean;
-  force_refresh: boolean;
 }
 
 // Platform configuration
