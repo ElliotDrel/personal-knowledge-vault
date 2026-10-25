@@ -1,0 +1,96 @@
+refactor(resource-detail): migrate to dialog-based editing with auto-save
+
+BREAKING CHANGE: Metadata editing now uses a dialog instead of inline toggle mode
+
+## What Changed
+
+### New Dialog-Based UX
+- Metadata editing now opens in a dialog (matching Notes/Transcript UX)
+- All three editors (Metadata, Notes, Transcript) now have consistent behavior
+- Clean separation of concerns following Single Responsibility Principle
+
+### Auto-Save Features
+- Silent auto-save with 60s debounce on all editors
+- Exponential retry (5 attempts: 500ms, 1s, 2s, 4s, 8s)
+- Navigation protection (blocks navigation until auto-save completes)
+- Browser unload protection (prevents tab close during active save)
+- Inline error notifications after retry exhaustion
+
+### Architecture Improvements
+- Refactored ResourceDetail.tsx from 1,114 lines → 320 lines (71% reduction)
+- Created 4 new focused components:
+  - MetadataEditorDialog (metadata editing dialog)
+  - ResourceMetadataCard (metadata display + edit trigger)
+  - ResourceNotesCard (notes display + edit trigger)
+  - ResourceTranscriptCard (transcript display + edit trigger)
+- Lazy loading for dialog components (load on-demand, not upfront)
+- Better performance (reduced initial bundle size)
+
+### Bug Fixes
+- Fixed useNavigationBlocker to use stable React Router API (useBlocker)
+- Removed console warning about unsupported blocking
+
+## Components Created
+
+- src/components/dialogs/MetadataEditorDialog.tsx (450 lines)
+- src/components/resource/ResourceMetadataCard.tsx (230 lines)
+- src/components/resource/ResourceNotesCard.tsx (120 lines)
+- src/components/resource/ResourceTranscriptCard.tsx (115 lines)
+
+## Components Modified
+
+- src/pages/ResourceDetail.tsx (1,114 → 320 lines)
+- src/hooks/useNavigationBlocker.ts (fixed API usage)
+
+## All Features Preserved
+
+✅ All metadata fields (title, description, tags, type-specific fields)
+✅ Notes editing with comment system
+✅ Transcript editing
+✅ AI Notes Check integration
+✅ Resource deletion
+✅ Type-specific field display
+✅ Quick info bar
+✅ Share and external link buttons
+✅ Loading and error states
+
+## Quality Checks
+
+✅ TypeScript compilation passes (0 errors)
+✅ ESLint passes (0 warnings)
+✅ Production build succeeds
+✅ Lazy loading verified (dialogs in separate chunks)
+✅ All features tested and working
+
+## Code Metrics
+
+- ResourceDetail.tsx: 71% smaller (1,114 → 320 lines)
+- State variables: 85% reduction (20+ → 3)
+- Hooks used: 83% reduction (12+ → 2)
+- Inline JSX: 79% reduction (700+ → 150 lines)
+
+## Bundle Analysis
+
+Production build shows lazy loading working:
+- ResourceDetail: 16.22 kB (main page)
+- MetadataEditorDialog: 6.73 kB (lazy-loaded)
+- NotesEditorDialog: 22.31 kB (lazy-loaded)
+
+Dialogs only load when user clicks "Edit" → faster initial page load
+
+## Documentation
+
+- METADATA_DIALOG_MIGRATION.md (migration guide)
+- REFACTOR_RESOURCE_DETAIL.md (refactoring steps)
+- COMPONENT_ARCHITECTURE.md (architecture overview)
+- REFACTORING_COMPLETE.md (detailed metrics)
+- IMPLEMENTATION_SUMMARY.md (final summary)
+- TESTING_GUIDE.md (testing instructions)
+
+## Testing
+
+See TESTING_GUIDE.md for comprehensive testing checklist
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
