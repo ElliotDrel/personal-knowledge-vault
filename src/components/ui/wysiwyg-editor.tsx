@@ -4,9 +4,11 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { marked } from 'marked';
 import TurndownService from 'turndown';
+import { useDebouncedCallback } from 'use-debounce';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { stripMarkdown } from '@/utils/stripMarkdown';
+import { stripMarkdown, normalizePlainTextWhitespace } from '@/utils/stripMarkdown';
+import { sanitizeHtml } from '@/utils/sanitizeHtml';
 import {
   Bold,
   Italic,
@@ -86,9 +88,28 @@ export function WYSIWYGEditor({
   autoFocus = false,
   onSelectionChange,
 }: WYSIWYGEditorProps) {
-  // Convert markdown to HTML for initial content
-  const initialHtml = marked(value || '') as string;
+  // Convert markdown to sanitized HTML for initial content
+  const initialHtml = useMemo(() => sanitizeHtml(marked(value || '') as string), [value]);
   const lastSyncedMarkdownRef = useRef(value ?? '');
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const debouncedOnChange = useDebouncedCallback(
+    (markdown: string) => {
+      onChangeRef.current?.(markdown);
+    },
+    300,
+    { maxWait: 1000 },
+  );
+
+  useEffect(() => {
+    return () => {
+      debouncedOnChange.flush();
+    };
+  }, [debouncedOnChange]);
 
   const extensions = useMemo(
     () => [
@@ -117,14 +138,27 @@ export function WYSIWYGEditor({
         class: 'prose prose-sm sm:prose-base max-w-none focus:outline-none p-4',
         'data-placeholder': placeholder,
       },
+      handleDOMEvents: {
+        blur: () => {
+          debouncedOnChange.flush();
+          return false;
+        },
+      },
     },
     onUpdate: ({ editor }) => {
-      if (onChange && !readOnly) {
-        const html = editor.getHTML();
-        const markdown = turndownService.turndown(html);
-        onChange(markdown);
-        lastSyncedMarkdownRef.current = markdown;
+      if (readOnly) {
+        return;
       }
+
+      const sanitizedHtml = sanitizeHtml(editor.getHTML());
+      const markdown = turndownService.turndown(sanitizedHtml);
+      lastSyncedMarkdownRef.current = markdown;
+
+      if (!onChangeRef.current) {
+        return;
+      }
+
+      debouncedOnChange(markdown);
     },
     onSelectionUpdate: ({ editor }) => {
       if (!onSelectionChange) return;
@@ -137,43 +171,49 @@ export function WYSIWYGEditor({
         return;
       }
 
-      // Get selected text from editor (plain text, no formatting)
-      const selectedText = editor.state.doc.textBetween(from, to);
+      const rawSelectedText = editor.state.doc.textBetween(from, to, '\n');
+      const normalizedSelectedText = normalizePlainTextWhitespace(rawSelectedText, {
+        trimEdges: false,
+      });
 
-      // Convert current content to markdown
-      const html = editor.getHTML();
-      const markdown = turndownService.turndown(html);
+      if (!normalizedSelectedText.trim()) {
+        onSelectionChange(null);
+        return;
+      }
 
-      // Strip markdown formatting to get plain text version
-      // This removes ** for bold, * for italic, etc.
+      const rawTextBeforeSelection = editor.state.doc.textBetween(0, from, '\n');
+      const normalizedTextBeforeSelection = normalizePlainTextWhitespace(
+        rawTextBeforeSelection,
+        { trimEdges: false },
+      );
+
+      const sanitizedHtml = sanitizeHtml(editor.getHTML());
+      const markdown = turndownService.turndown(sanitizedHtml);
       const plainText = stripMarkdown(markdown);
 
-      // Find the selected text in the plain text version
-      // This works reliably because both selectedText and plainText have no formatting
-      const plainTextStartIndex = plainText.indexOf(selectedText);
+      const start = normalizedTextBeforeSelection.length;
+      const end = start + normalizedSelectedText.length;
+      const plainTextSelection = plainText.slice(start, end);
 
-      if (plainTextStartIndex >= 0) {
-        // Found the selection in plain text - use these offsets
-        onSelectionChange({
-          text: selectedText, // Plain text without markdown syntax
-          start: plainTextStartIndex,
-          end: plainTextStartIndex + selectedText.length,
-        });
-      } else {
-        // Fallback: use text content positions from editor
-        // This should rarely happen now that we're using stripped text
-        const textBeforeSelection = editor.state.doc.textBetween(0, from);
-        const textThroughSelection = editor.state.doc.textBetween(0, to);
-
-        const textFrom = stripMarkdown(textBeforeSelection).length;
-        const textTo = stripMarkdown(textThroughSelection).length;
-
-        onSelectionChange({
-          text: selectedText,
-          start: textFrom,
-          end: textTo,
+      if (plainTextSelection !== normalizedSelectedText) {
+        console.warn('[WYSIWYGEditor] Plain text selection mismatch detected.', {
+          normalizedSelectedText,
+          plainTextSelection,
+          start,
+          end,
         });
       }
+
+      if (!plainTextSelection.trim()) {
+        onSelectionChange(null);
+        return;
+      }
+
+      onSelectionChange({
+        text: plainTextSelection,
+        start,
+        end,
+      });
     },
   });
 
@@ -187,7 +227,8 @@ export function WYSIWYGEditor({
 
     // Only update when external markdown changes
     if (normalizedValue !== lastSyncedMarkdownRef.current) {
-      const newHtml = marked(normalizedValue) as string;
+      debouncedOnChange.flush();
+      const newHtml = sanitizeHtml(marked(normalizedValue) as string);
       editor.commands.setContent(newHtml, false);
       lastSyncedMarkdownRef.current = normalizedValue;
       return;
@@ -195,12 +236,13 @@ export function WYSIWYGEditor({
 
     // Keep ref aligned even if nothing changed
     lastSyncedMarkdownRef.current = normalizedValue;
-  }, [value, editor]);
+  }, [value, editor, debouncedOnChange]);
 
   // Cleanup editor on unmount
   useEffect(() => {
+    const currentEditor = editor;
     return () => {
-      editor?.destroy();
+      currentEditor?.destroy();
     };
   }, [editor]);
 
