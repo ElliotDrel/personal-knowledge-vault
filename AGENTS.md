@@ -432,13 +432,13 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 | Prompt changes deployed but not working | Check `ai_processing_logs.input_data->>'systemPrompt'` to verify new prompt is actually being sent. |
 | AI generating duplicate suggestions | Put anti-duplication rules FIRST with visual emphasis; use domain-specific examples; force sequential workflow (list covered → propose new → filter). |
 | Config files duplicated frontend+backend | Grep for imports (`rg "from.*filename"`) to verify both are used - delete if zero imports found. |
-| Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
 | Config out of sync / Edge Function outdated | Run `npm run check-sync:all` to identify mismatches; copy changes from frontend source to Edge Function; always use `npm run deploy:edge:short-form` to auto-validate before deployment. |
 | Deployment blocked by sync check | Sync validation scripts detected config mismatch - copy changes from source of truth (frontend) to Edge Function copy; see file warnings for exact sync instructions. |
 | AGENTS.md out of sync with CLAUDE.md | Run `npm run sync:agents` to update AGENTS.md from CLAUDE.md. Always run this after modifying CLAUDE.md before committing. |
 | GitHub Actions `npm ci` failing | Check if `package-lock.json` exists in repo. If missing, change workflow to use `npm install` instead of `npm ci`. |
 | New GitHub Actions workflow not running on PR | Expected behavior - workflows added in a PR cannot run until merged to main branch (GitHub security model). Merge PR first, future PRs will work. |
 | CI workflow timing out | Adjust timeout-minutes: validation jobs 5min, AI/Claude jobs 10min, complex builds 15-30min. Add `timeout-minutes` to job configuration. |
+| Comment selection stores markdown syntax | Capture TipTap's plain-text selection and slice `stripMarkdown(currentValue)` so offsets and `quotedText` use the same representation before calling `createComment`. |
 | Build passes but feature broken | For backend/Edge changes, verify in production logs/database - build only confirms code compiles. |
 | Edge Function changes not working | Deploy immediately after code changes: `npx supabase functions deploy <name>`. Don't wait for user to discover it's not deployed. `npm run build` does NOT deploy Edge Functions. |
 
@@ -470,8 +470,8 @@ Wrap each case in `{ }` to scope `const` declarations: `case 'video': { const me
 - Use domain-specific examples and force sequential reasoning in prompts; verify results in `ai_processing_logs` before calling a change "done."
 - Question duplication: grep for imports before keeping parallel configs or helpers, and delete dead code instead of letting it drift.
 - Validate external integrations against official docs and production logs instead of assuming a passing build means success.
-- **For Edge Functions: Deploy → Test → Verify pipeline is mandatory**. Never present "testing instructions" without deploying first. `npm run build` only builds frontend, not Edge Functions.
 - For duplicated configs between frontend and Edge Functions: use TypeScript AST parsing for semantic comparison (not fragile regex), normalize whitespace/comments, and block deployments with clear error messages showing exact source-of-truth files.
+- **For Edge Functions: Deploy → Test → Verify pipeline is mandatory**. Never present "testing instructions" without deploying first. `npm run build` only builds frontend, not Edge Functions.
 
 ### CI/CD & Infrastructure
 - Validate repository state before configuring workflows - check for package-lock.json, understand expected vs. actual setup.
