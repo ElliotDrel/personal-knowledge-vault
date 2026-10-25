@@ -169,6 +169,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 *   Use modern PostgreSQL functions: `gen_random_uuid()` instead of `uuid_generate_v4()`.
 *   Handle Unicode/emojis carefully in your application code when storing them in JSONB.
 *   Never delete old migration files.
+*   **CRITICAL: Save full baseline data for comparison, not truncated versions**. When saving baseline data (e.g., `original_quoted_text`) that will be used for staleness/change detection, save the FULL value, not a truncated preview. Truncation creates blind spots where changes after the truncation point are invisible to detection logic. The database column is TEXT (unlimited), so use it.
+*   **Validation scripts must be read-only**. Validation SQL files should NEVER contain `COMMENT ON`, `ALTER`, `INSERT`, `UPDATE`, or `DELETE` statements. They should only contain `SELECT` and `EXPLAIN` queries. Mutating statements permanently modify the database and defeat the purpose of validation.
 
 ### Post-Migration Validation (MANDATORY)
 
