@@ -44,7 +44,6 @@ export interface ProcessVideoRequest {
   url: string;
   options?: {
     includeTranscript?: boolean;  // Whether to attempt transcript extraction
-    forceRefresh?: boolean;       // Force reprocessing even if job exists
   };
 }
 
