@@ -1,0 +1,4 @@
+# Line endings: LF in the repo and on disk on every OS; Windows batch files need CRLF.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
